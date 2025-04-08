@@ -15,6 +15,7 @@ import Settings from './pages/Settings';
 import { useInactivityTimeout } from './hooks/useInactivityTimeout';
 import { TimeoutProvider } from './contexts/TimeoutContext';
 import { ThemeProvider, useThemeContext } from './contexts/ThemeContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 
 const lightTheme = createTheme({
   palette: {
@@ -110,7 +111,9 @@ function App() {
     <Router>
       <ThemeProvider>
         <TimeoutProvider>
-          <ThemeWrapper />
+          <LanguageProvider>
+            <ThemeWrapper />
+          </LanguageProvider>
         </TimeoutProvider>
       </ThemeProvider>
     </Router>

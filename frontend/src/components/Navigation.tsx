@@ -14,7 +14,9 @@ import {
   useTheme,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
+import LanguageIcon from '@mui/icons-material/Language';
 import { useCurrentTime } from '../hooks/useCurrentTime';
+import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 
 const pages = [
   { name: 'Home', path: '/' },
@@ -31,10 +33,12 @@ const pages = [
 
 function Navigation() {
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
+  const [anchorElLang, setAnchorElLang] = useState<null | HTMLElement>(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
   const currentTime = useCurrentTime();
+  const { currentLanguage, setLanguage, enabledLanguages, t } = useLanguage();
 
   const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElNav(event.currentTarget);
@@ -44,8 +48,21 @@ function Navigation() {
     setAnchorElNav(null);
   };
 
+  const handleOpenLangMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorElLang(event.currentTarget);
+  };
+
+  const handleCloseLangMenu = () => {
+    setAnchorElLang(null);
+  };
+
+  const handleLanguageChange = (language: typeof availableLanguages[0]) => {
+    setLanguage(language);
+    handleCloseLangMenu();
+  };
+
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('en-US', {
+    return date.toLocaleTimeString(currentLanguage.code, {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
@@ -54,7 +71,7 @@ function Navigation() {
   };
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString(currentLanguage.code, {
       weekday: 'short',
       month: 'short',
       day: 'numeric'
@@ -119,7 +136,7 @@ function Navigation() {
                     to={page.path}
                     selected={location.pathname === page.path}
                   >
-                    <Typography textAlign="center">{page.name}</Typography>
+                    <Typography textAlign="center">{t(page.name.toLowerCase().replace(' ', ''))}</Typography>
                   </MenuItem>
                 ))}
               </Menu>
@@ -161,7 +178,7 @@ function Navigation() {
                     },
                   }}
                 >
-                  {page.name}
+                  {t(page.name.toLowerCase().replace(' ', ''))}
                 </Button>
               ))}
             </Box>
@@ -169,17 +186,59 @@ function Navigation() {
 
           <Box sx={{ 
             display: 'flex', 
-            flexDirection: 'column', 
-            alignItems: 'flex-end',
-            color: 'white',
+            alignItems: 'center',
+            gap: 2,
             ml: 'auto'
           }}>
-            <Typography variant="body2">
-              {formatDate(currentTime)}
-            </Typography>
-            <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
-              {formatTime(currentTime)}
-            </Typography>
+            <Box sx={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              alignItems: 'flex-end',
+              color: 'white',
+            }}>
+              <Typography variant="body2">
+                {formatDate(currentTime)}
+              </Typography>
+              <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+                {formatTime(currentTime)}
+              </Typography>
+            </Box>
+
+            <IconButton
+              size="large"
+              aria-label="language"
+              aria-controls="language-menu"
+              aria-haspopup="true"
+              onClick={handleOpenLangMenu}
+              color="inherit"
+            >
+              <LanguageIcon />
+            </IconButton>
+            <Menu
+              id="language-menu"
+              anchorEl={anchorElLang}
+              anchorOrigin={{
+                vertical: 'bottom',
+                horizontal: 'right',
+              }}
+              keepMounted
+              transformOrigin={{
+                vertical: 'top',
+                horizontal: 'right',
+              }}
+              open={Boolean(anchorElLang)}
+              onClose={handleCloseLangMenu}
+            >
+              {enabledLanguages.map((language) => (
+                <MenuItem
+                  key={language.code}
+                  onClick={() => handleLanguageChange(language)}
+                  selected={currentLanguage.code === language.code}
+                >
+                  {language.nativeName}
+                </MenuItem>
+              ))}
+            </Menu>
           </Box>
         </Toolbar>
       </Container>
