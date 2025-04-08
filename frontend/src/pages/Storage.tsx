@@ -8,7 +8,7 @@ function Storage() {
           Storage
         </Typography>
         <Typography>
-          Storage management page content will go here.
+          Storage management content will go here.
         </Typography>
       </Box>
     </Container>

@@ -3,7 +3,6 @@ import {
   Box,
   Container,
   Typography,
-  Grid,
   Button,
   Paper,
 } from '@mui/material';
@@ -26,6 +25,13 @@ function Home() {
     console.log('Submitted PIN:', pin);
     setPin('');
   };
+
+  const numbers = [
+    [1, 2, 3],
+    [4, 5, 6],
+    [7, 8, 9],
+    [0]
+  ];
 
   return (
     <Container maxWidth="sm">
@@ -54,20 +60,38 @@ function Home() {
             </Typography>
           </Box>
 
-          <Grid container spacing={2} justifyContent="center">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 0].map((number) => (
-              <Grid item xs={4} key={number}>
-                <Button
-                  variant="contained"
-                  fullWidth
-                  onClick={() => handleNumberClick(number.toString())}
-                  sx={{ height: '60px', fontSize: '1.5rem' }}
-                >
-                  {number}
-                </Button>
-              </Grid>
+          <Box sx={{ maxWidth: 300, width: '100%' }}>
+            {numbers.map((row, rowIndex) => (
+              <Box 
+                key={rowIndex} 
+                sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'center',
+                  gap: 2,
+                  mb: rowIndex === numbers.length - 1 ? 0 : 2
+                }}
+              >
+                {row.map((number) => (
+                  <Button
+                    key={number}
+                    variant="contained"
+                    color="primary"
+                    onClick={() => handleNumberClick(number.toString())}
+                    sx={{ 
+                      height: '60px', 
+                      width: '60px',
+                      fontSize: '1.5rem',
+                      '&:hover': {
+                        backgroundColor: 'primary.dark',
+                      },
+                    }}
+                  >
+                    {number}
+                  </Button>
+                ))}
+              </Box>
             ))}
-          </Grid>
+          </Box>
 
           <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
             <Button

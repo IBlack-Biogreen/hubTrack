@@ -17,10 +17,25 @@ const theme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#1976d2',
+      main: '#7EAA92',
     },
     secondary: {
-      main: '#dc004e',
+      main: '#C8E4B2',
+    },
+    info: {
+      main: '#FFD9B7',
+    },
+    success: {
+      main: '#9ED2BE',
+    },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+        },
+      },
     },
   },
 });

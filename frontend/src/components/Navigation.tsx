@@ -42,7 +42,7 @@ function Navigation() {
   };
 
   return (
-    <AppBar position="static">
+    <AppBar position="static" color="primary">
       <Container maxWidth="xl">
         <Toolbar disableGutters>
           <Typography
@@ -130,7 +130,14 @@ function Navigation() {
                   component={RouterLink}
                   to={page.path}
                   onClick={handleCloseNavMenu}
-                  sx={{ my: 2, color: 'white', display: 'block' }}
+                  sx={{ 
+                    my: 2, 
+                    color: 'white', 
+                    display: 'block',
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                    },
+                  }}
                 >
                   {page.name}
                 </Button>
