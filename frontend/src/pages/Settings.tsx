@@ -21,11 +21,17 @@ import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import { useThemeContext } from '../contexts/ThemeContext';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
+import { useTimeout } from '../contexts/TimeoutContext';
 
 function Settings() {
   const { isDarkMode, toggleDarkMode } = useThemeContext();
   const { enabledLanguages, addEnabledLanguage, removeEnabledLanguage, t } = useLanguage();
+  const { timeout, setTimeout } = useTimeout();
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
+
+  const handleTimeoutChange = (event: Event, newValue: number | number[]) => {
+    setTimeout(newValue as number);
+  };
 
   const handleAddLanguage = () => {
     if (selectedLanguage) {
@@ -58,6 +64,34 @@ function Settings() {
             }
             label={t('darkMode')}
           />
+        </Box>
+
+        <Divider sx={{ my: 4 }} />
+
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            Inactivity Timeout
+          </Typography>
+          <Box sx={{ mt: 2, maxWidth: 400 }}>
+            <Typography gutterBottom>
+              {timeout / 1000} seconds
+            </Typography>
+            <Slider
+              value={timeout}
+              onChange={handleTimeoutChange}
+              min={5000}
+              max={60000}
+              step={5000}
+              marks={[
+                { value: 5000, label: '5s' },
+                { value: 10000, label: '10s' },
+                { value: 30000, label: '30s' },
+                { value: 60000, label: '60s' },
+              ]}
+              valueLabelDisplay="auto"
+              valueLabelFormat={(value) => `${value / 1000}s`}
+            />
+          </Box>
         </Box>
 
         <Divider sx={{ my: 4 }} />
