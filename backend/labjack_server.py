@@ -13,12 +13,13 @@ def initialize_labjack():
     global labjack_device
     try:
         print("Attempting to initialize LabJack device...")
+        # Open the U3-HV device
         labjack_device = u3.U3()
         print("LabJack device opened successfully")
         print(f"Serial Number: {labjack_device.configU3()['SerialNumber']}")
         
-        # Configure AIN1
-        labjack_device.configIO(FIOAnalog=0x02)
+        # Configure AIN1 for analog input
+        labjack_device.configIO(FIOAnalog=0x02)  # Set FIO1 to analog
         print("AIN1 configured for analog input")
         
     except Exception as e:
@@ -32,7 +33,7 @@ def read_voltage():
         return 2.5  # Mock value when device is not available
     
     try:
-        # Read AIN1
+        # Read AIN1 (FIO1)
         voltage = labjack_device.getAIN(1)
         print(f"Raw voltage reading: {voltage}")
         return voltage
