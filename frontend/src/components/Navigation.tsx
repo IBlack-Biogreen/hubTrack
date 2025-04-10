@@ -28,6 +28,7 @@ const pages = [
   { name: 'Stats', path: '/stats' },
   { name: 'Materials', path: '/materials' },
   { name: 'Training', path: '/training' },
+  { name: 'Setup', path: '/setup' },
   { name: 'Settings', path: '/settings' },
 ];
 
@@ -136,7 +137,9 @@ function Navigation() {
                     to={page.path}
                     selected={location.pathname === page.path}
                   >
-                    <Typography textAlign="center">{t(page.name.toLowerCase().replace(' ', ''))}</Typography>
+                    <Typography textAlign="center">
+                      {t(page.name.toLowerCase().replace(' ', '')) || page.name}
+                    </Typography>
                   </MenuItem>
                 ))}
               </Menu>
@@ -178,7 +181,7 @@ function Navigation() {
                     },
                   }}
                 >
-                  {t(page.name.toLowerCase().replace(' ', ''))}
+                  {t(page.name.toLowerCase().replace(' ', '')) || page.name}
                 </Button>
               ))}
             </Box>

@@ -82,6 +82,20 @@ const translations: Translations = {
     en: 'Remove Language',
     es: 'Eliminar Idioma',
   },
+  en: {
+    home: 'Home',
+    storage: 'Storage',
+    feedviewer: 'Feed Viewer',
+    covers: 'Covers',
+    events: 'Events',
+    audits: 'Audits',
+    stats: 'Stats',
+    materials: 'Materials',
+    training: 'Training',
+    setup: 'Setup',
+    settings: 'Settings',
+    darkMode: 'Dark Mode',
+  },
 };
 
 interface LanguageContextType {

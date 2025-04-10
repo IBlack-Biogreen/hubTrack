@@ -1,0 +1,3 @@
+onlyBuiltDependencies:
+  - ffi
+  - ref

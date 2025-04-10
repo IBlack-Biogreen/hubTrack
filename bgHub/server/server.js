@@ -1,5 +1,6 @@
 const express = require('express');
 const { connectDB, getConnectionStatus } = require('./config/db');
+const { readAIN1 } = require('./labjack');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -20,6 +21,17 @@ app.get('/api/status', (req, res) => {
       online: status.isOnline
     }
   });
+});
+
+// Route to read AIN1 from LabJack
+app.get('/api/labjack/ain1', async (req, res) => {
+  try {
+    const result = await readAIN1();
+    res.json(result);
+  } catch (err) {
+    console.error('Error reading AIN1:', err);
+    res.status(500).json({ error: 'Failed to read AIN1' });
+  }
 });
 
 app.listen(PORT, () => {

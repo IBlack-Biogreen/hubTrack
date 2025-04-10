@@ -11,6 +11,7 @@ import Audits from './pages/Audits';
 import Stats from './pages/Stats';
 import Materials from './pages/Materials';
 import Training from './pages/Training';
+import Setup from './pages/Setup';
 import Settings from './pages/Settings';
 import { useInactivityTimeout } from './hooks/useInactivityTimeout';
 import { TimeoutProvider } from './contexts/TimeoutContext';
@@ -90,6 +91,7 @@ function AppContent() {
         <Route path="/stats" element={<Stats />} />
         <Route path="/materials" element={<Materials />} />
         <Route path="/training" element={<Training />} />
+        <Route path="/setup" element={<Setup />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>
     </>

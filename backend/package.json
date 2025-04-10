@@ -1,0 +1,15 @@
+{
+  "name": "hubtrack-backend",
+  "version": "1.0.0",
+  "description": "Backend for HubTrack application",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "cors": "^2.8.5",
+    "labjack-nodejs": "^1.0.0"
+  }
+}
