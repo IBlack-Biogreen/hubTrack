@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Box,
   Container,
@@ -14,6 +14,7 @@ import type { GridProps } from '@mui/material';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Chart, registerables } from 'chart.js';
 import 'chartjs-adapter-date-fns';
+import Webcam from 'react-webcam';
 
 // Register Chart.js components
 Chart.register(...registerables);
@@ -25,9 +26,19 @@ export default function Setup() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [scaleFactor, setScaleFactor] = useState(24.5);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<Chart | null>(null);
+  const webcamRef = useRef<Webcam>(null);
   const { t } = useLanguage();
+  const [cameraError, setCameraError] = useState<string | null>(null);
+
+  const capture = useCallback(() => {
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (imageSrc) {
+      setCapturedImage(imageSrc);
+    }
+  }, [webcamRef]);
 
   useEffect(() => {
     const fetchConfig = async () => {
@@ -58,7 +69,8 @@ export default function Setup() {
         setWeight(data.weight);
         setError(null);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to fetch reading');
+        console.error('Error fetching reading:', err);
+        setError('Failed to connect to load cell server. Please ensure the server is running.');
       } finally {
         setLoading(false);
       }
@@ -74,6 +86,7 @@ export default function Setup() {
         setHistory(data);
       } catch (err) {
         console.error('Error fetching history:', err);
+        // Don't set error state for history as it's not critical
       }
     };
 
@@ -186,6 +199,16 @@ export default function Setup() {
     }
   };
 
+  const handleCameraError = (error: string | DOMException) => {
+    console.error('Camera error:', error);
+    setCameraError('Failed to access camera. Please check your camera permissions and connection.');
+  };
+
+  const handleCameraLoad = () => {
+    console.log('Camera loaded successfully');
+    setCameraError(null);
+  };
+
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
@@ -200,14 +223,11 @@ export default function Setup() {
             mt: 4,
           }}
         >
+          <Typography variant="h6" gutterBottom>
+            Load Cell Configuration
+          </Typography>
           <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <Typography variant="h6" gutterBottom>
-                Load Cell Configuration
-              </Typography>
-            </Grid>
-            
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <TextField
                 label="Scale Factor (lbs/volt)"
                 type="number"
@@ -219,8 +239,7 @@ export default function Setup() {
                 }}
               />
             </Grid>
-            
-            <Grid item xs={12} sm={6}>
+            <Grid xs={12} sm={6}>
               <Button
                 variant="contained"
                 onClick={handleTare}
@@ -256,12 +275,12 @@ export default function Setup() {
           ) : (
             <Box sx={{ mt: 2, textAlign: 'center' }}>
               <Grid container spacing={2} justifyContent="center">
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Typography variant="h3" component="div" color="primary">
                     {reading?.toFixed(3)} V
                   </Typography>
                 </Grid>
-                <Grid item xs={6}>
+                <Grid xs={6}>
                   <Typography variant="h3" component="div" color="secondary">
                     {weight?.toFixed(2)} lbs
                   </Typography>
@@ -283,6 +302,64 @@ export default function Setup() {
           }}
         >
           <canvas ref={chartRef} />
+        </Paper>
+
+        <Paper
+          elevation={3}
+          sx={{
+            p: 3,
+            mt: 4,
+          }}
+        >
+          <Typography variant="h6" gutterBottom>
+            Camera
+          </Typography>
+          {cameraError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {cameraError}
+            </Alert>
+          )}
+          <Box sx={{ width: '100%', height: '600px', position: 'relative' }}>
+            <Webcam
+              audio={false}
+              ref={webcamRef}
+              screenshotFormat="image/jpeg"
+              videoConstraints={{
+                deviceId: undefined, // This will use the first available camera (USB webcam)
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+              }}
+              onUserMedia={handleCameraLoad}
+              onUserMediaError={handleCameraError}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+              }}
+            />
+          </Box>
+          <Button
+            variant="contained"
+            onClick={capture}
+            fullWidth
+            sx={{ mt: 2 }}
+            disabled={!!cameraError}
+          >
+            Capture Photo
+          </Button>
+          {capturedImage && (
+            <Box sx={{ width: '100%', height: '600px', position: 'relative', mt: 2 }}>
+              <img
+                src={capturedImage}
+                alt="Captured"
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover',
+                }}
+              />
+            </Box>
+          )}
         </Paper>
       </Box>
     </Container>

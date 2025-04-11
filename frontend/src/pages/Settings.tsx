@@ -22,15 +22,20 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { useThemeContext } from '../contexts/ThemeContext';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 import { useTimeout } from '../contexts/TimeoutContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { useHeadlessUI } from '../contexts/HeadlessUIContext';
 
 function Settings() {
   const { isDarkMode, toggleDarkMode } = useThemeContext();
   const { enabledLanguages, addEnabledLanguage, removeEnabledLanguage, t } = useLanguage();
-  const { timeout, setTimeout } = useTimeout();
+  const { timeout, setTimeout, isEnabled, setIsEnabled } = useTimeout();
+  const { theme, setTheme } = useTheme();
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
+  const [timeoutValue, setTimeoutValue] = useState(timeout / 1000); // Convert to seconds for display
 
-  const handleTimeoutChange = (event: Event, newValue: number | number[]) => {
-    setTimeout(newValue as number);
+  const handleTimeoutChange = (value: number) => {
+    setTimeoutValue(value);
+    setTimeout(value * 1000); // Convert back to milliseconds
   };
 
   const handleAddLanguage = () => {
@@ -76,20 +81,31 @@ function Settings() {
             <Typography gutterBottom>
               {timeout / 1000} seconds
             </Typography>
-            <Slider
-              value={timeout}
-              onChange={handleTimeoutChange}
-              min={5000}
-              max={60000}
-              step={5000}
-              marks={[
-                { value: 5000, label: '5s' },
-                { value: 10000, label: '10s' },
-                { value: 30000, label: '30s' },
-                { value: 60000, label: '60s' },
-              ]}
-              valueLabelDisplay="auto"
-              valueLabelFormat={(value) => `${value / 1000}s`}
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-gray-700 dark:text-gray-300">Enable Inactivity Timeout</span>
+              <Switch
+                checked={isEnabled}
+                onChange={setIsEnabled}
+                className={`${
+                  isEnabled ? 'bg-blue-600' : 'bg-gray-200'
+                } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
+              >
+                <span
+                  className={`${
+                    isEnabled ? 'translate-x-6' : 'translate-x-1'
+                  } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
+                />
+              </Switch>
+            </div>
+            <input
+              type="number"
+              id="timeout"
+              min="1"
+              max="3600"
+              value={timeoutValue}
+              onChange={(e) => handleTimeoutChange(Number(e.target.value))}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
+              disabled={!isEnabled}
             />
           </Box>
         </Box>
@@ -153,6 +169,29 @@ function Settings() {
               <AddIcon />
             </IconButton>
           </Box>
+        </Box>
+
+        <Divider sx={{ my: 4 }} />
+
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            Theme
+          </Typography>
+          <div className="space-y-2">
+            <label htmlFor="theme" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Select Theme
+            </label>
+            <select
+              id="theme"
+              value={theme}
+              onChange={(e) => setTheme(e.target.value)}
+              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
+            >
+              <option value="light">Light</option>
+              <option value="dark">Dark</option>
+              <option value="system">System</option>
+            </select>
+          </div>
         </Box>
       </Box>
     </Container>

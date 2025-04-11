@@ -4,9 +4,11 @@ import { useTimeout } from '../contexts/TimeoutContext';
 
 export function useInactivityTimeout() {
   const navigate = useNavigate();
-  const { timeout } = useTimeout();
+  const { timeout, isEnabled } = useTimeout();
 
   useEffect(() => {
+    if (!isEnabled) return; // Don't set up timeout if disabled
+
     let timer: ReturnType<typeof setTimeout>;
 
     const resetTimer = () => {
@@ -32,5 +34,5 @@ export function useInactivityTimeout() {
         document.removeEventListener(event, resetTimer);
       });
     };
-  }, [navigate, timeout]);
+  }, [navigate, timeout, isEnabled]);
 } 
