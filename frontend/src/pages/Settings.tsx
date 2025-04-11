@@ -3,14 +3,12 @@ import {
   Box,
   Container,
   Typography,
-  Slider,
   FormControlLabel,
   Switch,
   Divider,
   List,
   ListItem,
   ListItemText,
-  ListItemSecondaryAction,
   IconButton,
   Select,
   MenuItem,
@@ -22,20 +20,23 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { useThemeContext } from '../contexts/ThemeContext';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 import { useTimeout } from '../contexts/TimeoutContext';
-import { useTheme } from '../contexts/ThemeContext';
-import { useHeadlessUI } from '../contexts/HeadlessUIContext';
+
 
 function Settings() {
   const { isDarkMode, toggleDarkMode } = useThemeContext();
   const { enabledLanguages, addEnabledLanguage, removeEnabledLanguage, t } = useLanguage();
   const { timeout, setTimeout, isEnabled, setIsEnabled } = useTimeout();
-  const { theme, setTheme } = useTheme();
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
-  const [timeoutValue, setTimeoutValue] = useState(timeout / 1000); // Convert to seconds for display
+  const [timeoutValue, setTimeoutValue] = useState(Math.max(30, timeout / 1000)); // Ensure minimum 30s
 
   const handleTimeoutChange = (value: number) => {
-    setTimeoutValue(value);
-    setTimeout(value * 1000); // Convert back to milliseconds
+    if (value < 30) {
+      setTimeoutValue(30);
+      setTimeout(30 * 1000);
+    } else {
+      setTimeoutValue(value);
+      setTimeout(value * 1000);
+    }
   };
 
   const handleAddLanguage = () => {
@@ -85,22 +86,16 @@ function Settings() {
               <span className="text-gray-700 dark:text-gray-300">Enable Inactivity Timeout</span>
               <Switch
                 checked={isEnabled}
-                onChange={setIsEnabled}
+                onChange={(_, checked) => setIsEnabled(checked)}
                 className={`${
                   isEnabled ? 'bg-blue-600' : 'bg-gray-200'
                 } relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2`}
-              >
-                <span
-                  className={`${
-                    isEnabled ? 'translate-x-6' : 'translate-x-1'
-                  } inline-block h-4 w-4 transform rounded-full bg-white transition-transform`}
-                />
-              </Switch>
+              />
             </div>
             <input
               type="number"
               id="timeout"
-              min="1"
+              min="30"
               max="3600"
               value={timeoutValue}
               onChange={(e) => handleTimeoutChange(Number(e.target.value))}
@@ -128,7 +123,7 @@ function Settings() {
                     primary={language.nativeName}
                     secondary={language.name}
                   />
-                  <ListItemSecondaryAction>
+                  <Box sx={{ ml: 'auto' }}>
                     {language.code !== 'en' && (
                       <IconButton
                         edge="end"
@@ -138,7 +133,7 @@ function Settings() {
                         <DeleteIcon />
                       </IconButton>
                     )}
-                  </ListItemSecondaryAction>
+                  </Box>
                 </ListItem>
               ))}
             </List>
@@ -183,13 +178,12 @@ function Settings() {
             </label>
             <select
               id="theme"
-              value={theme}
-              onChange={(e) => setTheme(e.target.value)}
+              value={isDarkMode ? 'dark' : 'light'}
+              onChange={() => toggleDarkMode()}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
             >
               <option value="light">Light</option>
               <option value="dark">Dark</option>
-              <option value="system">System</option>
             </select>
           </div>
         </Box>

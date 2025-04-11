@@ -8,9 +8,8 @@ import {
   Alert,
   Button,
   TextField,
-  Grid,
+  Grid as Grid2,
 } from '@mui/material';
-import type { GridProps } from '@mui/material';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Chart, registerables } from 'chart.js';
 import 'chartjs-adapter-date-fns';
@@ -226,30 +225,26 @@ export default function Setup() {
           <Typography variant="h6" gutterBottom>
             Load Cell Configuration
           </Typography>
-          <Grid container spacing={3}>
-            <Grid xs={12} sm={6}>
+          <Grid2 container spacing={3}>
+            <Grid2 xs={12} sm={6}>
               <TextField
                 label="Scale Factor (lbs/volt)"
                 type="number"
                 value={scaleFactor}
                 onChange={handleScaleChange}
                 fullWidth
-                inputProps={{
-                  step: 0.1,
-                }}
               />
-            </Grid>
-            <Grid xs={12} sm={6}>
+            </Grid2>
+            <Grid2 xs={12} sm={6}>
               <Button
                 variant="contained"
                 onClick={handleTare}
                 fullWidth
-                sx={{ height: '56px' }}
               >
                 Tare
               </Button>
-            </Grid>
-          </Grid>
+            </Grid2>
+          </Grid2>
         </Paper>
 
         <Paper
@@ -274,18 +269,18 @@ export default function Setup() {
             </Alert>
           ) : (
             <Box sx={{ mt: 2, textAlign: 'center' }}>
-              <Grid container spacing={2} justifyContent="center">
-                <Grid xs={6}>
+              <Grid2 container spacing={2} justifyContent="center">
+                <Grid2 xs={6}>
                   <Typography variant="h3" component="div" color="primary">
                     {reading?.toFixed(3)} V
                   </Typography>
-                </Grid>
-                <Grid xs={6}>
+                </Grid2>
+                <Grid2 xs={6}>
                   <Typography variant="h3" component="div" color="secondary">
                     {weight?.toFixed(2)} lbs
                   </Typography>
-                </Grid>
-              </Grid>
+                </Grid2>
+              </Grid2>
               <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                 Last updated: {new Date().toLocaleTimeString()}
               </Typography>
