@@ -64,6 +64,7 @@ export default function Setup() {
           throw new Error('Failed to fetch reading');
         }
         const data = await response.json();
+        console.log('Received reading:', data);  // Debug log
         setReading(data.voltage);
         setWeight(data.weight);
         setError(null);

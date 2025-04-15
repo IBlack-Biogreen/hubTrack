@@ -5,6 +5,7 @@ import time
 import threading
 from datetime import datetime, timedelta
 from collections import deque
+import logging
 
 app = Flask(__name__, template_folder='templates')
 CORS(app)
@@ -25,15 +26,25 @@ scale_factor = 24.5  # lbs per volt
 def initialize_labjack():
     global labjack_device
     try:
-        print("Attempting to initialize LabJack device...")
+        # print("Attempting to initialize LabJack device...")
         # Open the U3-HV device
         labjack_device = u3.U3()
-        print("LabJack device opened successfully")
-        print(f"Serial Number: {labjack_device.configU3()['SerialNumber']}")
+        # print("LabJack device opened successfully")
+        config = labjack_device.configU3()
+        # print(f"Serial Number: {config['SerialNumber']}")
+        # print(f"Firmware Version: {config['FirmwareVersion']}")
         
         # Configure AIN1 for analog input
         labjack_device.configIO(FIOAnalog=0x02)  # Set FIO1 to analog
-        print("AIN1 configured for analog input")
+        # print("AIN1 configured for analog input")
+        
+        # Configure AIN1 for single-ended input with gain of 1
+        labjack_device.getCalibrationData()
+        # print("Calibration data loaded")
+        
+        # Print initial reading for debugging
+        initial_reading = labjack_device.getAIN(1)
+        # print(f"Initial AIN1 reading: {initial_reading}V")
         
     except Exception as e:
         print(f"Error connecting to LabJack: {str(e)}")
@@ -42,12 +53,13 @@ def initialize_labjack():
 
 def read_voltage():
     if labjack_device is None:
-        print("LabJack device not initialized, returning mock value")
+        # print("LabJack device not initialized, returning mock value")
         return 2.5  # Mock value when device is not available
     
     try:
         # Read AIN1 (FIO1)
         voltage = labjack_device.getAIN(1)
+        # print(f"Raw voltage reading: {voltage}V")  # Debug print
         return voltage
     except Exception as e:
         print(f"Error reading voltage: {str(e)}")
@@ -66,19 +78,25 @@ def calculate_second_average():
         current_second_readings = []
 
 def continuous_reading():
-    global current_second_readings
+    global current_second_readings, last_second_average, last_average_time
     last_second = datetime.now().second
     
     while not stop_thread:
         current_time = datetime.now()
         voltage = read_voltage()
         
+        # Update last_second_average immediately
+        last_second_average = voltage
+        last_average_time = current_time
+        
+        # Add the reading to the current second's buffer
+        current_second_readings.append(voltage)
+        
         # Check if we've moved to a new second
         if current_time.second != last_second:
             calculate_second_average()
             last_second = current_time.second
         
-        current_second_readings.append(voltage)
         time.sleep(reading_interval)
 
 @app.route('/')
@@ -88,11 +106,13 @@ def index():
 @app.route('/api/labjack/ain1', methods=['GET'])
 def get_voltage():
     weight = get_weight(last_second_average)
-    return jsonify({
+    response = {
         'voltage': last_second_average,
         'weight': weight,
         'timestamp': last_average_time.isoformat() if last_average_time else None
-    })
+    }
+    # print(f"Sending response: {response}")  # Debug print
+    return jsonify(response)
 
 @app.route('/api/labjack/history', methods=['GET'])
 def get_history():
@@ -122,12 +142,19 @@ def set_scale():
 
 @app.route('/api/labjack/config', methods=['GET'])
 def get_config():
-    return jsonify({
+    response = {
         'tare_voltage': tare_voltage,
         'scale_factor': scale_factor
-    })
+    }
+    # print(f"Sending config: {response}")  # Debug print
+    return jsonify(response)
 
 if __name__ == '__main__':
+    # Set Flask's logging level to ERROR only
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+    
+    print("Initializing LabJack...")
     initialize_labjack()
     
     # Start the background reading thread
@@ -136,8 +163,10 @@ if __name__ == '__main__':
     reading_thread.start()
     
     try:
+        print("Server running on http://localhost:5000")
         app.run(port=5000)
     except KeyboardInterrupt:
+        print("\nShutting down server...")
         stop_thread = True
         reading_thread.join()
         if labjack_device:
