@@ -1,5 +1,8 @@
 const express = require('express');
 const cors = require('cors');
+const dbManager = require('./db/connection');
+const DataModel = require('./models/DataModel');
+
 let ljm;
 try {
     ljm = require('labjack-nodejs');
@@ -13,9 +16,15 @@ const port = 5000;
 
 // Enable CORS for all routes
 app.use(cors());
+app.use(express.json());
 
 // Initialize LabJack
 let device = null;
+
+// Initialize database connection
+dbManager.connect().catch(error => {
+    console.error('Failed to connect to database:', error);
+});
 
 async function initializeLabJack() {
     try {
@@ -63,12 +72,26 @@ app.get('/api/labjack/ain1', async (req, res) => {
         if (!ljm || !device) {
             // Mock response when LabJack is not available
             const mockValue = Math.random() * 5; // Random voltage between 0-5V
-            res.json({ 
+            const data = {
                 voltage: mockValue,
                 timestamp: new Date().toISOString(),
                 mock: true,
                 message: 'LabJack not available - returning mock data'
-            });
+            };
+            
+            // Store the data if database is connected
+            if (dbManager.isConnectedToDatabase()) {
+                await DataModel.create({
+                    value: mockValue,
+                    source: 'manual',
+                    metadata: {
+                        mock: true,
+                        message: 'LabJack not available'
+                    }
+                });
+            }
+            
+            res.json(data);
             return;
         }
 
@@ -80,13 +103,7 @@ app.get('/api/labjack/ain1', async (req, res) => {
         const range = await device.eReadName('AIN1_RANGE');
         const resolution = await device.eReadName('AIN1_RESOLUTION_INDEX');
         
-        console.log('AIN1 Reading Details:');
-        console.log(`- Raw reading: ${result}`);
-        console.log(`- Negative channel: ${negativeChannel}`);
-        console.log(`- Range: ${range}V`);
-        console.log(`- Resolution index: ${resolution}`);
-
-        res.json({ 
+        const data = {
             voltage: result,
             timestamp: new Date().toISOString(),
             mock: false,
@@ -95,7 +112,22 @@ app.get('/api/labjack/ain1', async (req, res) => {
                 range,
                 resolution
             }
-        });
+        };
+
+        // Store the data if database is connected
+        if (dbManager.isConnectedToDatabase()) {
+            await DataModel.create({
+                value: result,
+                source: 'labjack',
+                metadata: {
+                    negativeChannel,
+                    range,
+                    resolution
+                }
+            });
+        }
+
+        res.json(data);
     } catch (error) {
         console.error('Error reading AIN1:', error);
         res.status(500).json({ 
@@ -105,11 +137,47 @@ app.get('/api/labjack/ain1', async (req, res) => {
     }
 });
 
+// New endpoint to get historical data
+app.get('/api/data', async (req, res) => {
+    try {
+        if (!dbManager.isConnectedToDatabase()) {
+            return res.status(503).json({
+                error: 'Database not available',
+                message: 'The database is currently not connected'
+            });
+        }
+
+        const { start, end, source } = req.query;
+        const query = {};
+
+        if (start && end) {
+            query.timestamp = {
+                $gte: new Date(start),
+                $lte: new Date(end)
+            };
+        }
+
+        if (source) {
+            query.source = source;
+        }
+
+        const data = await DataModel.find(query)
+            .sort({ timestamp: -1 })
+            .limit(1000);
+
+        res.json(data);
+    } catch (error) {
+        console.error('Error fetching data:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
 // Clean up on server shutdown
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
     if (device) {
         device.close();
     }
+    await dbManager.disconnect();
     process.exit();
 });
 
