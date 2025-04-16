@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Box,
   Container,
@@ -14,6 +14,8 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -21,6 +23,14 @@ import { useThemeContext } from '../contexts/ThemeContext';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 import { useTimeout } from '../contexts/TimeoutContext';
 
+interface DeviceLabel {
+    _id: string;
+    deviceLabel: string;
+    deviceType: string;
+    status: string;
+    feedOrgID: string[];
+    lastUpdated: string;
+}
 
 function Settings() {
   const { isDarkMode, toggleDarkMode } = useThemeContext();
@@ -28,6 +38,10 @@ function Settings() {
   const { timeout, setTimeout, isEnabled, setIsEnabled } = useTimeout();
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [timeoutValue, setTimeoutValue] = useState(Math.max(30, timeout / 1000)); // Ensure minimum 30s
+  const [deviceLabels, setDeviceLabels] = useState<DeviceLabel[]>([]);
+  const [currentDeviceLabel, setCurrentDeviceLabel] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleTimeoutChange = (value: number) => {
     if (value < 30) {
@@ -46,6 +60,72 @@ function Settings() {
         addEnabledLanguage(language);
         setSelectedLanguage('');
       }
+    }
+  };
+
+  useEffect(() => {
+    const fetchDeviceLabels = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+            console.log('Fetching device labels...');
+            const labelsResponse = await fetch('http://localhost:5000/api/device-labels');
+            
+            if (!labelsResponse.ok) {
+                const errorText = await labelsResponse.text();
+                console.error('Failed to fetch device labels:', {
+                    status: labelsResponse.status,
+                    statusText: labelsResponse.statusText,
+                    response: errorText
+                });
+                throw new Error(`Failed to fetch device labels: ${labelsResponse.status} ${labelsResponse.statusText}`);
+            }
+            
+            const labels = await labelsResponse.json();
+            console.log('Fetched device labels:', labels);
+            
+            // Fetch current device label
+            const currentResponse = await fetch('http://localhost:5000/api/device-labels/current');
+            const current = await currentResponse.json();
+            console.log('Current device label:', current);
+            
+            setDeviceLabels(labels);
+            if (current && current.deviceLabel) {
+                setCurrentDeviceLabel(current.deviceLabel);
+            }
+        } catch (error) {
+            console.error('Error fetching device labels:', error);
+            setError(error instanceof Error ? error.message : 'Failed to fetch device labels');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    fetchDeviceLabels();
+  }, []);
+
+  const handleDeviceLabelChange = async (label: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/device-labels/current', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ deviceLabel: label }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to set device label: ${response.statusText}`);
+      }
+
+      setCurrentDeviceLabel(label);
+    } catch (error) {
+      console.error('Error setting device label:', error);
+      setError(error instanceof Error ? error.message : 'Failed to set device label');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -170,22 +250,46 @@ function Settings() {
 
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" gutterBottom>
-            Theme
+            Device Label
           </Typography>
-          <div className="space-y-2">
-            <label htmlFor="theme" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Select Theme
-            </label>
-            <select
-              id="theme"
-              value={isDarkMode ? 'dark' : 'light'}
-              onChange={() => toggleDarkMode()}
-              className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white sm:text-sm"
+          
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+          
+          <FormControl fullWidth>
+            <InputLabel id="device-label-select-label">Select Device Label</InputLabel>
+            <Select
+              labelId="device-label-select-label"
+              value={currentDeviceLabel}
+              label="Select Device Label"
+              onChange={(e) => handleDeviceLabelChange(e.target.value)}
+              disabled={loading}
             >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-          </div>
+              <MenuItem value="">
+                <em>None</em>
+              </MenuItem>
+              {deviceLabels.map((label) => (
+                <MenuItem key={label._id} value={label.deviceLabel}>
+                  {label.deviceLabel}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          
+          {loading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          )}
+          
+          {currentDeviceLabel && (
+            <Typography variant="body1" sx={{ mt: 2 }}>
+              Current device label: {currentDeviceLabel}
+            </Typography>
+          )}
         </Box>
       </Box>
     </Container>

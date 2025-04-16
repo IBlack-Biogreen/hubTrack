@@ -42,7 +42,7 @@ export default function Setup() {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/labjack/config');
+        const response = await fetch('http://localhost:5001/api/labjack/config');
         if (!response.ok) {
           throw new Error('Failed to fetch config');
         }
@@ -59,7 +59,7 @@ export default function Setup() {
   useEffect(() => {
     const fetchReading = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/labjack/ain1');
+        const response = await fetch('http://localhost:5001/api/labjack/ain1');
         if (!response.ok) {
           throw new Error('Failed to fetch reading');
         }
@@ -78,7 +78,7 @@ export default function Setup() {
 
     const fetchHistory = async () => {
       try {
-        const response = await fetch('http://localhost:5000/api/labjack/history');
+        const response = await fetch('http://localhost:5001/api/labjack/history');
         if (!response.ok) {
           throw new Error('Failed to fetch history');
         }

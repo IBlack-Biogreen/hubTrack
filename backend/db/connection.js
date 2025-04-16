@@ -10,26 +10,28 @@ class DatabaseManager {
 
     async connect() {
         try {
-            // Try connecting to MongoDB Atlas first
+            // Try local MongoDB first
+            const localUri = 'mongodb://localhost:27017/hubtrack';
+            this.connection = await mongoose.connect(localUri);
+            this.isConnected = true;
+            this.isLocal = true;
+            console.log('Connected to local MongoDB');
+            return;
+        } catch (error) {
+            console.log('Could not connect to local MongoDB, trying Atlas...');
+        }
+
+        try {
+            // Fallback to MongoDB Atlas
             const atlasUri = process.env.MONGODB_ATLAS_URI;
             if (atlasUri) {
                 this.connection = await mongoose.connect(atlasUri);
                 this.isConnected = true;
                 this.isLocal = false;
                 console.log('Connected to MongoDB Atlas');
-                return;
+            } else {
+                throw new Error('No MongoDB Atlas URI provided');
             }
-        } catch (error) {
-            console.log('Could not connect to MongoDB Atlas, trying local connection...');
-        }
-
-        try {
-            // Fallback to local MongoDB
-            const localUri = 'mongodb://localhost:27017/hubtrack';
-            this.connection = await mongoose.connect(localUri);
-            this.isConnected = true;
-            this.isLocal = true;
-            console.log('Connected to local MongoDB');
         } catch (error) {
             console.error('Could not connect to any MongoDB instance:', error);
             this.isConnected = false;
@@ -50,6 +52,13 @@ class DatabaseManager {
 
     isConnectedToDatabase() {
         return this.isConnected;
+    }
+
+    getDb() {
+        if (!this.connection) {
+            throw new Error('Database not connected');
+        }
+        return this.connection.connection.db;
     }
 }
 
