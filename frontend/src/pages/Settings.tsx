@@ -23,6 +23,13 @@ import { useThemeContext } from '../contexts/ThemeContext';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 import { useTimeout } from '../contexts/TimeoutContext';
 
+interface Cart {
+    _id: string;
+    serialNumber: string;
+    machserial: number;
+    currentDeviceLabelID?: string;
+}
+
 interface DeviceLabel {
     _id: string;
     deviceLabel: string;
@@ -30,6 +37,7 @@ interface DeviceLabel {
     status: string;
     feedOrgID: string[];
     lastUpdated: string;
+    settings?: any;
 }
 
 function Settings() {
@@ -39,7 +47,7 @@ function Settings() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [timeoutValue, setTimeoutValue] = useState(Math.max(30, timeout / 1000)); // Ensure minimum 30s
   const [deviceLabels, setDeviceLabels] = useState<DeviceLabel[]>([]);
-  const [currentDeviceLabel, setCurrentDeviceLabel] = useState<string>('');
+  const [selectedCart, setSelectedCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,70 +72,48 @@ function Settings() {
   };
 
   useEffect(() => {
-    const fetchDeviceLabels = async () => {
+    const fetchData = async () => {
         setLoading(true);
         setError(null);
         try {
-            console.log('Fetching device labels...');
+            // Get the selected cart from localStorage
+            const savedCartSerial = localStorage.getItem('selectedCart');
+            if (!savedCartSerial) {
+                console.log('No cart selected');
+                return;
+            }
+
+            // Fetch carts to get the selected cart's details
+            const cartsResponse = await fetch('http://localhost:5000/api/carts/serial-numbers');
+            if (!cartsResponse.ok) {
+                throw new Error('Failed to fetch carts');
+            }
+            const carts = await cartsResponse.json();
+            const currentCart = carts.find((cart: Cart) => cart.serialNumber === savedCartSerial);
+            setSelectedCart(currentCart || null);
+
+            // Fetch device labels
             const labelsResponse = await fetch('http://localhost:5000/api/device-labels');
-            
             if (!labelsResponse.ok) {
-                const errorText = await labelsResponse.text();
-                console.error('Failed to fetch device labels:', {
-                    status: labelsResponse.status,
-                    statusText: labelsResponse.statusText,
-                    response: errorText
-                });
-                throw new Error(`Failed to fetch device labels: ${labelsResponse.status} ${labelsResponse.statusText}`);
+                throw new Error('Failed to fetch device labels');
             }
-            
             const labels = await labelsResponse.json();
-            console.log('Fetched device labels:', labels);
-            
-            // Fetch current device label
-            const currentResponse = await fetch('http://localhost:5000/api/device-labels/current');
-            const current = await currentResponse.json();
-            console.log('Current device label:', current);
-            
             setDeviceLabels(labels);
-            if (current && current.deviceLabel) {
-                setCurrentDeviceLabel(current.deviceLabel);
-            }
         } catch (error) {
-            console.error('Error fetching device labels:', error);
-            setError(error instanceof Error ? error.message : 'Failed to fetch device labels');
+            console.error('Error fetching data:', error);
+            setError(error instanceof Error ? error.message : 'Failed to fetch data');
         } finally {
             setLoading(false);
         }
     };
 
-    fetchDeviceLabels();
+    fetchData();
   }, []);
 
-  const handleDeviceLabelChange = async (label: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch('/api/device-labels/current', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ deviceLabel: label }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to set device label: ${response.statusText}`);
-      }
-
-      setCurrentDeviceLabel(label);
-    } catch (error) {
-      console.error('Error setting device label:', error);
-      setError(error instanceof Error ? error.message : 'Failed to set device label');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Get the current device label based on the selected cart
+  const currentDeviceLabel = selectedCart?.currentDeviceLabelID 
+    ? deviceLabels.find(label => label._id === selectedCart.currentDeviceLabelID)
+    : null;
 
   return (
     <Container maxWidth="md">
@@ -250,7 +236,7 @@ function Settings() {
 
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" gutterBottom>
-            Device Label
+            Device Label Information
           </Typography>
           
           {error && (
@@ -259,35 +245,33 @@ function Settings() {
             </Alert>
           )}
           
-          <FormControl fullWidth>
-            <InputLabel id="device-label-select-label">Select Device Label</InputLabel>
-            <Select
-              labelId="device-label-select-label"
-              value={currentDeviceLabel}
-              label="Select Device Label"
-              onChange={(e) => handleDeviceLabelChange(e.target.value)}
-              disabled={loading}
-            >
-              <MenuItem value="">
-                <em>None</em>
-              </MenuItem>
-              {deviceLabels.map((label) => (
-                <MenuItem key={label._id} value={label.deviceLabel}>
-                  {label.deviceLabel}
-                </MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          
-          {loading && (
+          {loading ? (
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
               <CircularProgress size={24} />
             </Box>
-          )}
-          
-          {currentDeviceLabel && (
-            <Typography variant="body1" sx={{ mt: 2 }}>
-              Current device label: {currentDeviceLabel}
+          ) : selectedCart ? (
+            <Box sx={{ p: 2, backgroundColor: 'info.light', borderRadius: 1 }}>
+              <Typography variant="body1" gutterBottom>
+                Selected Cart: Serial {selectedCart.serialNumber}
+              </Typography>
+              {currentDeviceLabel ? (
+                <>
+                  <Typography variant="body1" gutterBottom>
+                    Device Label: {currentDeviceLabel.deviceLabel}
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    Device Label ID: {currentDeviceLabel._id}
+                  </Typography>
+                </>
+              ) : (
+                <Typography variant="body1" color="error">
+                  No device label assigned to this cart
+                </Typography>
+              )}
+            </Box>
+          ) : (
+            <Typography variant="body1" color="error">
+              No cart selected. Please select a cart in the Setup page.
             </Typography>
           )}
         </Box>

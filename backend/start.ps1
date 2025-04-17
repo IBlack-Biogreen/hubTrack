@@ -8,6 +8,34 @@ function Test-MongoDBRunning {
     return $process -ne $null
 }
 
+# Function to safely remove log files
+function Remove-LockedFile {
+    param (
+        [string]$Path
+    )
+    try {
+        if (Test-Path $Path) {
+            Remove-Item $Path -Force
+        }
+    } catch {
+        Write-Host "Could not remove $Path, but continuing anyway..."
+    }
+}
+
+# Function to kill process using a specific port
+function Stop-ProcessOnPort {
+    param (
+        [int]$Port
+    )
+    $process = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+    if ($process) {
+        $pid = $process.OwningProcess
+        Write-Host "Found process using port $Port (PID: $pid). Stopping it..."
+        Stop-Process -Id $pid -Force
+        Start-Sleep -Seconds 2
+    }
+}
+
 # Check if MongoDB is running
 Write-Host "Checking if MongoDB is running..."
 if (-not (Test-MongoDBRunning)) {
@@ -33,6 +61,19 @@ if (-not (Test-MongoDBRunning)) {
 }
 Write-Host "MongoDB is running."
 
+# Kill any existing Python processes that might be using the LabJack
+Write-Host "Checking for existing LabJack processes..."
+Get-Process | Where-Object { $_.ProcessName -like "*python*" } | ForEach-Object {
+    Write-Host "Stopping process: $($_.ProcessName) (PID: $($_.Id))"
+    Stop-Process -Id $_.Id -Force
+}
+Start-Sleep -Seconds 2
+
+# Remove existing log files
+Write-Host "Cleaning up log files..."
+Remove-LockedFile -Path "labjack_error.log"
+Remove-LockedFile -Path "labjack_output.log"
+
 # Start the LabJack Python script in the background with error handling
 Write-Host "Starting LabJack Python script..."
 # Create empty log files
@@ -54,8 +95,9 @@ Get-Content "labjack_error.log"
 # Check if the process is still running
 if ($labjackProcess.HasExited) {
     Write-Host "LabJack server failed to start. Check labjack_error.log for details."
-    Get-Content "labjack_error.log"
     exit 1
+} else {
+    Write-Host "LabJack server started successfully."
 }
 
 # Test the LabJack server with retries
@@ -90,6 +132,10 @@ while (-not $connected -and $retryCount -lt $maxRetries) {
         }
     }
 }
+
+# Check and kill any process using port 5000
+Write-Host "Checking for processes using port 5000..."
+Stop-ProcessOnPort -Port 5000
 
 # Start the Node.js server
 Write-Host "Starting Node.js server..."

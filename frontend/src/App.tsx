@@ -10,7 +10,7 @@ import Events from './pages/Events';
 import Audits from './pages/Audits';
 import Stats from './pages/Stats';
 import Materials from './pages/Materials';
-import Training from './pages/Training';
+import Users from './pages/Users';
 import Setup from './pages/Setup';
 import Settings from './pages/Settings';
 import { useInactivityTimeout } from './hooks/useInactivityTimeout';
@@ -90,7 +90,7 @@ function AppContent() {
         <Route path="/audits" element={<Audits />} />
         <Route path="/stats" element={<Stats />} />
         <Route path="/materials" element={<Materials />} />
-        <Route path="/training" element={<Training />} />
+        <Route path="/users" element={<Users />} />
         <Route path="/setup" element={<Setup />} />
         <Route path="/settings" element={<Settings />} />
       </Routes>

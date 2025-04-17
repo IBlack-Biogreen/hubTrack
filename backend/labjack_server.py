@@ -22,7 +22,7 @@ logging.basicConfig(
 
 # Parse command line arguments
 parser = argparse.ArgumentParser()
-parser.add_argument('--port', type=int, default=5000, help='Port to run the server on')
+parser.add_argument('--port', type=int, default=5001, help='Port to run the server on')
 args = parser.parse_args()
 
 app = Flask(__name__, template_folder='templates')

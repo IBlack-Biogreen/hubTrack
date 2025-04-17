@@ -50,9 +50,9 @@ const translations: Translations = {
     en: 'Materials',
     es: 'Materiales',
   },
-  training: {
-    en: 'Training',
-    es: 'Capacitación',
+  users: {
+    en: 'Users',
+    es: 'Usuarios',
   },
   settings: {
     en: 'Settings',
@@ -91,7 +91,7 @@ const translations: Translations = {
     audits: 'Audits',
     stats: 'Stats',
     materials: 'Materials',
-    training: 'Training',
+    users: 'Users',
     setup: 'Setup',
     settings: 'Settings',
     darkMode: 'Dark Mode',

@@ -9,6 +9,10 @@ import {
   Button,
   TextField,
   Grid as Grid2,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from '@mui/material';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Chart, registerables } from 'chart.js';
@@ -26,11 +30,44 @@ export default function Setup() {
   const [loading, setLoading] = useState(true);
   const [scaleFactor, setScaleFactor] = useState(24.5);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [carts, setCarts] = useState<Array<{ 
+    _id: string, 
+    serialNumber: string, 
+    machserial: number,
+    currentDeviceLabelID?: string 
+  }>>([]);
+  const [selectedCart, setSelectedCart] = useState<string>('');
+  const [cartsLoading, setCartsLoading] = useState(true);
+  const [cartsError, setCartsError] = useState<string | null>(null);
+  const [isCartSelected, setIsCartSelected] = useState(false);
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<Chart | null>(null);
   const webcamRef = useRef<Webcam>(null);
   const { t } = useLanguage();
   const [cameraError, setCameraError] = useState<string | null>(null);
+
+  // Load saved cart on component mount
+  useEffect(() => {
+    const savedCart = localStorage.getItem('selectedCart');
+    const savedDeviceLabel = localStorage.getItem('selectedDeviceLabel');
+    if (savedCart) {
+      setSelectedCart(savedCart);
+      setIsCartSelected(true);
+    }
+  }, []);
+
+  // Save cart selection to localStorage
+  const handleCartSelection = (serialNumber: string) => {
+    const selectedCartData = carts.find(cart => cart.serialNumber === serialNumber);
+    setSelectedCart(serialNumber);
+    setIsCartSelected(true);
+    localStorage.setItem('selectedCart', serialNumber);
+    
+    // If the cart has a currentDeviceLabelID, save it
+    if (selectedCartData?.currentDeviceLabelID) {
+      localStorage.setItem('selectedDeviceLabel', selectedCartData.currentDeviceLabelID);
+    }
+  };
 
   const capture = useCallback(() => {
     const imageSrc = webcamRef.current?.getScreenshot();
@@ -167,7 +204,7 @@ export default function Setup() {
 
   const handleTare = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/labjack/tare', {
+      const response = await fetch('http://localhost:5001/api/labjack/tare', {
         method: 'POST',
       });
       if (!response.ok) {
@@ -183,7 +220,7 @@ export default function Setup() {
     if (isNaN(newScale)) return;
     
     try {
-      const response = await fetch('http://localhost:5000/api/labjack/scale', {
+      const response = await fetch('http://localhost:5001/api/labjack/scale', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -209,6 +246,33 @@ export default function Setup() {
     setCameraError(null);
   };
 
+  // Fetch carts on component mount
+  useEffect(() => {
+    const fetchCarts = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/carts/serial-numbers');
+        if (!response.ok) {
+          throw new Error('Failed to fetch cart serial numbers');
+        }
+        const data = await response.json();
+        setCarts(data);
+        setCartsError(null);
+      } catch (err) {
+        console.error('Error fetching carts:', err);
+        setCartsError('Failed to load cart serial numbers');
+      } finally {
+        setCartsLoading(false);
+      }
+    };
+
+    // Only fetch carts if no cart is selected
+    if (!isCartSelected) {
+      fetchCarts();
+    } else {
+      setCartsLoading(false);
+    }
+  }, [isCartSelected, setCarts, setCartsError, setCartsLoading]);
+
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
@@ -224,67 +288,42 @@ export default function Setup() {
           }}
         >
           <Typography variant="h6" gutterBottom>
-            Load Cell Configuration
+            Cart Selection
           </Typography>
-          <Grid2 container spacing={3}>
-            <Grid2 xs={12} sm={6}>
-              <TextField
-                label="Scale Factor (lbs/volt)"
-                type="number"
-                value={scaleFactor}
-                onChange={handleScaleChange}
-                fullWidth
-              />
-            </Grid2>
-            <Grid2 xs={12} sm={6}>
-              <Button
-                variant="contained"
-                onClick={handleTare}
-                fullWidth
-              >
-                Tare
-              </Button>
-            </Grid2>
-          </Grid2>
-        </Paper>
-
-        <Paper
-          elevation={3}
-          sx={{
-            p: 3,
-            mt: 4,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-          }}
-        >
-          <Typography variant="h6" gutterBottom>
-            Load Cell Reading
-          </Typography>
-
-          {loading ? (
-            <CircularProgress sx={{ mt: 2 }} />
-          ) : error ? (
-            <Alert severity="error" sx={{ mt: 2 }}>
-              {error}
+          {cartsError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {cartsError}
             </Alert>
-          ) : (
-            <Box sx={{ mt: 2, textAlign: 'center' }}>
-              <Grid2 container spacing={2} justifyContent="center">
-                <Grid2 xs={6}>
-                  <Typography variant="h3" component="div" color="primary">
-                    {reading?.toFixed(3)} V
-                  </Typography>
-                </Grid2>
-                <Grid2 xs={6}>
-                  <Typography variant="h3" component="div" color="secondary">
-                    {weight?.toFixed(2)} lbs
-                  </Typography>
-                </Grid2>
-              </Grid2>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                Last updated: {new Date().toLocaleTimeString()}
+          )}
+          {isCartSelected ? (
+            <Box sx={{ p: 2, backgroundColor: 'success.light', borderRadius: 1 }}>
+              <Typography variant="body1">
+                Selected Cart: Serial {selectedCart}
               </Typography>
+            </Box>
+          ) : (
+            <FormControl fullWidth>
+              <InputLabel>Select Cart Serial Number</InputLabel>
+              <Select
+                value={selectedCart}
+                onChange={(e) => handleCartSelection(e.target.value)}
+                label="Select Cart Serial Number"
+                disabled={cartsLoading}
+              >
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
+                {carts.map((cart) => (
+                  <MenuItem key={cart._id} value={cart.serialNumber}>
+                    Serial: {cart.serialNumber} (Machine Serial: {cart.machserial})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          )}
+          {cartsLoading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+              <CircularProgress size={24} />
             </Box>
           )}
         </Paper>
@@ -294,9 +333,86 @@ export default function Setup() {
           sx={{
             p: 3,
             mt: 4,
-            height: '400px'
           }}
         >
+          <Typography variant="h6" gutterBottom>
+            Load Cell Configuration
+          </Typography>
+          <Grid2 container spacing={2}>
+            <Grid2 item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Scale Factor (lbs/volt)"
+                type="number"
+                value={scaleFactor}
+                onChange={handleScaleChange}
+                disabled={loading}
+              />
+            </Grid2>
+            <Grid2 item xs={12} sm={6}>
+              <Button
+                fullWidth
+                variant="contained"
+                onClick={handleTare}
+                disabled={loading}
+              >
+                Tare
+              </Button>
+            </Grid2>
+          </Grid2>
+          {error && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {error}
+            </Alert>
+          )}
+        </Paper>
+
+        <Paper
+          elevation={3}
+          sx={{
+            p: 3,
+            mt: 4,
+          }}
+        >
+          <Typography variant="h6" gutterBottom>
+            Current Reading
+          </Typography>
+          <Grid2 container spacing={2}>
+            <Grid2 item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Voltage (V)"
+                value={reading?.toFixed(4) || ''}
+                disabled
+              />
+            </Grid2>
+            <Grid2 item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Weight (lbs)"
+                value={weight?.toFixed(2) || ''}
+                disabled
+              />
+            </Grid2>
+          </Grid2>
+          {loading && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          )}
+        </Paper>
+
+        <Paper
+          elevation={3}
+          sx={{
+            p: 3,
+            mt: 4,
+            height: '300px',
+          }}
+        >
+          <Typography variant="h6" gutterBottom>
+            Weight History
+          </Typography>
           <canvas ref={chartRef} />
         </Paper>
 
@@ -310,49 +426,39 @@ export default function Setup() {
           <Typography variant="h6" gutterBottom>
             Camera
           </Typography>
-          {cameraError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {cameraError}
-            </Alert>
-          )}
-          <Box sx={{ width: '100%', height: '600px', position: 'relative' }}>
-            <Webcam
-              audio={false}
-              ref={webcamRef}
-              screenshotFormat="image/jpeg"
-              videoConstraints={{
-                deviceId: undefined, // This will use the first available camera (USB webcam)
-                width: { ideal: 1920 },
-                height: { ideal: 1080 }
-              }}
-              onUserMedia={handleCameraLoad}
-              onUserMediaError={handleCameraError}
-              style={{
-                width: '100%',
-                height: '100%',
-                objectFit: 'cover',
-              }}
-            />
-          </Box>
-          <Button
-            variant="contained"
-            onClick={capture}
-            fullWidth
-            sx={{ mt: 2 }}
-            disabled={!!cameraError}
-          >
-            Capture Photo
-          </Button>
-          {capturedImage && (
-            <Box sx={{ width: '100%', height: '600px', position: 'relative', mt: 2 }}>
-              <img
-                src={capturedImage}
-                alt="Captured"
+          {cameraError ? (
+            <Alert severity="error">{cameraError}</Alert>
+          ) : (
+            <Box sx={{ position: 'relative', width: '100%', height: '300px' }}>
+              <Webcam
+                ref={webcamRef}
+                onUserMediaError={handleCameraError}
+                onUserMedia={handleCameraLoad}
                 style={{
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
                 }}
+              />
+              <Button
+                variant="contained"
+                onClick={capture}
+                sx={{
+                  position: 'absolute',
+                  bottom: 16,
+                  right: 16,
+                }}
+              >
+                Capture
+              </Button>
+            </Box>
+          )}
+          {capturedImage && (
+            <Box sx={{ mt: 2 }}>
+              <img
+                src={capturedImage}
+                alt="Captured"
+                style={{ maxWidth: '100%' }}
               />
             </Box>
           )}

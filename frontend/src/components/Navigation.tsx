@@ -27,7 +27,7 @@ const pages = [
   { name: 'Audits', path: '/audits' },
   { name: 'Stats', path: '/stats' },
   { name: 'Materials', path: '/materials' },
-  { name: 'Training', path: '/training' },
+  { name: 'Users', path: '/users' },
   { name: 'Setup', path: '/setup' },
   { name: 'Settings', path: '/settings' },
 ];

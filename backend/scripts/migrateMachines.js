@@ -1,7 +1,8 @@
 const { MongoClient } = require('mongodb');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
-async function migrateDeviceLabels() {
+async function migrateMachines() {
     let atlasClient, localClient;
     try {
         // Connect to MongoDB Atlas
@@ -24,34 +25,33 @@ async function migrateDeviceLabels() {
         const atlasDb = atlasClient.db('globalDbs');
         const localDb = localClient.db('hubtrack');
 
-        // Find all tracking cart device labels from Atlas
-        const trackingCarts = await atlasDb.collection('globalDeviceLabels')
-            .find({ deviceType: 'trackingCart' })
+        // Find all BGTrack machines from Atlas
+        const machines = await atlasDb.collection('globalMachines')
+            .find({ machineType: 'BGTrack' })
             .toArray();
 
-        console.log(`Found ${trackingCarts.length} tracking cart device labels in Atlas`);
+        console.log(`Found ${machines.length} BGTrack machines in Atlas`);
 
         // Insert into local collection
-        if (trackingCarts.length > 0) {
+        if (machines.length > 0) {
             // Drop existing collection if it exists
-            await localDb.collection('cartDeviceLabels').drop().catch(() => {
+            await localDb.collection('Carts').drop().catch(() => {
                 // Ignore error if collection doesn't exist
-                console.log('No existing cartDeviceLabels collection to drop');
+                console.log('No existing Carts collection to drop');
             });
 
             // Create the new collection
-            await localDb.collection('cartDeviceLabels').insertMany(trackingCarts);
-            console.log('Successfully migrated tracking cart device labels to local database');
+            await localDb.collection('Carts').insertMany(machines);
+            console.log('Successfully migrated BGTrack machines to local database');
             
             // Log the first document as a sample
-            console.log('Sample document:', JSON.stringify(trackingCarts[0], null, 2));
+            console.log('Sample document:', JSON.stringify(machines[0], null, 2));
         } else {
-            console.log('No tracking cart device labels found in Atlas database');
+            console.log('No BGTrack machines found in Atlas database');
         }
 
     } catch (error) {
         console.error('Error during migration:', error);
-        throw error; // Re-throw the error to be handled by the caller
     } finally {
         // Close both connections
         if (atlasClient) {
@@ -65,4 +65,5 @@ async function migrateDeviceLabels() {
     }
 }
 
-module.exports = { migrateDeviceLabels }; 
+// Run the migration
+migrateMachines(); 
