@@ -1,94 +1,86 @@
-const mongoose = require('mongoose');
+const { MongoClient } = require('mongodb');
 require('dotenv').config();
 
 async function migrateLabels() {
-    let atlasConnection = null;
-    let localConnection = null;
-
+    let atlasClient, localClient;
     try {
-        // Connect to Atlas (read-only)
-        console.log('Connecting to MongoDB Atlas...');
+        // Connect to MongoDB Atlas
         const atlasUri = process.env.MONGODB_ATLAS_URI;
-        console.log('Atlas URI:', atlasUri.replace(/\/\/[^@]+@/, '//****:****@')); // Log URI with credentials hidden
+        if (!atlasUri) {
+            throw new Error('MongoDB Atlas URI not found in environment variables');
+        }
         
-        // Create the Atlas connection
-        atlasConnection = await mongoose.createConnection(atlasUri).asPromise();
-        const atlasDb = atlasConnection.useDb('globalDbs');
-        console.log('Successfully connected to Atlas database: globalDbs');
+        atlasClient = new MongoClient(atlasUri);
+        await atlasClient.connect();
+        console.log('Connected to MongoDB Atlas');
 
         // Connect to local MongoDB
-        console.log('\nConnecting to local MongoDB...');
-        const localUri = process.env.MONGODB_LOCAL_URI;
-        console.log('Local URI:', localUri);
-        
-        // Create the local connection
-        localConnection = await mongoose.createConnection(localUri).asPromise();
-        const localDb = localConnection.useDb('hubtrack');
-        console.log('Successfully connected to local MongoDB database: hubtrack');
+        const localUri = 'mongodb://localhost:27017/hubtrack';
+        localClient = new MongoClient(localUri);
+        await localClient.connect();
+        console.log('Connected to local MongoDB');
 
-        // Define the schema for device labels
-        const deviceLabelSchema = new mongoose.Schema({
-            deviceLabel: String,
-            deviceType:String,
-            status: String,
-            deviceId: String,
-            deviceToken: String,
-            feedOrgID: [String],
-            syncUsers: Number
-        }, { collection: 'globalDeviceLabels' });
+        // Get references to both databases
+        const atlasDb = atlasClient.db('globalDbs');
+        const localDb = localClient.db('hubtrack');
 
-        // Create models for both connections
-        const AtlasDeviceLabel = atlasDb.model('DeviceLabel', deviceLabelSchema);
-        const LocalDeviceLabel = localDb.model('DeviceLabel', deviceLabelSchema);
+        // Find all labels from Atlas
+        const labels = await atlasDb.collection('globalLabels')
+            .find({})
+            .toArray();
 
-        // Read all labels from Atlas
-        console.log('\nReading labels from Atlas globalDeviceLabels collection...');
-        const labels = await AtlasDeviceLabel.find({}).lean();
-        console.log(`Found ${labels.length} labels in Atlas:`, JSON.stringify(labels, null, 2));
+        console.log(`Found ${labels.length} labels in Atlas`);
 
         if (labels.length > 0) {
-            // Clear existing local data (if any)
-            console.log('\nClearing existing local data...');
-            await LocalDeviceLabel.deleteMany({});
-
-            // Insert labels into local database
-            console.log('Inserting labels into local database...');
-            await LocalDeviceLabel.insertMany(labels);
-
-            console.log(`\nSuccessfully migrated ${labels.length} labels to local database`);
+            // Get the local collection
+            const localCollection = localDb.collection('labels');
+            
+            // Process each label
+            let updatedCount = 0;
+            let insertedCount = 0;
+            
+            for (const label of labels) {
+                try {
+                    // Try to update existing label
+                    const updateResult = await localCollection.updateOne(
+                        { _id: label._id },
+                        { $set: label },
+                        { upsert: true } // Insert if not found
+                    );
+                    
+                    if (updateResult.modifiedCount > 0) {
+                        updatedCount++;
+                    } else if (updateResult.upsertedCount > 0) {
+                        insertedCount++;
+                    }
+                } catch (error) {
+                    console.error(`Error processing label ${label._id}:`, error);
+                }
+            }
+            
+            console.log(`Migration complete: Updated ${updatedCount} labels, Inserted ${insertedCount} new labels`);
+            console.log('Successfully migrated labels to local database');
+            
+            // Log the first label as a sample
+            console.log('Sample label:', JSON.stringify(labels[0], null, 2));
         } else {
-            console.log('\nNo labels found in Atlas to migrate');
+            console.log('No labels found in Atlas database');
         }
 
     } catch (error) {
-        console.error('\nError during migration:');
-        console.error('Error name:', error.name);
-        console.error('Error message:', error.message);
-        if (error.code) console.error('Error code:', error.code);
-        if (error.stack) console.error('Stack trace:', error.stack);
-        throw error;
+        console.error('Error during migration:', error);
+        throw error; // Re-throw the error to be handled by the caller
     } finally {
-        // Close connections
-        if (atlasConnection) {
-            await atlasConnection.close();
-            console.log('Atlas connection closed');
+        // Close both connections
+        if (atlasClient) {
+            await atlasClient.close();
+            console.log('Disconnected from MongoDB Atlas');
         }
-        if (localConnection) {
-            await localConnection.close();
-            console.log('Local connection closed');
+        if (localClient) {
+            await localClient.close();
+            console.log('Disconnected from local MongoDB');
         }
-        process.exit();
     }
 }
 
-// Handle uncaught exceptions
-process.on('uncaughtException', (error) => {
-    console.error('\nUncaught Exception:');
-    console.error('Error name:', error.name);
-    console.error('Error message:', error.message);
-    if (error.code) console.error('Error code:', error.code);
-    if (error.stack) console.error('Stack trace:', error.stack);
-    process.exit(1);
-});
-
-migrateLabels(); 
+module.exports = { migrateLabels }; 

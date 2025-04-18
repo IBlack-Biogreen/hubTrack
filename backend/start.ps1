@@ -2,6 +2,10 @@
 $mongodPath = "C:\Program Files (x86)\mongodb-win32-x86_64-windows-8.0.8\bin\mongod.exe"
 $dataPath = "C:\data\db"  # Default MongoDB data directory
 
+# Get the script's directory
+$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $scriptPath
+
 # Function to check if MongoDB is running
 function Test-MongoDBRunning {
     $process = Get-Process mongod -ErrorAction SilentlyContinue
@@ -81,7 +85,7 @@ New-Item -Path "labjack_error.log" -ItemType File -Force
 New-Item -Path "labjack_output.log" -ItemType File -Force
 
 # Start the process with more detailed output and a different port
-$labjackProcess = Start-Process -FilePath python -ArgumentList "-u", "labjack_server.py", "--port", "5001" -NoNewWindow -PassThru -RedirectStandardError "labjack_error.log" -RedirectStandardOutput "labjack_output.log"
+$labjackProcess = Start-Process -FilePath python -ArgumentList "-u", ".\labjack_server.py", "--port", "5001" -NoNewWindow -PassThru -RedirectStandardError "labjack_error.log" -RedirectStandardOutput "labjack_output.log"
 
 # Wait longer for the server to start and check output
 Write-Host "Waiting for LabJack server to initialize..."
@@ -139,4 +143,55 @@ Stop-ProcessOnPort -Port 5000
 
 # Start the Node.js server
 Write-Host "Starting Node.js server..."
-node server.js 
+# Create a log file for the Node.js server
+New-Item -Path "node_error.log" -ItemType File -Force
+New-Item -Path "node_output.log" -ItemType File -Force
+
+# Start the Node.js server with output redirection
+$nodeProcess = Start-Process -FilePath node -ArgumentList "server.js" -NoNewWindow -PassThru -RedirectStandardError "node_error.log" -RedirectStandardOutput "node_output.log"
+
+# Wait for the server to start and check health
+Write-Host "Waiting for Node.js server to initialize..."
+Start-Sleep -Seconds 5
+
+# Check if the process is still running
+if ($nodeProcess.HasExited) {
+    Write-Host "Node.js server failed to start. Check node_error.log for details."
+    Get-Content "node_error.log"
+    exit 1
+}
+
+# Test the Node.js server with retries
+Write-Host "Testing Node.js server connection..."
+$maxRetries = 5  # Increased retries
+$retryCount = 0
+$connected = $false
+
+while (-not $connected -and $retryCount -lt $maxRetries) {
+    try {
+        $response = Invoke-WebRequest -Uri "http://localhost:5000/api/health" -UseBasicParsing
+        if ($response.StatusCode -eq 200) {
+            $connected = $true
+            Write-Host "Node.js server is responding successfully."
+            Write-Host "Response: $($response.Content)"
+        }
+    } catch {
+        $retryCount++
+        if ($retryCount -lt $maxRetries) {
+            Write-Host "Attempt $retryCount failed. Retrying in 2 seconds..."
+            # Check logs
+            Write-Host "Current logs:"
+            Get-Content "node_error.log"
+            Get-Content "node_output.log"
+            Start-Sleep -Seconds 2
+        } else {
+            Write-Host "Failed to connect to Node.js server after $maxRetries attempts."
+            Write-Host "Final logs:"
+            Get-Content "node_error.log"
+            Get-Content "node_output.log"
+            exit 1
+        }
+    }
+}
+
+Write-Host "All servers started successfully. You can now access the application." 

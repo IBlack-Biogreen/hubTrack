@@ -10,14 +10,12 @@ async function migrateUsers() {
             throw new Error('MongoDB Atlas URI not found in environment variables');
         }
         
-        console.log('Attempting to connect to MongoDB Atlas...');
         atlasClient = new MongoClient(atlasUri);
         await atlasClient.connect();
         console.log('Connected to MongoDB Atlas');
 
         // Connect to local MongoDB
         const localUri = 'mongodb://localhost:27017/hubtrack';
-        console.log('Attempting to connect to local MongoDB...');
         localClient = new MongoClient(localUri);
         await localClient.connect();
         console.log('Connected to local MongoDB');
@@ -26,70 +24,83 @@ async function migrateUsers() {
         const atlasDb = atlasClient.db('globalDbs');
         const localDb = localClient.db('hubtrack');
 
-        // Get the current device label from the local database
-        console.log('Fetching current device label...');
-        const currentDeviceLabel = await localDb.collection('currentDeviceLabel').findOne({});
-        if (!currentDeviceLabel) {
-            console.log('No device label selected. Please select a device label first.');
-            return;
+        // Get the selected cart's serial number from localStorage
+        const selectedCartSerial = process.env.SELECTED_CART_SERIAL;
+        if (!selectedCartSerial) {
+            throw new Error('No cart selected. Please select a cart first.');
         }
-        console.log('Current device label:', currentDeviceLabel);
 
-        // Get the device label document to get its feedOrgID array
-        console.log('Fetching device label details...');
-        const deviceLabel = await localDb.collection('cartDeviceLabels').findOne({
-            deviceLabel: currentDeviceLabel.deviceLabel,
-            deviceType: 'trackingCart'
-        });
+        // Find the selected cart in the local database
+        const selectedCart = await localDb.collection('carts').findOne({ serialNumber: selectedCartSerial });
+        if (!selectedCart) {
+            throw new Error(`Selected cart with serial number ${selectedCartSerial} not found in local database`);
+        }
 
+        // Get the device label ID from the selected cart
+        const deviceLabelId = selectedCart.deviceLabelId;
+        if (!deviceLabelId) {
+            throw new Error(`Selected cart ${selectedCartSerial} has no device label ID`);
+        }
+
+        // Get the device label document to access its feedOrgID array
+        const deviceLabel = await localDb.collection('cartDeviceLabels').findOne({ _id: deviceLabelId });
         if (!deviceLabel) {
-            console.log('Device label not found in cartDeviceLabels collection');
-            return;
-        }
-        if (!deviceLabel.feedOrgID || deviceLabel.feedOrgID.length === 0) {
-            console.log('No feedOrgID found for the selected device label:', deviceLabel);
-            return;
+            throw new Error(`Device label ${deviceLabelId} not found in local database`);
         }
 
-        console.log('Selected device label:', currentDeviceLabel.deviceLabel);
-        console.log('FeedOrgIDs:', deviceLabel.feedOrgID);
+        const feedOrgIds = deviceLabel.feedOrgID;
+        if (!feedOrgIds || !Array.isArray(feedOrgIds) || feedOrgIds.length === 0) {
+            throw new Error(`Device label ${deviceLabelId} has no feedOrgID array or it is empty`);
+        }
 
-        // Find users in globalUsers that have any matching feedOrgID
-        console.log('Searching for users in globalUsers collection...');
-        const users = await atlasDb.collection('globalUsers')
-            .find({
-                feedOrgID: { $in: deviceLabel.feedOrgID }
-            })
+        console.log(`Found feedOrgIDs: ${feedOrgIds.join(', ')}`);
+
+        // Find users in Atlas whose feedOrgID matches any in the array
+        const matchingUsers = await atlasDb.collection('globalUsers')
+            .find({ feedOrgID: { $in: feedOrgIds } })
             .toArray();
 
-        console.log(`Found ${users.length} users with matching feedOrgID`);
+        console.log(`Found ${matchingUsers.length} matching users in Atlas`);
 
-        if (users.length > 0) {
-            // Clear existing users in localUsers collection
-            console.log('Clearing existing localUsers collection...');
-            await localDb.collection('localUsers').deleteMany({});
+        if (matchingUsers.length > 0) {
+            // Get the local collection
+            const localCollection = localDb.collection('localUsers');
             
-            // Insert the found users into localUsers collection
-            console.log('Inserting users into localUsers collection...');
-            const result = await localDb.collection('localUsers').insertMany(users);
-            console.log(`Inserted ${result.insertedCount} users into localUsers collection`);
+            // Process each user
+            let updatedCount = 0;
+            let insertedCount = 0;
             
-            // Verify the collection exists and has documents
-            const collectionExists = await localDb.listCollections({ name: 'localUsers' }).hasNext();
-            console.log('localUsers collection exists:', collectionExists);
+            for (const user of matchingUsers) {
+                try {
+                    // Try to update existing user
+                    const updateResult = await localCollection.updateOne(
+                        { _id: user._id },
+                        { $set: user },
+                        { upsert: true } // Insert if not found
+                    );
+                    
+                    if (updateResult.modifiedCount > 0) {
+                        updatedCount++;
+                    } else if (updateResult.upsertedCount > 0) {
+                        insertedCount++;
+                    }
+                } catch (error) {
+                    console.error(`Error processing user ${user._id}:`, error);
+                }
+            }
             
-            const count = await localDb.collection('localUsers').countDocuments();
-            console.log('Number of documents in localUsers:', count);
+            console.log(`Migration complete: Updated ${updatedCount} users, Inserted ${insertedCount} new users`);
+            console.log('Successfully migrated users to local database');
             
-            // Log the first document as a sample
-            console.log('Sample document:', JSON.stringify(users[0], null, 2));
+            // Log the first user as a sample
+            console.log('Sample user:', JSON.stringify(matchingUsers[0], null, 2));
         } else {
-            console.log('No users found to migrate');
+            console.log('No matching users found in Atlas database');
         }
 
     } catch (error) {
         console.error('Error during migration:', error);
-        console.error('Error stack:', error.stack);
+        throw error; // Re-throw the error to be handled by the caller
     } finally {
         // Close both connections
         if (atlasClient) {
@@ -103,4 +114,4 @@ async function migrateUsers() {
     }
 }
 
-migrateUsers(); 
+module.exports = { migrateUsers }; 

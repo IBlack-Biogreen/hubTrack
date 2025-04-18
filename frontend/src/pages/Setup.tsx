@@ -13,6 +13,10 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Chart, registerables } from 'chart.js';
@@ -45,6 +49,7 @@ export default function Setup() {
   const webcamRef = useRef<Webcam>(null);
   const { t } = useLanguage();
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [showChangeCartDialog, setShowChangeCartDialog] = useState(false);
 
   // Load saved cart on component mount
   useEffect(() => {
@@ -56,8 +61,8 @@ export default function Setup() {
     }
   }, []);
 
-  // Save cart selection to localStorage
-  const handleCartSelection = (serialNumber: string) => {
+  // Save cart selection to localStorage and database
+  const handleCartSelection = async (serialNumber: string) => {
     const selectedCartData = carts.find(cart => cart.serialNumber === serialNumber);
     setSelectedCart(serialNumber);
     setIsCartSelected(true);
@@ -66,6 +71,85 @@ export default function Setup() {
     // If the cart has a currentDeviceLabelID, save it
     if (selectedCartData?.currentDeviceLabelID) {
       localStorage.setItem('selectedDeviceLabel', selectedCartData.currentDeviceLabelID);
+    }
+
+    // Update the database to mark this cart as selected and purge others
+    try {
+      // First, delete all other carts
+      await fetch('http://localhost:5000/api/carts/purge-others', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ keepSerialNumber: serialNumber }),
+      });
+
+      // Then select the chosen cart
+      await fetch(`http://localhost:5000/api/carts/${serialNumber}/select`, {
+        method: 'POST',
+      });
+    } catch (error) {
+      console.error('Error updating cart selection in database:', error);
+    }
+  };
+
+  const handleChangeCart = async () => {
+    try {
+      // Check if backend is available
+      try {
+        const response = await fetch('http://localhost:5000/api/health');
+        if (!response.ok) {
+          throw new Error('Backend server is not responding');
+        }
+      } catch (error) {
+        setCartsError('Backend server is not available. Please ensure the backend is running.');
+        return;
+      }
+
+      // Clear localStorage
+      localStorage.removeItem('selectedCart');
+      localStorage.removeItem('selectedDeviceLabel');
+      
+      // Reset state
+      setSelectedCart('');
+      setIsCartSelected(false);
+      
+      // Fetch carts again
+      await fetchCarts();
+    } catch (error) {
+      console.error('Error changing cart:', error);
+      setCartsError('Failed to change cart. Please try again.');
+    }
+  };
+
+  const fetchCarts = async () => {
+    const maxRetries = 3;
+    let retryCount = 0;
+    let success = false;
+
+    while (!success && retryCount < maxRetries) {
+      try {
+        setCartsLoading(true);
+        const response = await fetch('http://localhost:5000/api/carts/serial-numbers');
+        if (!response.ok) {
+          throw new Error('Failed to fetch cart serial numbers');
+        }
+        const data = await response.json();
+        setCarts(data);
+        setCartsError(null);
+        success = true;
+      } catch (err) {
+        console.error('Error fetching carts:', err);
+        retryCount++;
+        if (retryCount < maxRetries) {
+          console.log(`Retrying in 2 seconds... (Attempt ${retryCount + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+          setCartsError('Failed to load cart serial numbers. Please ensure the backend is running and try refreshing the page.');
+        }
+      } finally {
+        setCartsLoading(false);
+      }
     }
   };
 
@@ -271,7 +355,7 @@ export default function Setup() {
     } else {
       setCartsLoading(false);
     }
-  }, [isCartSelected, setCarts, setCartsError, setCartsLoading]);
+  }, [isCartSelected]);
 
   return (
     <Container maxWidth="md">
@@ -296,10 +380,19 @@ export default function Setup() {
             </Alert>
           )}
           {isCartSelected ? (
-            <Box sx={{ p: 2, backgroundColor: 'success.light', borderRadius: 1 }}>
-              <Typography variant="body1">
-                Selected Cart: Serial {selectedCart}
-              </Typography>
+            <Box>
+              <Box sx={{ p: 2, backgroundColor: 'success.light', borderRadius: 1, mb: 2 }}>
+                <Typography variant="body1">
+                  Selected Cart: Serial {selectedCart}
+                </Typography>
+              </Box>
+              <Button
+                variant="contained"
+                color="secondary"
+                onClick={() => setShowChangeCartDialog(true)}
+              >
+                Change Cart Serial
+              </Button>
             </Box>
           ) : (
             <FormControl fullWidth>
@@ -315,7 +408,7 @@ export default function Setup() {
                 </MenuItem>
                 {carts.map((cart) => (
                   <MenuItem key={cart._id} value={cart.serialNumber}>
-                    Serial: {cart.serialNumber} (Machine Serial: {cart.machserial})
+                    {cart.serialNumber}
                   </MenuItem>
                 ))}
               </Select>
@@ -327,6 +420,36 @@ export default function Setup() {
             </Box>
           )}
         </Paper>
+
+        {/* Change Cart Confirmation Dialog */}
+        <Dialog
+          open={showChangeCartDialog}
+          onClose={() => setShowChangeCartDialog(false)}
+        >
+          <DialogTitle>Change Cart Serial Number</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Are you sure you want to change the cart serial number? This will:
+            </Typography>
+            <ul>
+              <li>Clear the current cart selection</li>
+              <li>Refresh the list of available carts</li>
+              <li>Allow you to select a new cart</li>
+            </ul>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShowChangeCartDialog(false)}>Cancel</Button>
+            <Button 
+              onClick={() => {
+                setShowChangeCartDialog(false);
+                handleChangeCart();
+              }}
+              color="secondary"
+            >
+              Yes, Change Cart
+            </Button>
+          </DialogActions>
+        </Dialog>
 
         <Paper
           elevation={3}
