@@ -13,6 +13,7 @@ import Materials from './pages/Materials';
 import Users from './pages/Users';
 import Setup from './pages/Setup';
 import Settings from './pages/Settings';
+import UserTest from './components/UserTest';
 import { useInactivityTimeout } from './hooks/useInactivityTimeout';
 import { TimeoutProvider } from './contexts/TimeoutContext';
 import { ThemeProvider, useThemeContext } from './contexts/ThemeContext';
@@ -93,6 +94,7 @@ function AppContent() {
         <Route path="/users" element={<Users />} />
         <Route path="/setup" element={<Setup />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/user-test" element={<UserTest />} />
       </Routes>
     </>
   );

@@ -1,11 +1,18 @@
 const { MongoClient, ObjectId } = require('mongodb');
 require('dotenv').config();
+const dbManager = require('../db/connection');
 
 async function migrateDeviceLabels() {
     let atlasClient, localClient;
 
     try {
         console.log('====== STARTING DEVICE LABEL MIGRATION ======');
+
+        // If we're already connected to Atlas directly, skip migration
+        if (!dbManager.isLocalConnection()) {
+            console.log('Connected directly to Atlas, skipping device labels migration');
+            return;
+        }
 
         // Connect to local MongoDB first to check if migration is needed
         console.log('1. Connecting to local MongoDB to check if migration is needed...');

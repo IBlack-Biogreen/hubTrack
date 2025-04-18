@@ -1,13 +1,21 @@
 const { MongoClient } = require('mongodb');
 require('dotenv').config();
+const dbManager = require('../db/connection');
 
 async function migrateCarts() {
     console.log('Starting carts migration...');
+    
+    // If we're already connected to Atlas directly, skip migration
+    if (!dbManager.isLocalConnection()) {
+        console.log('Connected directly to Atlas, skipping carts migration');
+        return;
+    }
+    
     let atlasClient;
     let localClient;
 
     try {
-        // Connect to local MongoDB first to check if migration is needed
+        // Connect to local MongoDB
         console.log('Connecting to local MongoDB...');
         localClient = new MongoClient('mongodb://localhost:27017', {
             serverSelectionTimeoutMS: 5000,
@@ -37,15 +45,6 @@ async function migrateCarts() {
         console.log('Connected to MongoDB Atlas');
 
         const atlasDb = atlasClient.db('globalDbs');
-
-        // Get all machines from Atlas first to see the structure
-        console.log('Fetching all machines from globalMachines collection...');
-        const allMachines = await atlasDb.collection('globalMachines').find({}).toArray();
-        console.log(`Found ${allMachines.length} total machines`);
-        
-        if (allMachines.length > 0) {
-            console.log('Sample machine structure:', JSON.stringify(allMachines[0], null, 2));
-        }
 
         // Get BGTrack machines from Atlas
         console.log('Fetching BGTrack machines...');

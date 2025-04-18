@@ -1,117 +1,199 @@
 const { MongoClient } = require('mongodb');
 require('dotenv').config();
+const dbManager = require('../db/connection');
 
 async function migrateUsers() {
-    let atlasClient, localClient;
+    console.log('====== STARTING USER MIGRATION ======');
+    
+    // Skip migration if connected directly to Atlas
+    if (!dbManager.isLocalConnection()) {
+        console.log('Connected directly to Atlas, skipping users migration');
+        return;
+    }
+    
+    let atlasClient = null;
+    
     try {
-        // Connect to MongoDB Atlas
-        const atlasUri = process.env.MONGODB_ATLAS_URI;
-        if (!atlasUri) {
-            throw new Error('MongoDB Atlas URI not found in environment variables');
+        // Get the database from the dbManager
+        const db = dbManager.getDb();
+        
+        // Check if Users collection already has documents
+        console.log('1. Checking for existing users...');
+        const existingCount = await db.collection('Users').countDocuments();
+        console.log(`   Found ${existingCount} existing users in local database`);
+        
+        if (existingCount > 0) {
+            console.log('   Users collection already has documents. Deleting existing users and reimporting.');
+            await db.collection('Users').drop();
+            console.log('   Users collection dropped.');
         }
         
-        atlasClient = new MongoClient(atlasUri);
-        await atlasClient.connect();
-        console.log('Connected to MongoDB Atlas');
-
-        // Connect to local MongoDB
-        const localUri = 'mongodb://localhost:27017/hubtrack';
-        localClient = new MongoClient(localUri);
-        await localClient.connect();
-        console.log('Connected to local MongoDB');
-
-        // Get references to both databases
-        const atlasDb = atlasClient.db('globalDbs');
-        const localDb = localClient.db('hubtrack');
-
-        // Get the selected cart's serial number from localStorage
-        const selectedCartSerial = process.env.SELECTED_CART_SERIAL;
-        if (!selectedCartSerial) {
-            throw new Error('No cart selected. Please select a cart first.');
+        // Get all feedOrgIDs from the cartDeviceLabels collection
+        console.log('2. Collecting feedOrgIDs from local device labels...');
+        const deviceLabels = await db.collection('cartDeviceLabels').find({}).toArray();
+        
+        // Extract all feedOrgIDs from the device labels
+        let relevantFeedOrgIDs = [];
+        deviceLabels.forEach(label => {
+            if (label.feedOrgID && Array.isArray(label.feedOrgID)) {
+                relevantFeedOrgIDs = [...relevantFeedOrgIDs, ...label.feedOrgID];
+            }
+        });
+        
+        // Remove duplicates
+        relevantFeedOrgIDs = [...new Set(relevantFeedOrgIDs)];
+        
+        console.log(`   Found ${relevantFeedOrgIDs.length} unique feedOrgIDs in device labels: ${relevantFeedOrgIDs.join(', ')}`);
+        
+        if (relevantFeedOrgIDs.length === 0) {
+            console.log('   No feedOrgIDs found in device labels. Creating a default admin user only.');
+            await createDefaultAdmin(db);
+            return;
         }
-
-        // Find the selected cart in the local database
-        const selectedCart = await localDb.collection('carts').findOne({ serialNumber: selectedCartSerial });
-        if (!selectedCart) {
-            throw new Error(`Selected cart with serial number ${selectedCartSerial} not found in local database`);
+        
+        // Connect to MongoDB Atlas to get matching user data
+        console.log('3. Connecting to MongoDB Atlas to fetch matching users...');
+        const atlasUri = process.env.MONGODB_ATLAS_URI;
+        if (!atlasUri) {
+            console.error('MongoDB Atlas URI not found. Creating a default admin instead.');
+            await createDefaultAdmin(db);
+            return;
         }
-
-        // Get the device label ID from the selected cart
-        const deviceLabelId = selectedCart.deviceLabelId;
-        if (!deviceLabelId) {
-            throw new Error(`Selected cart ${selectedCartSerial} has no device label ID`);
-        }
-
-        // Get the device label document to access its feedOrgID array
-        const deviceLabel = await localDb.collection('cartDeviceLabels').findOne({ _id: deviceLabelId });
-        if (!deviceLabel) {
-            throw new Error(`Device label ${deviceLabelId} not found in local database`);
-        }
-
-        const feedOrgIds = deviceLabel.feedOrgID;
-        if (!feedOrgIds || !Array.isArray(feedOrgIds) || feedOrgIds.length === 0) {
-            throw new Error(`Device label ${deviceLabelId} has no feedOrgID array or it is empty`);
-        }
-
-        console.log(`Found feedOrgIDs: ${feedOrgIds.join(', ')}`);
-
-        // Find users in Atlas whose feedOrgID matches any in the array
-        const matchingUsers = await atlasDb.collection('globalUsers')
-            .find({ feedOrgID: { $in: feedOrgIds } })
-            .toArray();
-
-        console.log(`Found ${matchingUsers.length} matching users in Atlas`);
-
-        if (matchingUsers.length > 0) {
-            // Get the local collection
-            const localCollection = localDb.collection('localUsers');
+        
+        try {
+            atlasClient = new MongoClient(atlasUri, {
+                serverSelectionTimeoutMS: 5000,
+                connectTimeoutMS: 5000
+            });
+            await atlasClient.connect();
+            console.log('   Connected to MongoDB Atlas');
             
-            // Process each user
-            let updatedCount = 0;
-            let insertedCount = 0;
+            // Fetch users whose feedOrgID contains any of the relevant IDs
+            const atlasDb = atlasClient.db('globalDbs');
             
-            for (const user of matchingUsers) {
-                try {
-                    // Try to update existing user
-                    const updateResult = await localCollection.updateOne(
-                        { _id: user._id },
-                        { $set: user },
-                        { upsert: true } // Insert if not found
-                    );
-                    
-                    if (updateResult.modifiedCount > 0) {
-                        updatedCount++;
-                    } else if (updateResult.upsertedCount > 0) {
-                        insertedCount++;
-                    }
-                } catch (error) {
-                    console.error(`Error processing user ${user._id}:`, error);
-                }
+            console.log(`   Querying globalUsers for feedOrgID in [${relevantFeedOrgIDs.join(', ')}]`);
+            const globalUsers = await atlasDb.collection('globalUsers')
+                .find({ feedOrgID: { $in: relevantFeedOrgIDs } })
+                .toArray();
+                
+            console.log(`   Found ${globalUsers.length} matching users in Atlas`);
+            
+            if (globalUsers.length === 0) {
+                console.log('   No matching users found in Atlas. Creating a default admin instead.');
+                await createDefaultAdmin(db);
+                return;
             }
             
-            console.log(`Migration complete: Updated ${updatedCount} users, Inserted ${insertedCount} new users`);
-            console.log('Successfully migrated users to local database');
+            // Log some sample data for debugging
+            if (globalUsers.length > 0) {
+                const sampleUser = globalUsers[0];
+                console.log('   Sample user data:');
+                console.log(`   - Name: ${sampleUser.userName || `${sampleUser.FIRST || ''} ${sampleUser.LAST || ''}`.trim()}`);
+                console.log(`   - Email: ${sampleUser.email || 'N/A'}`);
+                console.log(`   - feedOrgID: ${JSON.stringify(sampleUser.feedOrgID || [])}`);
+            }
             
-            // Log the first user as a sample
-            console.log('Sample user:', JSON.stringify(matchingUsers[0], null, 2));
-        } else {
-            console.log('No matching users found in Atlas database');
+            // Insert the global users as-is into the local database
+            console.log('4. Importing matching users to local database...');
+            const result = await db.collection('Users').insertMany(globalUsers);
+            console.log(`   Successfully imported ${result.insertedCount} users to local database`);
+            
+            // Add a default admin if needed
+            const adminUser = await db.collection('Users').findOne({ 
+                DEVICES: { $in: ["admin"] }
+            });
+            
+            if (!adminUser) {
+                console.log('   No admin user found. Adding a default admin user.');
+                await createDefaultAdmin(db);
+            }
+            
+            // Verify the migration
+            const count = await db.collection('Users').countDocuments();
+            console.log(`   Verification: ${count} users in local database`);
+            
+        } catch (atlasError) {
+            console.error('   Error connecting to MongoDB Atlas:', atlasError.message);
+            console.log('   Creating a default admin instead.');
+            await createDefaultAdmin(db);
         }
-
+        
     } catch (error) {
-        console.error('Error during migration:', error);
-        throw error; // Re-throw the error to be handled by the caller
+        console.error('Error during user migration:', error);
+        console.error('Main error stack:', error.stack);
+        
+        // If any error occurs, ensure there's at least a default admin
+        try {
+            const db = dbManager.getDb();
+            const count = await db.collection('Users').countDocuments();
+            
+            if (count === 0) {
+                console.log('   No users in database after error. Creating a default admin.');
+                await createDefaultAdmin(db);
+            }
+        } catch (fallbackError) {
+            console.error('   Error creating fallback admin:', fallbackError);
+        }
     } finally {
-        // Close both connections
         if (atlasClient) {
             await atlasClient.close();
             console.log('Disconnected from MongoDB Atlas');
         }
-        if (localClient) {
-            await localClient.close();
-            console.log('Disconnected from local MongoDB');
-        }
+        console.log('====== USER MIGRATION COMPLETE ======');
     }
 }
 
-module.exports = { migrateUsers }; 
+// Helper function to create a default admin user
+async function createDefaultAdmin(db) {
+    console.log('   Creating default admin user...');
+    
+    // Create a default admin user that matches the global schema
+    const defaultAdmin = {
+        FIRST: "ADMIN",
+        LAST: "USER",
+        CODE: "0000",
+        DEVICES: ["admin"],
+        LANGUAGE: "en",
+        FEEDS: {
+            trainer: "",
+            date: "",
+            retraining: []
+        },
+        RESIDUAL: {
+            trainer: "",
+            date: ""
+        },
+        TRAINING: {
+            trainer: "",
+            date: ""
+        },
+        employeeID: "admin",
+        title: "System Administrator",
+        cell: "",
+        email: "admin@example.com",
+        lastUpdated: new Date(),
+        userLocation: "Local System",
+        AVATAR: "👨‍💻",
+        deptLead: "false",
+        userDept: "Administration",
+        userName: "Admin User",
+        SERVICE: {
+            trainer: "",
+            date: ""
+        },
+        status: "active",
+        organization: "Local System",
+        numberFeeds: "0",
+        poundsFed: "0",
+        feedOrgID: [],
+        password: "$2a$10$X7o9AQh0jK9xyTLDRsJUxesAZjOmagBMkdxoHUGGpnrFH9YVzoJfy", // password: admin
+        lastSignIn: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+    };
+    
+    await db.collection('Users').insertOne(defaultAdmin);
+    console.log('   ✓ Created default admin user (username: Admin User, password: admin)');
+}
+
+module.exports = migrateUsers; 

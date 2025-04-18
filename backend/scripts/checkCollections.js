@@ -32,6 +32,28 @@ async function checkCollections() {
       console.log('\ncartDeviceLabels collection does not exist');
     }
     
+    // Check Users collection
+    if (collections.some(coll => coll.name === 'Users')) {
+      const users = await db.collection('Users').find().toArray();
+      console.log(`\nUsers collection (${users.length} documents):`);
+      console.log('Sample user:');
+      if (users.length > 0) {
+        // Show just the first user as a sample with limited fields
+        const user = users[0];
+        console.log(JSON.stringify({
+          _id: user._id,
+          username: user.username,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          // Include other non-sensitive fields
+        }, null, 2));
+        console.log(`... and ${users.length - 1} more users`);
+      }
+    } else {
+      console.log('\nUsers collection does not exist');
+    }
+    
     await client.close();
     console.log('MongoDB connection closed');
   } catch (error) {
