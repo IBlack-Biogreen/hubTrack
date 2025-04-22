@@ -57,21 +57,11 @@ function Home() {
         // Store user in context
         setCurrentUser(result.user);
         
-        // Show success message
-        setSnackbarMessage(`Welcome, ${result.user.name}!`);
-        setShowSnackbar(true);
-        
-        // Start tracking sequence
-        setTimeout(() => {
-          navigate('/tracking-sequence');
-        }, 1500);
+        // Navigate without animation or snackbar
+        navigate('/tracking-sequence');
       } else {
         // Invalid PIN - show shake animation
         setShake(true);
-        
-        // Show error message
-        setSnackbarMessage(result.error || 'Invalid PIN. Please try again.');
-        setShowSnackbar(true);
         
         // Clear the PIN after a short delay
         setTimeout(() => {
@@ -81,16 +71,10 @@ function Home() {
     } catch (error) {
       console.error('Error verifying PIN:', error);
       setShake(true);
-      setSnackbarMessage('Error verifying PIN. Please try again.');
-      setShowSnackbar(true);
       setTimeout(() => {
         setPin('');
       }, 500);
     }
-  };
-
-  const handleSnackbarClose = () => {
-    setShowSnackbar(false);
   };
 
   const numbers = [
@@ -121,10 +105,16 @@ function Home() {
             Enter PIN
           </Typography>
           
+          {/* Fixed height container for PIN display to prevent layout shifts */}
           <Box 
             ref={pinpadRef}
             sx={{ 
-              mb: 2,
+              mb: 3,
+              height: '70px', // Fixed height to prevent layout shift
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              alignItems: 'center',
               animation: shake ? 'shake 0.8s cubic-bezier(.36,.07,.19,.97) both' : 'none',
               '@keyframes shake': {
                 '10%, 90%': {
@@ -142,11 +132,11 @@ function Home() {
               }
             }}
           >
-            <Typography variant="h4">
-              {pin.replace(/./g, '•')}
+            <Typography variant="h4" sx={{ minHeight: '40px' }}>
+              {pin.length > 0 ? pin.replace(/./g, '•') : ' '}
             </Typography>
             {loading && (
-              <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
+              <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                 Verifying...
               </Typography>
             )}
@@ -199,21 +189,6 @@ function Home() {
           </Box>
         </Paper>
       </Box>
-      
-      <Snackbar 
-        open={showSnackbar} 
-        autoHideDuration={6000} 
-        onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert 
-          onClose={handleSnackbarClose} 
-          severity={snackbarMessage.toLowerCase().includes('invalid') || snackbarMessage.toLowerCase().includes('error') ? 'error' : 'success'} 
-          sx={{ width: '100%' }}
-        >
-          {snackbarMessage}
-        </Alert>
-      </Snackbar>
     </Container>
   );
 }
