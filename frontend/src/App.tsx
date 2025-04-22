@@ -14,10 +14,12 @@ import Users from './pages/Users';
 import Setup from './pages/Setup';
 import Settings from './pages/Settings';
 import UserTest from './components/UserTest';
+import TrackingSequence from './pages/TrackingSequence';
 import { useInactivityTimeout } from './hooks/useInactivityTimeout';
 import { TimeoutProvider } from './contexts/TimeoutContext';
 import { ThemeProvider, useThemeContext } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
+import { UserProvider } from './contexts/UserContext';
 
 const lightTheme = createTheme({
   palette: {
@@ -95,6 +97,7 @@ function AppContent() {
         <Route path="/setup" element={<Setup />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/user-test" element={<UserTest />} />
+        <Route path="/tracking-sequence" element={<TrackingSequence />} />
       </Routes>
     </>
   );
@@ -116,7 +119,9 @@ function App() {
       <ThemeProvider>
         <TimeoutProvider>
           <LanguageProvider>
-            <ThemeWrapper />
+            <UserProvider>
+              <ThemeWrapper />
+            </UserProvider>
           </LanguageProvider>
         </TimeoutProvider>
       </ThemeProvider>

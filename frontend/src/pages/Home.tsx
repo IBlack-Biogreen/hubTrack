@@ -1,17 +1,44 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Box,
   Container,
   Typography,
   Button,
   Paper,
+  Alert,
+  Snackbar,
 } from '@mui/material';
+import usePin from '../hooks/usePin';
+import { useUser } from '../contexts/UserContext';
 
 function Home() {
   const [pin, setPin] = useState<string>('');
+  const [shake, setShake] = useState<boolean>(false);
+  const [showSnackbar, setShowSnackbar] = useState<boolean>(false);
+  const [snackbarMessage, setSnackbarMessage] = useState<string>('');
+  const { verifyPin, loading } = usePin();
+  const { setCurrentUser } = useUser();
+  const navigate = useNavigate();
+  const pinpadRef = useRef<HTMLDivElement>(null);
+
+  // Reset shake animation when it ends
+  useEffect(() => {
+    if (shake) {
+      const timer = setTimeout(() => setShake(false), 820); // Slightly longer than animation duration
+      return () => clearTimeout(timer);
+    }
+  }, [shake]);
+
+  // Effect to auto-submit when PIN reaches 4 digits
+  useEffect(() => {
+    if (pin.length === 4 && !loading) {
+      handleSubmit();
+    }
+  }, [pin, loading]);
 
   const handleNumberClick = (number: string) => {
-    if (pin.length < 4) {
+    if (pin.length < 4 && !loading) {
       setPin(prev => prev + number);
     }
   };
@@ -20,10 +47,50 @@ function Home() {
     setPin('');
   };
 
-  const handleSubmit = () => {
-    // Handle pin submission logic here
-    console.log('Submitted PIN:', pin);
-    setPin('');
+  const handleSubmit = async () => {
+    if (pin.length !== 4 || loading) return;
+    
+    try {
+      const result = await verifyPin(pin);
+      
+      if (result.success && result.user) {
+        // Store user in context
+        setCurrentUser(result.user);
+        
+        // Show success message
+        setSnackbarMessage(`Welcome, ${result.user.name}!`);
+        setShowSnackbar(true);
+        
+        // Start tracking sequence
+        setTimeout(() => {
+          navigate('/tracking-sequence');
+        }, 1500);
+      } else {
+        // Invalid PIN - show shake animation
+        setShake(true);
+        
+        // Show error message
+        setSnackbarMessage(result.error || 'Invalid PIN. Please try again.');
+        setShowSnackbar(true);
+        
+        // Clear the PIN after a short delay
+        setTimeout(() => {
+          setPin('');
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Error verifying PIN:', error);
+      setShake(true);
+      setSnackbarMessage('Error verifying PIN. Please try again.');
+      setShowSnackbar(true);
+      setTimeout(() => {
+        setPin('');
+      }, 500);
+    }
+  };
+
+  const handleSnackbarClose = () => {
+    setShowSnackbar(false);
   };
 
   const numbers = [
@@ -54,10 +121,35 @@ function Home() {
             Enter PIN
           </Typography>
           
-          <Box sx={{ mb: 2 }}>
+          <Box 
+            ref={pinpadRef}
+            sx={{ 
+              mb: 2,
+              animation: shake ? 'shake 0.8s cubic-bezier(.36,.07,.19,.97) both' : 'none',
+              '@keyframes shake': {
+                '10%, 90%': {
+                  transform: 'translate3d(-1px, 0, 0)'
+                },
+                '20%, 80%': {
+                  transform: 'translate3d(2px, 0, 0)'
+                },
+                '30%, 50%, 70%': {
+                  transform: 'translate3d(-4px, 0, 0)'
+                },
+                '40%, 60%': {
+                  transform: 'translate3d(4px, 0, 0)'
+                }
+              }
+            }}
+          >
             <Typography variant="h4">
               {pin.replace(/./g, '•')}
             </Typography>
+            {loading && (
+              <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
+                Verifying...
+              </Typography>
+            )}
           </Box>
 
           <Box sx={{ maxWidth: 300, width: '100%' }}>
@@ -77,6 +169,7 @@ function Home() {
                     variant="contained"
                     color="primary"
                     onClick={() => handleNumberClick(number.toString())}
+                    disabled={loading}
                     sx={{ 
                       height: '60px', 
                       width: '60px',
@@ -93,27 +186,34 @@ function Home() {
             ))}
           </Box>
 
-          <Box sx={{ mt: 2, display: 'flex', gap: 2 }}>
+          <Box sx={{ mt: 2 }}>
             <Button
               variant="outlined"
               color="error"
               onClick={handleClear}
               sx={{ mt: 2 }}
+              disabled={loading}
             >
               Clear
-            </Button>
-            <Button
-              variant="contained"
-              color="primary"
-              onClick={handleSubmit}
-              sx={{ mt: 2 }}
-              disabled={pin.length !== 4}
-            >
-              Submit
             </Button>
           </Box>
         </Paper>
       </Box>
+      
+      <Snackbar 
+        open={showSnackbar} 
+        autoHideDuration={6000} 
+        onClose={handleSnackbarClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={handleSnackbarClose} 
+          severity={snackbarMessage.toLowerCase().includes('invalid') || snackbarMessage.toLowerCase().includes('error') ? 'error' : 'success'} 
+          sx={{ width: '100%' }}
+        >
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </Container>
   );
 }

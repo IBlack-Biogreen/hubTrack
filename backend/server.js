@@ -31,9 +31,9 @@ const getCollectionNames = () => {
 
 // Enable CORS for all routes with specific configuration
 app.use(cors({
-    origin: 'http://localhost:5173', // Vite's default port
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], // Vite's default ports
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Selected-Cart'],
     credentials: true
 }));
 
@@ -299,19 +299,19 @@ function defineRoutes() {
             console.error('Error fetching cart serial numbers:', error);
             res.status(503).json({ error: 'Service unavailable - database connection issue' });
         }
-    });
+});
 
-    // API endpoint to get all device labels
-    app.get('/api/device-labels', async (req, res) => {
-        try {
-            if (!dbManager.isConnectedToDatabase()) {
-                return res.status(503).json({
-                    error: 'Database not available',
-                    message: 'The database is currently not connected'
-                });
-            }
+// API endpoint to get all device labels
+app.get('/api/device-labels', async (req, res) => {
+    try {
+        if (!dbManager.isConnectedToDatabase()) {
+            return res.status(503).json({
+                error: 'Database not available',
+                message: 'The database is currently not connected'
+            });
+        }
 
-            const db = dbManager.getDb();
+        const db = dbManager.getDb();
             let query = { deviceType: 'trackingCart' };
             
             // If connected to Atlas, we might need a different query
@@ -323,25 +323,25 @@ function defineRoutes() {
             }
             
             const labels = await db.collection(collections.deviceLabels).find(query).toArray();
-            console.log('Device labels found:', labels);
-            res.json(labels);
-        } catch (error) {
-            console.error('Error fetching device labels:', error);
-            res.status(500).json({ error: error.message });
-        }
-    });
+        console.log('Device labels found:', labels);
+        res.json(labels);
+    } catch (error) {
+        console.error('Error fetching device labels:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
     // API endpoint to update device label settings
     app.post('/api/device-labels/:deviceLabel/settings', async (req, res) => {
-        try {
+    try {
             const { deviceLabel } = req.params;
             const settings = req.body;
 
-            if (!deviceLabel) {
-                return res.status(400).json({ error: 'Device label is required' });
-            }
+        if (!deviceLabel) {
+            return res.status(400).json({ error: 'Device label is required' });
+        }
 
-            const db = dbManager.getDb();
+        const db = dbManager.getDb();
             const result = await db.collection(collections.deviceLabels).updateOne(
                 { 
                     deviceLabel,
@@ -373,13 +373,13 @@ function defineRoutes() {
             const db = dbManager.getDb();
             
             const label = await db.collection(collections.deviceLabels).findOne({ 
-                deviceLabel,
-                deviceType: 'trackingCart'
-            });
-            
-            if (!label) {
-                return res.status(404).json({ error: 'Device label not found' });
-            }
+            deviceLabel,
+            deviceType: 'trackingCart'
+        });
+        
+        if (!label) {
+            return res.status(404).json({ error: 'Device label not found' });
+        }
 
             res.json(label.settings || {});
         } catch (error) {
@@ -401,16 +401,16 @@ function defineRoutes() {
             }
 
             res.json(selectedCart);
-        } catch (error) {
+    } catch (error) {
             console.error('Error getting selected cart:', error);
-            res.status(500).json({ error: error.message });
-        }
-    });
+        res.status(500).json({ error: error.message });
+    }
+});
 
     // API endpoint to unselect all carts
     app.post('/api/carts/unselect-all', async (req, res) => {
-        try {
-            const db = dbManager.getDb();
+    try {
+        const db = dbManager.getDb();
             await db.collection(collections.carts).updateMany(
                 { isSelected: true },
                 { $set: { isSelected: false } }
@@ -477,9 +477,61 @@ function defineRoutes() {
             
             console.log(`Deleted ${result.deletedCount} carts, keeping ${keepSerialNumber}`);
             res.json({ success: true, deletedCount: result.deletedCount });
-        } catch (error) {
+    } catch (error) {
             console.error('Error purging other carts:', error);
-            res.status(500).json({ error: error.message });
+        res.status(500).json({ error: error.message });
+    }
+});
+
+    // API endpoint to verify user PIN
+    app.post('/api/verify-pin', async (req, res) => {
+        try {
+            const { pin } = req.body;
+            
+            if (!pin || pin.length !== 4) {
+                return res.status(400).json({ 
+                    success: false, 
+                    error: 'Invalid PIN format' 
+                });
+            }
+            
+            const db = dbManager.getDb();
+            const user = await db.collection(collections.users).findOne({
+                CODE: pin,
+                status: { $ne: 'inactive' }  // Only active users
+            });
+            
+            if (!user) {
+                return res.status(404).json({ 
+                    success: false, 
+                    error: 'Invalid PIN' 
+                });
+            }
+            
+            // Update the last sign in time
+            await db.collection(collections.users).updateOne(
+                { _id: user._id },
+                { $set: { lastSignIn: new Date() } }
+            );
+            
+            // Sanitize user data before sending it back
+            const sanitizedUser = {
+                _id: user._id,
+                name: user.userName || `${user.FIRST || ''} ${user.LAST || ''}`.trim(),
+                role: user.DEVICES && user.DEVICES.includes('admin') ? 'admin' : 'user',
+                DEVICES: user.DEVICES || []
+            };
+            
+            return res.json({
+                success: true,
+                user: sanitizedUser
+            });
+        } catch (error) {
+            console.error('Error verifying PIN:', error);
+            res.status(500).json({ 
+                success: false, 
+                error: 'Server error while verifying PIN' 
+            });
         }
     });
 }
