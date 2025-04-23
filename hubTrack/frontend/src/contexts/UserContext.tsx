@@ -68,6 +68,4 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 };
 
 // Create a custom hook to use the user context
-export const useUser = () => useContext(UserContext);
-
-export default UserContext; 
+export const useUser = () => useContext(UserContext); 

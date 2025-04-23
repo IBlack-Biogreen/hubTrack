@@ -67,14 +67,25 @@ Example MongoDB Documents
 Feed Entry (localFeeds collection)
 
 {
-  "timestamp": "2025-04-22T14:00:00Z",
-  "userId": "Connor Gillette",
-  "feedTypeId": "661d998bd405559ece18417d",
-  "weight": 4.6,
+    "weight": "19.841",
+  "user": "VICTORIO ",
+  "organization": "Embassy Suites Boulder, CO",
+  "department": "Event Waste",
+  "type": "Mix 🌱",
+  "devicelabel": "bgtrack_61",
+  "userId": "646cf034f851d25dc2edeb22",
+  "machineSerial": 61,
+  "timestamp": {
+    "$date": "2025-04-22T19:09:40.998Z"
+  },
+  "feedStartedTime": "2025-04-22T19:08:29.717Z",
+  "lastUpdated": {
+    "$date": "2025-04-22T19:09:40.998Z"
+  }
+  "additionMethod": "bgTrack",
   "imageFilename": "bgtrack_61_20250422_140000.jpg",
   "imageStatus": "pending",  // pending, uploaded, error
   "syncStatus": "pending",   // pending, uploaded, error
-  "deviceLabel": "bgtrack_61"
 }
 
 User Document (localUsers)

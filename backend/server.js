@@ -4,6 +4,7 @@ const dbManager = require('./db/connection');
 const DataModel = require('./models/DataModel');
 const migrateDeviceLabels = require('./scripts/migrateDeviceLabels');
 const migrateUsers = require('./scripts/migrateUsers');
+const migrateFeedTypes = require('./scripts/migrateFeedTypes');
 const axios = require('axios');
 const migrateCarts = require('./scripts/migrateCarts');
 
@@ -17,14 +18,16 @@ const getCollectionNames = () => {
         return {
             carts: 'Carts',
             deviceLabels: 'cartDeviceLabels',
-            users: 'Users'
+            users: 'Users',
+            feedTypes: 'localFeedTypes'
         };
     } else {
         // Atlas collections
         return {
             carts: 'globalMachines',
             deviceLabels: 'globalDeviceLabels',
-            users: 'globalUsers'
+            users: 'globalUsers',
+            feedTypes: 'globalFeedTypes'
         };
     }
 };
@@ -138,6 +141,19 @@ async function initializeServer() {
             console.error('This error was caught and handled, continuing server startup');
         }
         console.log('USER MIGRATION COMPLETE OR SKIPPED');
+        console.log('--------------------------------');
+        
+        // Feed types migration
+        console.log('STARTING FEED TYPES MIGRATION');
+        try {
+            await migrateFeedTypes();
+            console.log('Feed types migration completed successfully');
+        } catch (error) {
+            console.error('Feed types migration failed with error:', error.message);
+            console.error('Error stack:', error.stack);
+            console.error('This error was caught and handled, continuing server startup');
+        }
+        console.log('FEED TYPES MIGRATION COMPLETE OR SKIPPED');
         console.log('--------------------------------');
 
         // Define routes after database connection is established
@@ -299,19 +315,19 @@ function defineRoutes() {
             console.error('Error fetching cart serial numbers:', error);
             res.status(503).json({ error: 'Service unavailable - database connection issue' });
         }
-});
+    });
 
-// API endpoint to get all device labels
-app.get('/api/device-labels', async (req, res) => {
-    try {
-        if (!dbManager.isConnectedToDatabase()) {
-            return res.status(503).json({
-                error: 'Database not available',
-                message: 'The database is currently not connected'
-            });
-        }
+    // API endpoint to get all device labels
+    app.get('/api/device-labels', async (req, res) => {
+        try {
+            if (!dbManager.isConnectedToDatabase()) {
+                return res.status(503).json({
+                    error: 'Database not available',
+                    message: 'The database is currently not connected'
+                });
+            }
 
-        const db = dbManager.getDb();
+            const db = dbManager.getDb();
             let query = { deviceType: 'trackingCart' };
             
             // If connected to Atlas, we might need a different query
@@ -323,25 +339,25 @@ app.get('/api/device-labels', async (req, res) => {
             }
             
             const labels = await db.collection(collections.deviceLabels).find(query).toArray();
-        console.log('Device labels found:', labels);
-        res.json(labels);
-    } catch (error) {
-        console.error('Error fetching device labels:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
+            console.log('Device labels found:', labels);
+            res.json(labels);
+        } catch (error) {
+            console.error('Error fetching device labels:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
 
     // API endpoint to update device label settings
     app.post('/api/device-labels/:deviceLabel/settings', async (req, res) => {
-    try {
+        try {
             const { deviceLabel } = req.params;
             const settings = req.body;
 
-        if (!deviceLabel) {
-            return res.status(400).json({ error: 'Device label is required' });
-        }
+            if (!deviceLabel) {
+                return res.status(400).json({ error: 'Device label is required' });
+            }
 
-        const db = dbManager.getDb();
+            const db = dbManager.getDb();
             const result = await db.collection(collections.deviceLabels).updateOne(
                 { 
                     deviceLabel,
@@ -373,13 +389,13 @@ app.get('/api/device-labels', async (req, res) => {
             const db = dbManager.getDb();
             
             const label = await db.collection(collections.deviceLabels).findOne({ 
-            deviceLabel,
-            deviceType: 'trackingCart'
-        });
-        
-        if (!label) {
-            return res.status(404).json({ error: 'Device label not found' });
-        }
+                deviceLabel,
+                deviceType: 'trackingCart'
+            });
+            
+            if (!label) {
+                return res.status(404).json({ error: 'Device label not found' });
+            }
 
             res.json(label.settings || {});
         } catch (error) {
@@ -401,16 +417,16 @@ app.get('/api/device-labels', async (req, res) => {
             }
 
             res.json(selectedCart);
-    } catch (error) {
+        } catch (error) {
             console.error('Error getting selected cart:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
+            res.status(500).json({ error: error.message });
+        }
+    });
 
     // API endpoint to unselect all carts
     app.post('/api/carts/unselect-all', async (req, res) => {
-    try {
-        const db = dbManager.getDb();
+        try {
+            const db = dbManager.getDb();
             await db.collection(collections.carts).updateMany(
                 { isSelected: true },
                 { $set: { isSelected: false } }
@@ -477,11 +493,11 @@ app.get('/api/device-labels', async (req, res) => {
             
             console.log(`Deleted ${result.deletedCount} carts, keeping ${keepSerialNumber}`);
             res.json({ success: true, deletedCount: result.deletedCount });
-    } catch (error) {
+        } catch (error) {
             console.error('Error purging other carts:', error);
-        res.status(500).json({ error: error.message });
-    }
-});
+            res.status(500).json({ error: error.message });
+        }
+    });
 
     // API endpoint to verify user PIN
     app.post('/api/verify-pin', async (req, res) => {
@@ -532,6 +548,196 @@ app.get('/api/device-labels', async (req, res) => {
                 success: false, 
                 error: 'Server error while verifying PIN' 
             });
+        }
+    });
+
+    // API endpoint to get feed types
+    app.get('/api/feed-types', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const feedTypes = await db.collection(collections.feedTypes).find().toArray();
+            res.json(feedTypes);
+        } catch (error) {
+            console.error('Error getting feed types:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // API endpoint to get feed types for a specific orgID
+    app.get('/api/feed-types/org/:orgID', async (req, res) => {
+        try {
+            const { orgID } = req.params;
+            const db = dbManager.getDb();
+            const feedTypes = await db.collection(collections.feedTypes)
+                .find({ orgID: orgID })
+                .toArray();
+            res.json(feedTypes);
+        } catch (error) {
+            console.error('Error getting feed types for org:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // API endpoint to get organizations for tracking sequence based on device label
+    app.get('/api/tracking-sequence/organizations', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            
+            // Get the device label from the device labels collection
+            const deviceLabel = await db.collection(collections.deviceLabels).findOne({});
+            
+            if (!deviceLabel) {
+                return res.status(404).json({ error: 'No device label found' });
+            }
+            
+            // Get all feed types for this device
+            const feedTypes = await db.collection(collections.feedTypes).find().toArray();
+            
+            // Extract unique organizations
+            const uniqueOrganizations = [...new Set(feedTypes.map(feedType => feedType.organization))]
+                .filter(org => org) // Filter out null/undefined
+                .map(org => ({
+                    name: org,
+                    displayName: feedTypes.find(ft => ft.organization === org)?.orgDispName || org
+                }));
+            
+            res.json({
+                organizations: uniqueOrganizations,
+                autoSelect: uniqueOrganizations.length === 1 ? uniqueOrganizations[0] : null
+            });
+        } catch (error) {
+            console.error('Error getting organizations for tracking sequence:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // API endpoint to get departments for tracking sequence based on selected organization
+    app.get('/api/tracking-sequence/departments/:organization', async (req, res) => {
+        try {
+            const { organization } = req.params;
+            const db = dbManager.getDb();
+            
+            // Get all feed types for this organization
+            const feedTypes = await db.collection(collections.feedTypes)
+                .find({ organization: organization })
+                .toArray();
+            
+            if (feedTypes.length === 0) {
+                return res.status(404).json({ error: 'No feed types found for this organization' });
+            }
+            
+            // Extract unique departments
+            const uniqueDepartments = [...new Set(feedTypes.map(feedType => feedType.department))]
+                .filter(dept => dept) // Filter out null/undefined
+                .map(dept => ({
+                    name: dept,
+                    displayName: feedTypes.find(ft => ft.department === dept)?.deptDispName || dept
+                }));
+            
+            res.json({
+                departments: uniqueDepartments,
+                autoSelect: uniqueDepartments.length === 1 ? uniqueDepartments[0] : null
+            });
+        } catch (error) {
+            console.error('Error getting departments for tracking sequence:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // API endpoint to get feed types for tracking sequence based on selected organization and department
+    app.get('/api/tracking-sequence/feed-types/:organization/:department', async (req, res) => {
+        try {
+            const { organization, department } = req.params;
+            const db = dbManager.getDb();
+            
+            // Get all feed types for this organization and department
+            const feedTypes = await db.collection(collections.feedTypes)
+                .find({ 
+                    organization: organization,
+                    department: department
+                })
+                .toArray();
+            
+            if (feedTypes.length === 0) {
+                return res.status(404).json({ error: 'No feed types found for this organization and department' });
+            }
+            
+            // Format feed types for display
+            const formattedFeedTypes = feedTypes.map(feedType => ({
+                id: feedType._id,
+                type: feedType.type,
+                displayName: feedType.typeDispName || feedType.type,
+                buttonColor: feedType.buttonColor || '000000',
+                explanation: feedType.explanation || ''
+            }));
+            
+            res.json({
+                feedTypes: formattedFeedTypes,
+                autoSelect: formattedFeedTypes.length === 1 ? formattedFeedTypes[0] : null
+            });
+        } catch (error) {
+            console.error('Error getting feed types for tracking sequence:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // API endpoint to create a new feed entry
+    app.post('/api/feeds', async (req, res) => {
+        try {
+            const { 
+                weight, 
+                userId,
+                organization,
+                department,
+                type,
+                typeDisplayName,
+                feedTypeId,
+                imageFilename
+            } = req.body;
+            
+            if (!weight || !userId || !organization || !department || !type) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+            
+            const db = dbManager.getDb();
+            
+            // Get the device label
+            const deviceLabelDoc = await db.collection(collections.deviceLabels).findOne({});
+            
+            if (!deviceLabelDoc) {
+                return res.status(404).json({ error: 'No device label found' });
+            }
+            
+            const timestamp = new Date();
+            const deviceLabel = deviceLabelDoc.deviceLabel;
+            
+            // Create the feed document
+            const feedDocument = {
+                weight: String(weight),
+                user: userId,
+                organization,
+                department,
+                type,
+                deviceLabel,
+                feedTypeId,
+                timestamp,
+                feedStartedTime: new Date(timestamp.getTime() - 60000), // 1 minute ago (example)
+                lastUpdated: timestamp,
+                imageFilename: imageFilename || `${deviceLabel}_${timestamp.toISOString().replace(/:/g, '')}.jpg`,
+                imageStatus: 'pending',
+                syncStatus: 'pending'
+            };
+            
+            const result = await db.collection('localFeeds').insertOne(feedDocument);
+            
+            res.status(201).json({ 
+                success: true, 
+                feedId: result.insertedId,
+                message: 'Feed entry created successfully' 
+            });
+        } catch (error) {
+            console.error('Error creating feed entry:', error);
+            res.status(500).json({ error: error.message });
         }
     });
 }

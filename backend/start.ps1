@@ -17,7 +17,7 @@ function Test-MongoDBRunning {
     try {
         Write-Verbose "Checking for MongoDB process..."
         $process = Get-Process mongod -ErrorAction SilentlyContinue
-        $isRunning = $process -ne $null
+        $isRunning = $null -ne $process
         Write-Verbose "MongoDB process running: $isRunning"
         return $isRunning
     } catch {

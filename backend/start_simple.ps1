@@ -11,7 +11,7 @@ Write-Host "Script directory: $scriptPath"
 $mongoRunning = $false
 try {
     $process = Get-Process mongod -ErrorAction SilentlyContinue
-    $mongoRunning = $process -ne $null
+    $mongoRunning = $null -ne $process
 } catch {
     Write-Host "Error checking MongoDB process"
 }
@@ -92,9 +92,9 @@ Write-Host "Checking for processes using port 5000..."
 try {
     $connections = Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue
     foreach ($conn in $connections) {
-        $pid = $conn.OwningProcess
-        Write-Host "Stopping process using port 5000 (PID: $pid)"
-        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+        $processId = $conn.OwningProcess
+        Write-Host "Stopping process using port 5000 (PID: $processId)"
+        Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
     }
 } catch {
     Write-Host "Error checking processes on port 5000"
