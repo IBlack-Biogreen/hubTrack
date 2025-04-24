@@ -445,17 +445,15 @@ const TrackingSequence: React.FC = () => {
           </Box>
 
           {/* Global exit button that's always visible */}
-          {activeStep === 0 && (
-            <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={handleExit}
-              >
-                Cancel
-              </Button>
-            </Box>
-          )}
+          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={handleExit}
+            >
+              Cancel
+            </Button>
+          </Box>
         </Paper>
       </Box>
     </Container>

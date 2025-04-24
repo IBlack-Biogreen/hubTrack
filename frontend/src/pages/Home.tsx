@@ -28,11 +28,17 @@ const Home: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Handle PIN input
+  // Handle PIN input and attempt login when PIN is 4 digits
   const handlePinInput = (digit: string) => {
     if (pin.length < 4) {
-      setPin(prev => prev + digit);
+      const newPin = pin + digit;
+      setPin(newPin);
       setError(null);
+      
+      // Automatically attempt login when pin reaches 4 digits
+      if (newPin.length === 4) {
+        handleLogin(newPin);
+      }
     }
   };
 
@@ -49,8 +55,8 @@ const Home: React.FC = () => {
   };
 
   // Handle login with PIN
-  const handleLogin = async () => {
-    if (pin.length !== 4) {
+  const handleLogin = async (pinToUse: string) => {
+    if (pinToUse.length !== 4) {
       setError('Please enter a 4-digit PIN');
       return;
     }
@@ -59,7 +65,7 @@ const Home: React.FC = () => {
     setError(null);
 
     try {
-      const success = await login(pin);
+      const success = await login(pinToUse);
       
       if (success) {
         // Redirect to tracking sequence will happen in useEffect
@@ -86,20 +92,8 @@ const Home: React.FC = () => {
 
   return (
     <Container maxWidth="sm">
-      <Box sx={{ mt: 8, mb: 4, textAlign: 'center' }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          HubTrack
-        </Typography>
-        <Typography variant="subtitle1" gutterBottom>
-          Food Waste Tracking System
-        </Typography>
-      </Box>
-
-      <Paper elevation={3} sx={{ p: 4, borderRadius: 2 }}>
-        <Typography variant="h5" component="h2" align="center" gutterBottom>
-          Enter Your PIN
-        </Typography>
-
+      <Paper elevation={3} sx={{ p: 4, borderRadius: 2, mt: 8 }}>
+        
         <Box sx={{ mb: 3 }}>
           <TextField
             fullWidth
@@ -165,18 +159,11 @@ const Home: React.FC = () => {
           ))}
         </Grid>
 
-        <Box sx={{ mt: 4, textAlign: 'center' }}>
-          <Button
-            variant="contained"
-            color="primary"
-            size="large"
-            onClick={handleLogin}
-            disabled={pin.length !== 4 || loading}
-            sx={{ minWidth: 120 }}
-          >
-            {loading ? <CircularProgress size={24} /> : 'Login'}
-          </Button>
-        </Box>
+        {loading && (
+          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
+            <CircularProgress />
+          </Box>
+        )}
       </Paper>
     </Container>
   );
