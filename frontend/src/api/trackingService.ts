@@ -82,13 +82,35 @@ export const verifyUserPin = async (pin: string): Promise<any> => {
 };
 
 export const getWeight = async (): Promise<number> => {
+  // Use mock weight by default until we know LabJack is working
+  const useMockWeight = true;
+  
+  if (useMockWeight) {
+    // Generate a consistent mock weight 
+    const now = new Date();
+    const seed = now.getDate() + now.getMonth() + 1;
+    const mockWeight = (5 + (seed % 10)) + ((now.getMinutes() % 10) / 10);
+    
+    console.log('Using mock weight:', mockWeight.toFixed(2), 'lbs');
+    return parseFloat(mockWeight.toFixed(2));
+  }
+  
+  // Only try to connect to LabJack if we're not using mock data
   try {
+    console.log('Attempting to get weight from LabJack sensor...');
     // Get the weight from the LabJack sensor
     const response = await axios.get(`${API_URL}/labjack/ain1`);
+    console.log('LabJack response:', response.data);
     return response.data.value || 0;
   } catch (error) {
     console.error('Error getting weight:', error);
-    // Return a mock weight for testing if the API call fails
-    return Math.random() * 10 + 1; // Random weight between 1 and 11
+    
+    // Fallback to mock weight
+    const now = new Date();
+    const seed = now.getDate() + now.getMonth() + 1;
+    const mockWeight = (5 + (seed % 10)) + ((now.getMinutes() % 10) / 10);
+    
+    console.log('Using mock weight after LabJack error:', mockWeight.toFixed(2), 'lbs');
+    return parseFloat(mockWeight.toFixed(2));
   }
 }; 
