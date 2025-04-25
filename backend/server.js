@@ -692,8 +692,14 @@ function defineRoutes() {
                 type,
                 typeDisplayName,
                 feedTypeId,
-                imageFilename
+                imageFilename,
+                feedStartedTime,
+                rawWeights
             } = req.body;
+            
+            // Log what's coming in from the client
+            console.log('Received rawWeights:', JSON.stringify(rawWeights));
+            console.log('rawWeights type:', typeof rawWeights);
             
             if (!weight || !userId || !organization || !department || !type) {
                 return res.status(400).json({ error: 'Missing required fields' });
@@ -721,14 +727,29 @@ function defineRoutes() {
                 deviceLabel,
                 feedTypeId,
                 timestamp,
-                feedStartedTime: new Date(timestamp.getTime() - 60000), // 1 minute ago (example)
+                feedStartedTime: feedStartedTime ? new Date(feedStartedTime) : new Date(timestamp.getTime() - 60000),
                 lastUpdated: timestamp,
                 imageFilename: imageFilename || `${deviceLabel}_${timestamp.toISOString().replace(/:/g, '')}.jpg`,
                 imageStatus: 'pending',
                 syncStatus: 'pending'
             };
             
+            // Add raw weights if provided
+            if (rawWeights && typeof rawWeights === 'object') {
+                feedDocument.rawWeights = rawWeights;
+                console.log('Adding rawWeights to feedDocument');
+            } else {
+                console.log('rawWeights missing or invalid format');
+            }
+            
+            // Log the final document before storage
+            console.log('Final feed document:', JSON.stringify(feedDocument));
+            
             const result = await db.collection('localFeeds').insertOne(feedDocument);
+            
+            // Verify the document was created correctly
+            const savedDocument = await db.collection('localFeeds').findOne({ _id: result.insertedId });
+            console.log('Saved document has rawWeights:', savedDocument.rawWeights ? 'yes' : 'no');
             
             res.status(201).json({ 
                 success: true, 

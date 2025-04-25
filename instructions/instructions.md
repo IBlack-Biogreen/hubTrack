@@ -86,6 +86,9 @@ Feed Entry (localFeeds collection)
   "imageFilename": "bgtrack_61_20250422_140000.jpg",
   "imageStatus": "pending",  // pending, uploaded, error
   "syncStatus": "pending",   // pending, uploaded, error
+  "rawWeights": {
+    {timestamp:"2025-04-22T19:08:29.717Z",value:"1.7"},...
+  }
 }
 
 User Document (localUsers)

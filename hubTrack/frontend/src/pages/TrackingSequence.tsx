@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -22,6 +22,7 @@ import {
   getFeedTypes,
   createFeed,
   getWeight,
+  getWeightHistory,
   Organization,
   Department,
   FeedType
@@ -45,6 +46,12 @@ const TrackingSequence: React.FC = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [feedTypes, setFeedTypes] = useState<FeedType[]>([]);
   
+  // Raw weight tracking
+  const [rawWeights, setRawWeights] = useState<Record<string, {timestamp: string, value: string}>>({});
+  const [feedStartTime, setFeedStartTime] = useState<Date | null>(null);
+  const [steadyStateBeforeWeight, setSteadyStateBeforeWeight] = useState<number | null>(null);
+  const [steadyStateAfterWeight, setSteadyStateAfterWeight] = useState<number | null>(null);
+  
   // Selected values
   const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
@@ -67,6 +74,43 @@ const TrackingSequence: React.FC = () => {
     
     return () => clearTimeout(timer);
   }, [isAuthenticated, navigate]);
+  
+  // Start weight tracking at the beginning of the sequence
+  useEffect(() => {
+    if (isAuthenticated) {
+      // Start recording feed start time and collecting weight history
+      setFeedStartTime(new Date(Date.now() - 120000)); // Start from 2 minutes ago
+      
+      // Start collecting weight data
+      const fetchWeightData = async () => {
+        try {
+          const history = await getWeightHistory();
+          // Filter history to only include data from after feedStartTime
+          const relevantHistory = history.filter(entry => 
+            new Date(entry.timestamp) >= (feedStartTime || new Date(0))
+          );
+          
+          // Convert to the format required by the API - exactly matching what's shown in instructions.md
+          const formattedWeights: Record<string, {timestamp: string, value: string}> = {};
+          relevantHistory.forEach((entry, index) => {
+            formattedWeights[index.toString()] = {
+              timestamp: entry.timestamp,
+              value: entry.voltage.toString()
+            };
+          });
+          
+          setRawWeights(formattedWeights);
+        } catch (err) {
+          console.error('Error fetching weight history:', err);
+        }
+      };
+      
+      // Fetch weight data every second
+      const intervalId = setInterval(fetchWeightData, 1000);
+      
+      return () => clearInterval(intervalId);
+    }
+  }, [isAuthenticated, feedStartTime]);
   
   // Fetch organizations for the tracking sequence
   const fetchOrganizations = async () => {
@@ -152,7 +196,42 @@ const TrackingSequence: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      const weightValue = await getWeight();
+      // Get all weight history up to now to calculate steady state weight
+      const history = await getWeightHistory();
+      
+      // Store raw weights for all time during this sequence - matching the exact structure in instructions.md
+      const formattedWeights: Record<string, {timestamp: string, value: string}> = {};
+      history.forEach((entry, index) => {
+        formattedWeights[index.toString()] = {
+          timestamp: entry.timestamp,
+          value: entry.voltage.toString()
+        };
+      });
+      setRawWeights(formattedWeights);
+      
+      // Calculate steady state weights before bin was added
+      // Assuming the first 1/3 of readings represent the empty scale
+      const earlyReadings = history.slice(0, Math.floor(history.length / 3));
+      if (earlyReadings.length > 0) {
+        const beforeWeight = earlyReadings.reduce((sum, entry) => sum + entry.weight, 0) / earlyReadings.length;
+        setSteadyStateBeforeWeight(beforeWeight);
+      }
+      
+      // Calculate steady state weights after bin was added
+      // Assuming the last 1/3 of readings represent the scale with bin
+      const lateReadings = history.slice(Math.floor(history.length * 2 / 3));
+      if (lateReadings.length > 0) {
+        const afterWeight = lateReadings.reduce((sum, entry) => sum + entry.weight, 0) / lateReadings.length;
+        setSteadyStateAfterWeight(afterWeight);
+      }
+      
+      // Calculate the actual weight as the difference
+      const calculatedWeight = steadyStateAfterWeight !== null && steadyStateBeforeWeight !== null
+        ? Math.max(0, steadyStateAfterWeight - steadyStateBeforeWeight)
+        : 0;
+      
+      // If we have a reasonable calculated weight, use it, otherwise fall back to current reading
+      const weightValue = calculatedWeight > 0 ? calculatedWeight : await getWeight();
       setWeight(weightValue);
       setActiveStep(4); // Move to confirmation step
       
@@ -195,6 +274,10 @@ const TrackingSequence: React.FC = () => {
       setLoading(true);
       setError(null);
       
+      // Debug logs
+      console.log('Raw weights object structure:', rawWeights);
+      console.log('Raw weights JSON:', JSON.stringify(rawWeights));
+      
       const feedData = {
         weight,
         userId: currentUser.name,
@@ -202,8 +285,12 @@ const TrackingSequence: React.FC = () => {
         department: selectedDepartment.name,
         type: selectedFeedType.type,
         typeDisplayName: selectedFeedType.displayName,
-        feedTypeId: selectedFeedType.id
+        feedTypeId: selectedFeedType.id,
+        feedStartedTime: feedStartTime?.toISOString() || new Date(Date.now() - 120000).toISOString(),
+        rawWeights: rawWeights
       };
+      
+      console.log('Feed data being sent:', JSON.stringify(feedData));
       
       await createFeed(feedData);
       
@@ -216,6 +303,10 @@ const TrackingSequence: React.FC = () => {
       setSelectedDepartment(null);
       setSelectedFeedType(null);
       setWeight(null);
+      setRawWeights({});
+      setFeedStartTime(null);
+      setSteadyStateBeforeWeight(null);
+      setSteadyStateAfterWeight(null);
       
       // Navigate back to home
       navigate('/');

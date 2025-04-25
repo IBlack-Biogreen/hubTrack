@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Container,
@@ -33,7 +33,6 @@ export default function Setup() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [scaleFactor, setScaleFactor] = useState(24.5);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [carts, setCarts] = useState<Array<{ 
     _id: string, 
     serialNumber: string, 
@@ -50,6 +49,7 @@ export default function Setup() {
   const { t } = useLanguage();
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showChangeCartDialog, setShowChangeCartDialog] = useState(false);
+  const [webcamDimensions, setWebcamDimensions] = useState({ width: 640, height: 480 });
 
   // Load saved cart on component mount
   useEffect(() => {
@@ -153,13 +153,6 @@ export default function Setup() {
     }
   };
 
-  const capture = useCallback(() => {
-    const imageSrc = webcamRef.current?.getScreenshot();
-    if (imageSrc) {
-      setCapturedImage(imageSrc);
-    }
-  }, [webcamRef]);
-
   useEffect(() => {
     const fetchConfig = async () => {
       try {
@@ -185,7 +178,6 @@ export default function Setup() {
           throw new Error('Failed to fetch reading');
         }
         const data = await response.json();
-        console.log('Received reading:', data);  // Debug log
         setReading(data.voltage);
         setWeight(data.weight);
         setError(null);
@@ -328,6 +320,15 @@ export default function Setup() {
   const handleCameraLoad = () => {
     console.log('Camera loaded successfully');
     setCameraError(null);
+    
+    // Get camera's native resolution
+    if (webcamRef.current && webcamRef.current.video) {
+      const video = webcamRef.current.video;
+      setWebcamDimensions({
+        width: video.videoWidth,
+        height: video.videoHeight
+      });
+    }
   };
 
   // Fetch carts on component mount
@@ -547,44 +548,40 @@ export default function Setup() {
           }}
         >
           <Typography variant="h6" gutterBottom>
-            Camera
+            Camera Preview
           </Typography>
           {cameraError ? (
             <Alert severity="error">{cameraError}</Alert>
           ) : (
-            <Box sx={{ position: 'relative', width: '100%', height: '300px' }}>
+            <Box 
+              sx={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                overflow: 'hidden',
+                width: '100%'
+              }}
+            >
               <Webcam
                 ref={webcamRef}
                 onUserMediaError={handleCameraError}
                 onUserMedia={handleCameraLoad}
+                videoConstraints={{
+                  width: { ideal: 1280 },
+                  height: { ideal: 720 },
+                  facingMode: "environment"
+                }}
+                imageSmoothing={false}
+                mirrored={false}
                 style={{
                   width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
+                  height: 'auto'
                 }}
-              />
-              <Button
-                variant="contained"
-                onClick={capture}
-                sx={{
-                  position: 'absolute',
-                  bottom: 16,
-                  right: 16,
-                }}
-              >
-                Capture
-              </Button>
-            </Box>
-          )}
-          {capturedImage && (
-            <Box sx={{ mt: 2 }}>
-              <img
-                src={capturedImage}
-                alt="Captured"
-                style={{ maxWidth: '100%' }}
               />
             </Box>
           )}
+          <Typography variant="body2" sx={{ mt: 1, textAlign: 'center' }}>
+            Camera resolution: {webcamDimensions.width}x{webcamDimensions.height}
+          </Typography>
         </Paper>
       </Box>
     </Container>
