@@ -96,6 +96,46 @@ const translations: Translations = {
     settings: 'Settings',
     darkMode: 'Dark Mode',
   },
+  userAuthentication: {
+    en: 'User Authentication',
+    es: 'Autenticación de Usuario',
+  },
+  selectOrganization: {
+    en: 'Select Organization',
+    es: 'Seleccionar Organización',
+  },
+  selectOrganizationDescription: {
+    en: 'Please select an organization from the list below',
+    es: 'Por favor seleccione una organización de la lista',
+  },
+  selectDepartment: {
+    en: 'Select Department',
+    es: 'Seleccionar Departamento',
+  },
+  selectDepartmentDescription: {
+    en: 'Please select a department from the list below',
+    es: 'Por favor seleccione un departamento de la lista',
+  },
+  selectFeedType: {
+    en: 'Select Feed Type',
+    es: 'Seleccionar Tipo de Alimento',
+  },
+  selectFeedTypeDescription: {
+    en: 'Please select a feed type from the list below',
+    es: 'Por favor seleccione un tipo de alimento de la lista',
+  },
+  summary: {
+    en: 'Summary',
+    es: 'Resumen',
+  },
+  summaryDescription: {
+    en: 'Review the feed details before submission',
+    es: 'Revise los detalles del alimento antes de enviar',
+  },
+  pleaseEnterPin: {
+    en: 'Please enter your PIN to continue',
+    es: 'Por favor ingrese su PIN para continuar',
+  },
 };
 
 interface LanguageContextType {

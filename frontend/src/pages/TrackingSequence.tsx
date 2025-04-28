@@ -16,6 +16,7 @@ import {
   CardActionArea
 } from '@mui/material';
 import { useUser } from '../contexts/UserContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import {
   getOrganizations,
   getDepartments,
@@ -30,11 +31,11 @@ import Webcam from 'react-webcam';
 
 // Steps in the tracking sequence
 const steps = [
-  'User Authentication',
-  'Select Organization',
-  'Select Department',
-  'Select Feed Type',
-  'Summary'
+  'userAuthentication',
+  'selectOrganization',
+  'selectDepartment',
+  'selectFeedType',
+  'summary'
 ];
 
 const TrackingSequence: React.FC = () => {
@@ -73,6 +74,7 @@ const TrackingSequence: React.FC = () => {
   
   const { currentUser, isAuthenticated, logout } = useUser();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   
   // Check if user is authenticated
   useEffect(() => {
@@ -626,7 +628,7 @@ const TrackingSequence: React.FC = () => {
         return (
           <Box sx={{ textAlign: 'center', my: 4 }}>
             <Typography variant="h6" sx={{ mt: 2, mb: 4 }}>
-              Initializing tracking sequence...
+              {t('userAuthentication')}
             </Typography>
             
             {/* Camera status indicator */}
@@ -766,7 +768,10 @@ const TrackingSequence: React.FC = () => {
         return (
           <Box sx={{ my: 4 }}>
             <Typography variant="h6" gutterBottom>
-              Select an Organization
+              {t('selectOrganization')}
+            </Typography>
+            <Typography>
+              {t('selectOrganizationDescription')}
             </Typography>
             {loading ? (
               <Box sx={{ textAlign: 'center', my: 2 }}>
@@ -796,7 +801,10 @@ const TrackingSequence: React.FC = () => {
         return (
           <Box sx={{ my: 4 }}>
             <Typography variant="h6" gutterBottom>
-              Select a Department
+              {t('selectDepartment')}
+            </Typography>
+            <Typography>
+              {t('selectDepartmentDescription')}
             </Typography>
             {loading ? (
               <Box sx={{ textAlign: 'center', my: 2 }}>
@@ -826,7 +834,10 @@ const TrackingSequence: React.FC = () => {
         return (
           <Box sx={{ my: 4 }}>
             <Typography variant="h6" gutterBottom>
-              Select a Feed Type
+              {t('selectFeedType')}
+            </Typography>
+            <Typography>
+              {t('selectFeedTypeDescription')}
             </Typography>
             {loading ? (
               <Box sx={{ textAlign: 'center', my: 2 }}>
@@ -865,7 +876,10 @@ const TrackingSequence: React.FC = () => {
         return (
           <Box sx={{ my: 4 }}>
             <Typography variant="h6" gutterBottom>
-              Feed Summary
+              {t('summary')}
+            </Typography>
+            <Typography>
+              {t('summaryDescription')}
             </Typography>
             {loading ? (
               <Box sx={{ textAlign: 'center', my: 2 }}>
@@ -1084,7 +1098,7 @@ const TrackingSequence: React.FC = () => {
           <Stepper activeStep={activeStep} alternativeLabel>
             {steps.map((label) => (
               <Step key={label}>
-                <StepLabel>{label}</StepLabel>
+                <StepLabel>{t(label)}</StepLabel>
               </Step>
             ))}
           </Stepper>

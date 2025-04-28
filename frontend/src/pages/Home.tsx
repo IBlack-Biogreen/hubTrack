@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -13,6 +13,7 @@ import {
 import { useUser } from '../contexts/UserContext';
 import BackspaceIcon from '@mui/icons-material/Backspace';
 import axios from 'axios';
+import Webcam from 'react-webcam';
 
 const API_URL = 'http://localhost:5000/api';
 
@@ -23,6 +24,29 @@ const Home: React.FC = () => {
   const [hasFeedTypes, setHasFeedTypes] = useState<boolean>(true);
   const { login, isAuthenticated } = useUser();
   const navigate = useNavigate();
+  const webcamRef = useRef<Webcam>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraReady, setCameraReady] = useState<boolean>(false);
+  const [stats, setStats] = useState({
+    today: 0,
+    thisWeek: 0,
+    thisMonth: 0,
+    thisYear: 0,
+    allTime: 0
+  });
+
+  // Fetch stats on component mount
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/stats`);
+        setStats(response.data);
+      } catch (error) {
+        console.error('Error fetching stats:', error);
+      }
+    };
+    fetchStats();
+  }, []);
 
   // Check for feed types on component mount
   useEffect(() => {
@@ -133,78 +157,164 @@ const Home: React.FC = () => {
   }
 
   return (
-    <Container maxWidth="sm">
-      <Paper elevation={3} sx={{ p: 4, borderRadius: 2, mt: 8 }}>
-        <Typography variant="h5" component="h2" align="center" gutterBottom>
-          Enter Your PIN
-        </Typography>
-
-        <Box sx={{ mb: 3 }}>
-          <TextField
-            fullWidth
-            value={pin}
-            type="password"
-            placeholder="Enter 4-digit PIN"
-            InputProps={{
-              readOnly: true,
-              sx: { fontSize: '1.5rem', letterSpacing: '0.5rem', textAlign: 'center' }
-            }}
-            variant="outlined"
-            sx={{ mb: 2 }}
-          />
-
-          {error && (
-            <Typography color="error" align="center" sx={{ mb: 2 }}>
-              {error}
+    <Box sx={{ 
+      height: 'calc(100vh - 64px)',
+      width: '100vw',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'stretch',
+      bgcolor: '#f5f5f5',
+      position: 'absolute',
+      top: '64px',
+      left: 0
+    }}>
+      <Grid container spacing={3} sx={{ 
+        width: '100%',
+        height: '100%',
+        maxWidth: '1800px',
+        px: 3,
+        m: 0,
+        flex: 1
+      }}>
+        {/* Left Column - Stats */}
+        <Grid item xs={12} md={4}>
+          <Paper elevation={3} sx={{ p: 3, height: 'calc(100vh - 128px)', borderRadius: 2, overflow: 'auto' }}>
+            <Typography variant="h6" gutterBottom>
+              Tracking Statistics
             </Typography>
-          )}
-        </Box>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Paper sx={{ p: 2, bgcolor: '#e3f2fd' }}>
+                <Typography variant="body1">Today</Typography>
+                <Typography variant="h4">{stats.today}</Typography>
+              </Paper>
+              <Paper sx={{ p: 2, bgcolor: '#e8f5e9' }}>
+                <Typography variant="body1">This Week</Typography>
+                <Typography variant="h4">{stats.thisWeek}</Typography>
+              </Paper>
+              <Paper sx={{ p: 2, bgcolor: '#fff3e0' }}>
+                <Typography variant="body1">This Month</Typography>
+                <Typography variant="h4">{stats.thisMonth}</Typography>
+              </Paper>
+              <Paper sx={{ p: 2, bgcolor: '#fce4ec' }}>
+                <Typography variant="body1">This Year</Typography>
+                <Typography variant="h4">{stats.thisYear}</Typography>
+              </Paper>
+              <Paper sx={{ p: 2, bgcolor: '#f3e5f5' }}>
+                <Typography variant="body1">All Time</Typography>
+                <Typography variant="h4">{stats.allTime}</Typography>
+              </Paper>
+            </Box>
+          </Paper>
+        </Grid>
 
-        <Grid container spacing={2}>
-          {pinPad.map((row, rowIndex) => (
-            <Grid item container justifyContent="center" spacing={2} key={`row-${rowIndex}`}>
-              {row.map((key) => (
-                <Grid item xs={4} key={key}>
-                  {key === '⌫' ? (
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      color="error"
-                      onClick={handlePinBackspace}
-                      sx={{ height: 64, fontSize: '1.25rem' }}
-                      disabled={loading}
-                    >
-                      <BackspaceIcon />
-                    </Button>
-                  ) : key === 'C' ? (
-                    <Button
-                      fullWidth
-                      variant="outlined"
-                      color="warning"
-                      onClick={handlePinClear}
-                      sx={{ height: 64, fontSize: '1.25rem' }}
-                      disabled={loading}
-                    >
-                      {key}
-                    </Button>
-                  ) : (
-                    <Button
-                      fullWidth
-                      variant="contained"
-                      onClick={() => handlePinInput(key)}
-                      sx={{ height: 64, fontSize: '1.5rem' }}
-                      disabled={loading}
-                    >
-                      {key}
-                    </Button>
-                  )}
+        {/* Center Column - PIN Pad */}
+        <Grid item xs={12} md={4}>
+          <Paper elevation={3} sx={{ p: 3, borderRadius: 2, height: 'calc(100vh - 128px)', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <Box sx={{ mb: 3 }}>
+              <TextField
+                fullWidth
+                value={pin}
+                type="password"
+                placeholder="Enter 4-digit PIN"
+                InputProps={{
+                  readOnly: true,
+                  sx: { fontSize: '1.5rem', letterSpacing: '0.5rem', textAlign: 'center' }
+                }}
+                variant="outlined"
+                sx={{ mb: 2 }}
+              />
+
+              {error && (
+                <Typography color="error" align="center" sx={{ mb: 2 }}>
+                  {error}
+                </Typography>
+              )}
+            </Box>
+
+            <Grid container spacing={2}>
+              {pinPad.map((row, rowIndex) => (
+                <Grid item container justifyContent="center" spacing={2} key={`row-${rowIndex}`}>
+                  {row.map((key) => (
+                    <Grid item xs={4} key={key}>
+                      {key === '⌫' ? (
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          color="error"
+                          onClick={handlePinBackspace}
+                          sx={{ height: 64, fontSize: '1.25rem' }}
+                          disabled={loading}
+                        >
+                          <BackspaceIcon />
+                        </Button>
+                      ) : key === 'C' ? (
+                        <Button
+                          fullWidth
+                          variant="outlined"
+                          color="warning"
+                          onClick={handlePinClear}
+                          sx={{ height: 64, fontSize: '1.25rem' }}
+                          disabled={loading}
+                        >
+                          {key}
+                        </Button>
+                      ) : (
+                        <Button
+                          fullWidth
+                          variant="contained"
+                          onClick={() => handlePinInput(key)}
+                          sx={{ height: 64, fontSize: '1.5rem' }}
+                          disabled={loading}
+                        >
+                          {key}
+                        </Button>
+                      )}
+                    </Grid>
+                  ))}
                 </Grid>
               ))}
             </Grid>
-          ))}
+          </Paper>
         </Grid>
-      </Paper>
-    </Container>
+
+        {/* Right Column - Camera Preview */}
+        <Grid item xs={12} md={4}>
+          <Paper elevation={3} sx={{ p: 3, height: 'calc(100vh - 128px)', borderRadius: 2, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <Box sx={{ position: 'relative', width: '100%', height: 'auto' }}>
+              <Webcam
+                ref={webcamRef}
+                onUserMediaError={(error) => {
+                  console.error('Camera error:', error);
+                  setCameraError('Failed to access camera. Please check your camera permissions and connection.');
+                  setCameraReady(false);
+                }}
+                onUserMedia={() => {
+                  setCameraError(null);
+                  setCameraReady(true);
+                }}
+                screenshotFormat="image/jpeg"
+                width={480}
+                height={360}
+                audio={false}
+                imageSmoothing={true}
+                mirrored={false}
+                videoConstraints={{
+                  width: 480,
+                  height: 360,
+                  facingMode: "environment"
+                }}
+                style={{ width: '100%', borderRadius: '4px' }}
+              />
+              {cameraError && (
+                <Typography color="error" sx={{ mt: 1, textAlign: 'center' }}>
+                  {cameraError}
+                </Typography>
+              )}
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+    </Box>
   );
 };
 

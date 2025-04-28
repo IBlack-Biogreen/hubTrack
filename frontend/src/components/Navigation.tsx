@@ -17,6 +17,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import LanguageIcon from '@mui/icons-material/Language';
 import { useCurrentTime } from '../hooks/useCurrentTime';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
+import biogreenLogo from '../assets/biogreen-logo.svg';
 
 const pages = [
   { name: 'Home', path: '/' },
@@ -83,21 +84,21 @@ function Navigation() {
     <AppBar position="static" color="primary">
       <Container maxWidth="xl">
         <Toolbar disableGutters>
-          <Typography
-            variant="h6"
-            noWrap
+          <Box
             component={RouterLink}
             to="/"
             sx={{
               mr: 2,
               display: { xs: 'none', md: 'flex' },
-              fontWeight: 700,
-              color: 'inherit',
-              textDecoration: 'none',
+              height: '40px',
+              '& img': {
+                height: '100%',
+                width: 'auto'
+              }
             }}
           >
-            HubTrack
-          </Typography>
+            <img src={biogreenLogo} alt="BioGreen Logo" />
+          </Box>
 
           {isMobile && (
             <Box sx={{ flexGrow: 1, display: { xs: 'flex', md: 'none' } }}>
@@ -146,22 +147,22 @@ function Navigation() {
             </Box>
           )}
 
-          <Typography
-            variant="h5"
-            noWrap
+          <Box
             component={RouterLink}
             to="/"
             sx={{
               mr: 2,
               display: { xs: 'flex', md: 'none' },
               flexGrow: 1,
-              fontWeight: 700,
-              color: 'inherit',
-              textDecoration: 'none',
+              height: '30px',
+              '& img': {
+                height: '100%',
+                width: 'auto'
+              }
             }}
           >
-            HubTrack
-          </Typography>
+            <img src={biogreenLogo} alt="BioGreen Logo" />
+          </Box>
 
           {!isMobile && (
             <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' } }}>
