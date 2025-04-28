@@ -8,9 +8,6 @@ const Users: React.FC = () => {
 
   return (
     <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
-      <Typography variant="h4" component="h1" gutterBottom>
-        Users Management
-      </Typography>
       <Paper sx={{ p: 2, display: 'flex', flexDirection: 'column' }}>
         {error ? (
           <Box sx={{ p: 3, textAlign: 'center' }}>

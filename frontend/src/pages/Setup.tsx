@@ -361,10 +361,6 @@ export default function Setup() {
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          {t('setup') || 'Setup'}
-        </Typography>
-
         <Paper
           elevation={3}
           sx={{

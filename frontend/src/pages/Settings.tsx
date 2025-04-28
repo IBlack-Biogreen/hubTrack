@@ -118,10 +118,6 @@ function Settings() {
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
-        <Typography variant="h4" gutterBottom>
-          {t('settings')}
-        </Typography>
-
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" gutterBottom>
             {t('darkMode')}

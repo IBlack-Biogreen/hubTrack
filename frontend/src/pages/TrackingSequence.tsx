@@ -1071,9 +1071,6 @@ const TrackingSequence: React.FC = () => {
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Tracking Sequence
-        </Typography>
         <Typography variant="subtitle1" gutterBottom>
           Welcome, {currentUser?.name || 'User'}
         </Typography>

@@ -4,9 +4,6 @@ function Storage() {
   return (
     <Container>
       <Box sx={{ mt: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Storage
-        </Typography>
         <Typography>
           Storage management content will go here.
         </Typography>

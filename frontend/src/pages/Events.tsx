@@ -4,9 +4,6 @@ function Events() {
   return (
     <Container>
       <Box sx={{ mt: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Events
-        </Typography>
         <Typography>
           Events management content will go here.
         </Typography>

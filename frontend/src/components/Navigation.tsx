@@ -175,9 +175,9 @@ function Navigation() {
                     my: 2, 
                     color: 'white', 
                     display: 'block',
-                    backgroundColor: location.pathname === page.path ? 'rgba(255, 255, 255, 0.2)' : 'transparent',
+                    backgroundColor: location.pathname === page.path ? '#ff9800' : 'transparent',
                     '&:hover': {
-                      backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                      backgroundColor: location.pathname === page.path ? '#f57c00' : 'rgba(255, 255, 255, 0.1)',
                     },
                   }}
                 >

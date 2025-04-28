@@ -7,10 +7,21 @@ const migrateUsers = require('./scripts/migrateUsers');
 const migrateFeedTypes = require('./scripts/migrateFeedTypes');
 const axios = require('axios');
 const migrateCarts = require('./scripts/migrateCarts');
+const path = require('path');
+const fs = require('fs');
+const s3Service = require('./s3Service');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const pythonServerPort = 5001; // Python server will run on this port
+
+// Add static file serving for images
+const documentsPath = process.env.DOCUMENTS_PATH || path.join(process.env.USERPROFILE || process.env.HOME, 'Documents');
+const imagesDir = path.join(documentsPath, 'hubtrack_images');
+if (!fs.existsSync(imagesDir)) {
+    fs.mkdirSync(imagesDir, { recursive: true });
+}
+app.use('/images', express.static(imagesDir));
 
 // Define collection names based on connection type (Atlas or local)
 const getCollectionNames = () => {
@@ -57,6 +68,18 @@ app.get('/api/health', (req, res) => {
         database: dbManager.isConnectedToDatabase() ? 'connected' : 'disconnected',
         databaseType: dbManager.isLocalConnection() ? 'local' : 'Atlas'
     });
+});
+
+// Add S3 sync endpoint
+app.post('/api/sync-images', async (req, res) => {
+    try {
+        const db = dbManager.getDb();
+        await s3Service.syncPendingImages(db);
+        res.json({ success: true, message: 'Image sync completed' });
+    } catch (error) {
+        console.error('Error in sync-images endpoint:', error);
+        res.status(500).json({ error: error.message });
+    }
 });
 
 // Initialize server
@@ -169,6 +192,16 @@ async function initializeServer() {
 
         // Define routes after database connection is established
         defineRoutes();
+        
+        // Start periodic S3 sync job (every 5 minutes)
+        setInterval(async () => {
+            try {
+                const db = dbManager.getDb();
+                await s3Service.syncPendingImages(db);
+            } catch (error) {
+                console.error('Error in periodic S3 sync:', error);
+            }
+        }, 5 * 60 * 1000); // 5 minutes
         
         // Start server
         app.listen(PORT, () => {
