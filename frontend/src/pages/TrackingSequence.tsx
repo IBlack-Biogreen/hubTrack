@@ -62,9 +62,12 @@ const TrackingSequence: React.FC = () => {
   // Add camera facing mode state
   const [cameraFacingMode, setCameraFacingMode] = useState<"environment" | "user">("environment");
   
-  // Add rawWeights state
-  const [rawWeights, setRawWeights] = useState<Array<{timestamp: string, value: string}>>([]);
-  const [feedStartedTime, setFeedStartedTime] = useState<string | null>(null);
+  // Add weightIntervalRef
+  const weightIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Add rawWeights state with correct type
+  const [rawWeights, setRawWeights] = useState<Record<string, { timestamp: string; value: string }>>({});
+  const [feedStartTime, setFeedStartTime] = useState<Date | null>(null);
   
   const { currentUser, isAuthenticated, logout } = useUser();
   const navigate = useNavigate();
@@ -82,9 +85,9 @@ const TrackingSequence: React.FC = () => {
       fetchOrganizations();
       
       // Record feed start time
-      const startTime = new Date().toISOString();
-      setFeedStartedTime(startTime);
-      console.log('Feed started at:', startTime);
+      const startTime = new Date();
+      setFeedStartTime(startTime);
+      console.log('Feed started at:', startTime.toISOString());
       
       // Start collecting raw weights
       startCollectingWeights();
@@ -437,7 +440,6 @@ const TrackingSequence: React.FC = () => {
       
       const weightValue = await getWeight();
       setWeight(weightValue);
-      setActiveStep(4); // Move to summary step
       
     } catch (err) {
       console.error('Error fetching weight:', err);
@@ -458,65 +460,131 @@ const TrackingSequence: React.FC = () => {
     if (!selectedOrganization) return;
     
     setSelectedDepartment(department);
+    setActiveStep(3); // Move to feed type selection step
     await fetchFeedTypes(selectedOrganization.name, department.name);
   };
   
   // Handle feed type selection
   const handleSelectFeedType = async (feedType: FeedType) => {
+    console.log('Feed type selected:', feedType);
+    console.log('Current active step:', activeStep);
+    
+    if (activeStep !== 3) {
+      console.log('Not on feed type selection step, ignoring selection');
+      return;
+    }
+    
     setSelectedFeedType(feedType);
-    await fetchWeight();
-    // Auto-submit when we get the weight
-    handleSubmitFeed();
+    
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Get the current weight
+      const weightValue = await getWeight();
+      console.log('Got weight value:', weightValue);
+      setWeight(weightValue);
+      
+      // Submit the feed
+      console.log('Submitting feed with all collected data');
+      await handleSubmitFeed();
+      
+    } catch (err) {
+      console.error('Error in feed type selection:', err);
+      setError('Failed to process feed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
   
   // Submit the feed entry
   const handleSubmitFeed = async () => {
-    if (!selectedFeedType || !selectedOrganization || !selectedDepartment || !weight) {
-      setError('Please complete all required fields');
+    // Debug log all required fields
+    console.log('Debug - Required fields:', {
+      selectedOrganization: selectedOrganization?.name,
+      selectedDepartment: selectedDepartment?.name,
+      selectedFeedType: selectedFeedType?.type,
+      weight,
+      currentUser: currentUser?.name,
+      feedStartTime: feedStartTime?.toISOString(),
+      imageFilename
+    });
+    
+    if (!selectedOrganization || !selectedDepartment || !selectedFeedType || !weight || !currentUser) {
+      console.log('Debug - Missing fields:', {
+        organization: !selectedOrganization,
+        department: !selectedDepartment,
+        feedType: !selectedFeedType,
+        weight: !weight,
+        user: !currentUser
+      });
+      setError('Missing required information. Please try again.');
       return;
     }
-
-    setLoading(true);
-    setError(null);
-
+    
     try {
+      setLoading(true);
+      setError(null);
+      
+      // Log how many raw weight readings we've collected
+      console.log(`Submitting with ${Object.keys(rawWeights).length} rawWeight readings`);
+      
+      // Debug the rawWeights object
+      console.log('rawWeights content:', rawWeights);
+      console.log('rawWeights type:', typeof rawWeights);
+      console.log('Sample of rawWeights:', Object.entries(rawWeights).slice(0, 3));
+      
       const feedData = {
-        weight: weight,
-        userId: currentUser?._id || '',
+        weight,
+        userId: currentUser.name,
         organization: selectedOrganization.name,
         department: selectedDepartment.name,
         type: selectedFeedType.type,
         typeDisplayName: selectedFeedType.displayName,
         feedTypeId: selectedFeedType.id,
         imageFilename: imageFilename || undefined,
-        feedStartedTime: feedStartedTime || undefined,
-        rawWeights: rawWeights.reduce((acc, weight, index) => {
-          acc[`entry_${index}`] = weight;
-          return acc;
-        }, {} as Record<string, { timestamp: string; value: string; }>)
+        feedStartedTime: feedStartTime?.toISOString(),
+        rawWeights: rawWeights
       };
-
+      
+      console.log('Feed data being submitted:', JSON.stringify(feedData, null, 2));
+      
+      // Stop the weight tracking interval before submission
+      if (weightIntervalRef.current !== null) {
+        window.clearInterval(weightIntervalRef.current);
+        weightIntervalRef.current = null;
+        console.log('Weight tracking stopped before submission');
+      }
+      
       const response = await createFeed(feedData);
+      console.log('Feed creation response:', response);
       
       if (response.success) {
-        // Show success message
-        setActiveStep(4); // Move to summary step
+        // Reset the form
+        setActiveStep(0);
+        setSelectedOrganization(null);
+        setSelectedDepartment(null);
+        setSelectedFeedType(null);
+        setWeight(null);
+        setCapturedImage(null);
+        setImageFilename(null);
+        setRawWeights({});
+        setFeedStartTime(null);
         
-        // After 5 seconds, return to home
-        const timeoutId = setTimeout(() => {
-          console.log('Timeout triggered - returning to home');
+        // Set active step to summary to show success message
+        setActiveStep(4);
+        
+        // Wait 5 seconds before logging out and navigating home
+        setTimeout(() => {
           logout();
           navigate('/');
         }, 5000);
-
-        // Clean up timeout on component unmount
-        return () => clearTimeout(timeoutId);
       } else {
         setError('Failed to submit feed. Please try again.');
       }
     } catch (err) {
       console.error('Error submitting feed:', err);
-      setError('Something went wrong. Please try again.');
+      setError('Failed to submit feed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -547,6 +615,7 @@ const TrackingSequence: React.FC = () => {
   
   // Get step content based on active step
   const getStepContent = (step: number) => {
+    console.log('Rendering step content for step:', step);
     switch (step) {
       case 0:
         return (
@@ -766,7 +835,13 @@ const TrackingSequence: React.FC = () => {
                       bgcolor: `#${feedType.buttonColor}`, 
                       color: isLightColor(feedType.buttonColor) ? '#000' : '#fff' 
                     }}>
-                      <CardActionArea onClick={() => handleSelectFeedType(feedType)}>
+                      <CardActionArea 
+                        onClick={() => {
+                          console.log('Feed type card clicked:', feedType);
+                          console.log('Current active step:', activeStep);
+                          handleSelectFeedType(feedType);
+                        }}
+                      >
                         <CardContent>
                           <Typography variant="h6">{feedType.displayName}</Typography>
                           <Typography variant="body2">
@@ -820,7 +895,7 @@ const TrackingSequence: React.FC = () => {
                           <strong>Image:</strong> {imageFilename || 'None'}
                         </Typography>
                         <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Raw Weights Collected:</strong> {rawWeights.length}
+                          <strong>Raw Weights Collected:</strong> {Object.keys(rawWeights).length}
                         </Typography>
                       </Box>
                     </Paper>
@@ -875,8 +950,8 @@ const TrackingSequence: React.FC = () => {
                 </Grid>
                 
                 <Box sx={{ mt: 3, textAlign: 'center' }}>
-                  <Typography variant="body1" color="text.secondary">
-                    Returning to home screen in 5 seconds...
+                  <Typography variant="body1" color="success.main" sx={{ mb: 2 }}>
+                    Feed entry successfully created! Returning to home screen...
                   </Typography>
                 </Box>
               </>
@@ -884,13 +959,7 @@ const TrackingSequence: React.FC = () => {
           </Box>
         );
       default:
-        return (
-          <Box sx={{ my: 4 }}>
-            <Typography variant="h6" color="error">
-              Unknown step
-            </Typography>
-          </Box>
-        );
+        return null;
     }
   };
   
@@ -988,9 +1057,9 @@ const TrackingSequence: React.FC = () => {
           timestamp: data.timestamp, 
           value: data.voltage.toString() 
         };
-        setRawWeights(prevWeights => [...prevWeights, newEntry]);
+        setRawWeights(prevWeights => ({ ...prevWeights, [data.timestamp]: newEntry }));
         
-        console.log('Current rawWeights count:', rawWeights.length + 1);
+        console.log('Current rawWeights count:', Object.keys(rawWeights).length + 1);
       } else {
         console.error('Failed to get weight reading:', response.statusText);
       }

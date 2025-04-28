@@ -1,4 +1,3 @@
-import React from 'react';
 import { Card, CardActionArea, CardContent, Typography, Grid } from '@mui/material';
 
 interface GridCardProps<T> {

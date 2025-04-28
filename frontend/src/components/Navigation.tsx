@@ -21,7 +21,7 @@ import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 const pages = [
   { name: 'Home', path: '/' },
   { name: 'Storage', path: '/storage' },
-  { name: 'Feed Viewer', path: '/feed-viewer' },
+  { name: 'History', path: '/feed-viewer' },
   { name: 'Covers', path: '/covers' },
   { name: 'Events', path: '/events' },
   { name: 'Audits', path: '/audits' },

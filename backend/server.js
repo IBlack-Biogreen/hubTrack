@@ -156,6 +156,17 @@ async function initializeServer() {
         console.log('FEED TYPES MIGRATION COMPLETE OR SKIPPED');
         console.log('--------------------------------');
 
+        // Create localFeeds collection if it doesn't exist
+        const db = dbManager.getDb();
+        const collections = await db.listCollections().toArray();
+        const collectionNames = collections.map(c => c.name);
+        
+        if (!collectionNames.includes('localFeeds')) {
+            console.log('Creating localFeeds collection...');
+            await db.createCollection('localFeeds');
+            console.log('localFeeds collection created');
+        }
+
         // Define routes after database connection is established
         defineRoutes();
         
@@ -783,6 +794,41 @@ function defineRoutes() {
             });
         } catch (error) {
             console.error('Error creating feed entry:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // API endpoint to get local feeds
+    app.get('/api/local-feeds', async (req, res) => {
+        try {
+            console.log('Fetching local feeds...');
+            const db = dbManager.getDb();
+            
+            // Check if the collection exists
+            const collections = await db.listCollections().toArray();
+            console.log('Available collections:', collections.map(c => c.name));
+            
+            const feeds = await db.collection('localFeeds')
+                .find({})
+                .sort({ timestamp: -1 })
+                .toArray();
+            
+            console.log(`Found ${feeds.length} feeds`);
+            
+            // Format the feeds for display
+            const formattedFeeds = feeds.map(feed => ({
+                id: feed._id,
+                weight: feed.weight,
+                type: feed.type,
+                department: feed.department,
+                organization: feed.organization,
+                timestamp: feed.timestamp,
+                imageFilename: feed.imageFilename
+            }));
+            
+            res.json(formattedFeeds);
+        } catch (error) {
+            console.error('Error getting local feeds:', error);
             res.status(500).json({ error: error.message });
         }
     });
