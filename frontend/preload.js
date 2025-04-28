@@ -42,6 +42,71 @@ contextBridge.exposeInMainWorld('electron', {
           reject(error);
         }
       });
+    },
+    // WiFi functionality
+    scanNetworks: () => {
+      return new Promise((resolve, reject) => {
+        try {
+          ipcRenderer.once('scan-networks-response', (_, response) => {
+            if (response.success) {
+              resolve(response.networks);
+            } else {
+              reject(new Error(response.error));
+            }
+          });
+          ipcRenderer.send('scan-networks');
+        } catch (error) {
+          reject(error);
+        }
+      });
+    },
+    connectToNetwork: (ssid, password) => {
+      return new Promise((resolve, reject) => {
+        try {
+          ipcRenderer.once('connect-network-response', (_, response) => {
+            if (response.success) {
+              resolve(response);
+            } else {
+              reject(new Error(response.error));
+            }
+          });
+          ipcRenderer.send('connect-network', { ssid, password });
+        } catch (error) {
+          reject(error);
+        }
+      });
+    },
+    disconnectFromNetwork: () => {
+      return new Promise((resolve, reject) => {
+        try {
+          ipcRenderer.once('disconnect-network-response', (_, response) => {
+            if (response.success) {
+              resolve(response);
+            } else {
+              reject(new Error(response.error));
+            }
+          });
+          ipcRenderer.send('disconnect-network');
+        } catch (error) {
+          reject(error);
+        }
+      });
+    },
+    getCurrentConnection: () => {
+      return new Promise((resolve, reject) => {
+        try {
+          ipcRenderer.once('current-connection-response', (_, response) => {
+            if (response.success) {
+              resolve(response.connection);
+            } else {
+              reject(new Error(response.error));
+            }
+          });
+          ipcRenderer.send('get-current-connection');
+        } catch (error) {
+          reject(error);
+        }
+      });
     }
   }
 }); 

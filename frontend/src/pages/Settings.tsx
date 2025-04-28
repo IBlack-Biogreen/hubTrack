@@ -16,9 +16,18 @@ import {
   InputLabel,
   CircularProgress,
   Alert,
+  Button,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import WifiIcon from '@mui/icons-material/Wifi';
+import WifiOffIcon from '@mui/icons-material/WifiOff';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import { useThemeContext } from '../contexts/ThemeContext';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 import { useTimeout } from '../contexts/TimeoutContext';
@@ -40,6 +49,19 @@ interface DeviceLabel {
     settings?: any;
 }
 
+interface WiFiNetwork {
+    bssid: string;
+    ssid: string;
+    signal_level: number;
+    channel: number;
+}
+
+interface WiFiConnection {
+    ssid: string;
+    signal_level: number;
+    channel: number;
+}
+
 function Settings() {
   const { isDarkMode, toggleDarkMode } = useThemeContext();
   const { enabledLanguages, addEnabledLanguage, removeEnabledLanguage, t } = useLanguage();
@@ -50,6 +72,13 @@ function Settings() {
   const [selectedCart, setSelectedCart] = useState<Cart | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [wifiNetworks, setWifiNetworks] = useState<WiFiNetwork[]>([]);
+  const [currentConnection, setCurrentConnection] = useState<WiFiConnection | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [selectedNetwork, setSelectedNetwork] = useState<WiFiNetwork | null>(null);
+  const [password, setPassword] = useState('');
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
 
   const handleTimeoutChange = (value: number) => {
     if (value < 30) {
@@ -68,6 +97,54 @@ function Settings() {
         addEnabledLanguage(language);
         setSelectedLanguage('');
       }
+    }
+  };
+
+  const scanNetworks = async () => {
+    if (!window.electron) return;
+    setScanning(true);
+    try {
+      const networks = await window.electron.ipcRenderer.scanNetworks();
+      setWifiNetworks(networks);
+    } catch (error) {
+      console.error('Error scanning networks:', error);
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const getCurrentConnection = async () => {
+    if (!window.electron) return;
+    try {
+      const connection = await window.electron.ipcRenderer.getCurrentConnection();
+      setCurrentConnection(connection);
+    } catch (error) {
+      console.error('Error getting current connection:', error);
+    }
+  };
+
+  const connectToNetwork = async () => {
+    if (!window.electron || !selectedNetwork) return;
+    setConnecting(true);
+    try {
+      await window.electron.ipcRenderer.connectToNetwork(selectedNetwork.ssid, password);
+      await getCurrentConnection();
+      setShowPasswordDialog(false);
+      setPassword('');
+    } catch (error) {
+      console.error('Error connecting to network:', error);
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const disconnectFromNetwork = async () => {
+    if (!window.electron) return;
+    try {
+      await window.electron.ipcRenderer.disconnectFromNetwork();
+      setCurrentConnection(null);
+    } catch (error) {
+      console.error('Error disconnecting from network:', error);
     }
   };
 
@@ -108,6 +185,13 @@ function Settings() {
     };
 
     fetchData();
+  }, []);
+
+  useEffect(() => {
+    if (window.electron) {
+      scanNetworks();
+      getCurrentConnection();
+    }
   }, []);
 
   // Get the current device label based on the selected cart
@@ -248,28 +332,149 @@ function Settings() {
           ) : selectedCart ? (
             <Box sx={{ p: 2, backgroundColor: 'info.light', borderRadius: 1 }}>
               <Typography variant="body1" gutterBottom>
-                Selected Cart: Serial {selectedCart.serialNumber}
+                <strong>Serial Number:</strong> {selectedCart.serialNumber}
               </Typography>
-              {currentDeviceLabel ? (
+              <Typography variant="body1" gutterBottom>
+                <strong>Machine Serial:</strong> {selectedCart.machserial}
+              </Typography>
+              {currentDeviceLabel && (
                 <>
                   <Typography variant="body1" gutterBottom>
-                    Device Label: {currentDeviceLabel.deviceLabel}
+                    <strong>Current Device Label:</strong> {currentDeviceLabel.deviceLabel}
                   </Typography>
                   <Typography variant="body1" gutterBottom>
-                    Device Label ID: {currentDeviceLabel._id}
+                    <strong>Device Type:</strong> {currentDeviceLabel.deviceType}
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    <strong>Status:</strong> {currentDeviceLabel.status}
                   </Typography>
                 </>
-              ) : (
-                <Typography variant="body1" color="error">
-                  No device label assigned to this cart
-                </Typography>
               )}
             </Box>
           ) : (
-            <Typography variant="body1" color="error">
-              No cart selected. Please select a cart in the Setup page.
+            <Typography variant="body1" color="text.secondary">
+              No cart selected
             </Typography>
           )}
+        </Box>
+
+        <Divider sx={{ my: 4 }} />
+
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            Network Information
+          </Typography>
+          <Box sx={{ p: 2, backgroundColor: 'info.light', borderRadius: 1 }}>
+            <Typography variant="body1" gutterBottom>
+              <strong>Connection Type:</strong> {navigator.connection?.type || 'Unknown'}
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              <strong>Effective Type:</strong> {navigator.connection?.effectiveType || 'Unknown'}
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              <strong>Downlink:</strong> {navigator.connection?.downlink ? `${navigator.connection.downlink} Mbps` : 'Unknown'}
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              <strong>RTT:</strong> {navigator.connection?.rtt ? `${navigator.connection.rtt} ms` : 'Unknown'}
+            </Typography>
+            <Typography variant="body1" gutterBottom>
+              <strong>Online Status:</strong> {navigator.onLine ? 'Connected' : 'Offline'}
+            </Typography>
+          </Box>
+        </Box>
+
+        <Divider sx={{ my: 4 }} />
+
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            WiFi Networks
+          </Typography>
+          
+          <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+            <Button
+              variant="outlined"
+              startIcon={<RefreshIcon />}
+              onClick={scanNetworks}
+              disabled={scanning}
+            >
+              {scanning ? 'Scanning...' : 'Scan Networks'}
+            </Button>
+            
+            {currentConnection && (
+              <Button
+                variant="outlined"
+                color="error"
+                startIcon={<WifiOffIcon />}
+                onClick={disconnectFromNetwork}
+                sx={{ ml: 2 }}
+              >
+                Disconnect
+              </Button>
+            )}
+          </Box>
+
+          {currentConnection && (
+            <Box sx={{ p: 2, backgroundColor: 'info.light', borderRadius: 1, mb: 2 }}>
+              <Typography variant="body1" gutterBottom>
+                <strong>Connected to:</strong> {currentConnection.ssid}
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                <strong>Signal Strength:</strong> {currentConnection.signal_level} dBm
+              </Typography>
+              <Typography variant="body1" gutterBottom>
+                <strong>Channel:</strong> {currentConnection.channel}
+              </Typography>
+            </Box>
+          )}
+
+          <List>
+            {wifiNetworks.map((network) => (
+              <ListItem
+                key={network.bssid}
+                secondaryAction={
+                  <IconButton
+                    edge="end"
+                    onClick={() => {
+                      setSelectedNetwork(network);
+                      setShowPasswordDialog(true);
+                    }}
+                  >
+                    <WifiIcon />
+                  </IconButton>
+                }
+              >
+                <ListItemText
+                  primary={network.ssid}
+                  secondary={`Signal: ${network.signal_level} dBm | Channel: ${network.channel}`}
+                />
+              </ListItem>
+            ))}
+          </List>
+
+          <Dialog open={showPasswordDialog} onClose={() => setShowPasswordDialog(false)}>
+            <DialogTitle>Connect to {selectedNetwork?.ssid}</DialogTitle>
+            <DialogContent>
+              <TextField
+                autoFocus
+                margin="dense"
+                label="Password"
+                type="password"
+                fullWidth
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={connecting}
+              />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setShowPasswordDialog(false)}>Cancel</Button>
+              <Button
+                onClick={connectToNetwork}
+                disabled={!password || connecting}
+              >
+                {connecting ? 'Connecting...' : 'Connect'}
+              </Button>
+            </DialogActions>
+          </Dialog>
         </Box>
       </Box>
     </Container>

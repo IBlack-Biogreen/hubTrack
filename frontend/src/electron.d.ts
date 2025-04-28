@@ -13,6 +13,35 @@ interface SaveImageResponse {
   error?: string;
 }
 
+interface WiFiNetwork {
+  ssid: string;
+  bssid: string;
+  mac: string;
+  channel: number;
+  frequency: number;
+  signal_level: number;
+  quality: number;
+  security: string[];
+}
+
+interface WiFiConnection {
+  ssid: string;
+  bssid: string;
+  mac: string;
+  channel: number;
+  frequency: number;
+  signal_level: number;
+  quality: number;
+  security: string[];
+}
+
+interface WiFiResponse {
+  success: boolean;
+  error?: string;
+  networks?: WiFiNetwork[];
+  connection?: WiFiConnection;
+}
+
 interface ElectronAPI {
   fs: {
     writeFile: (filePath: string, data: string | Buffer, encoding?: BufferEncoding) => void;
@@ -27,6 +56,10 @@ interface ElectronAPI {
   };
   ipcRenderer: {
     saveImage: (imageData: string, filename: string) => Promise<SaveImageResponse>;
+    scanNetworks: () => Promise<WiFiNetwork[]>;
+    connectToNetwork: (ssid: string, password: string) => Promise<WiFiResponse>;
+    disconnectFromNetwork: () => Promise<WiFiResponse>;
+    getCurrentConnection: () => Promise<WiFiConnection>;
   };
 }
 

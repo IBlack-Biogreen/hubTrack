@@ -3,9 +3,15 @@ const path = require('path');
 const url = require('url');
 const fs = require('fs');
 const { initialize, enable } = require('@electron/remote/main');
+const wifi = require('node-wifi');
 
 // Initialize @electron/remote
 initialize();
+
+// Initialize wifi
+wifi.init({
+  iface: null // auto-select interface
+});
 
 // Store the main window reference
 let mainWindow = null;
@@ -132,6 +138,70 @@ function setupIPCListeners() {
       event.reply('save-image-response', { 
         success: false, 
         error: error.message || 'Unknown error' 
+      });
+    }
+  });
+
+  // WiFi functionality
+  ipcMain.on('scan-networks', async (event) => {
+    try {
+      debugLog('Scanning for WiFi networks...');
+      const networks = await wifi.scan();
+      debugLog('Found networks:', networks);
+      event.reply('scan-networks-response', { success: true, networks });
+    } catch (error) {
+      debugLog('Error scanning networks:', error);
+      event.reply('scan-networks-response', { 
+        success: false, 
+        error: error.message || 'Failed to scan networks' 
+      });
+    }
+  });
+
+  ipcMain.on('connect-network', async (event, { ssid, password }) => {
+    try {
+      debugLog(`Connecting to network: ${ssid}`);
+      await wifi.connect({ ssid, password });
+      debugLog('Successfully connected to network');
+      event.reply('connect-network-response', { success: true });
+    } catch (error) {
+      debugLog('Error connecting to network:', error);
+      event.reply('connect-network-response', { 
+        success: false, 
+        error: error.message || 'Failed to connect to network' 
+      });
+    }
+  });
+
+  ipcMain.on('disconnect-network', async (event) => {
+    try {
+      debugLog('Disconnecting from current network...');
+      await wifi.disconnect();
+      debugLog('Successfully disconnected from network');
+      event.reply('disconnect-network-response', { success: true });
+    } catch (error) {
+      debugLog('Error disconnecting from network:', error);
+      event.reply('disconnect-network-response', { 
+        success: false, 
+        error: error.message || 'Failed to disconnect from network' 
+      });
+    }
+  });
+
+  ipcMain.on('get-current-connection', async (event) => {
+    try {
+      debugLog('Getting current connection...');
+      const currentConnection = await wifi.getCurrentConnections();
+      debugLog('Current connection:', currentConnection);
+      event.reply('current-connection-response', { 
+        success: true, 
+        connection: currentConnection[0] || null 
+      });
+    } catch (error) {
+      debugLog('Error getting current connection:', error);
+      event.reply('current-connection-response', { 
+        success: false, 
+        error: error.message || 'Failed to get current connection' 
       });
     }
   });

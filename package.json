@@ -8,6 +8,7 @@
     "dotenv": "^16.5.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^6.15.0",
+    "node-wifi": "^2.0.16",
     "react-router-dom": "^6.30.0",
     "react-webcam": "^7.2.0"
   },
