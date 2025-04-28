@@ -97,7 +97,15 @@ export const getWeight = async (): Promise<number> => {
 
 export const getWeightHistory = async (): Promise<Array<{voltage: number, weight: number, timestamp: string}>> => {
   try {
+    console.log('Fetching weight history...');
     const response = await axios.get('http://localhost:5001/api/labjack/history');
+    console.log('Weight history response:', response.data.length, 'entries');
+    
+    // Log a sample of the data for debugging
+    if (response.data.length > 0) {
+      console.log('Sample entry:', response.data[0]);
+    }
+    
     return response.data;
   } catch (error) {
     console.error('Error getting weight history:', error);

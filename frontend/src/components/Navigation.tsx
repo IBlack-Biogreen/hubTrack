@@ -29,7 +29,7 @@ const pages = [
   { name: 'Materials', path: '/materials' },
   { name: 'Users', path: '/users' },
   { name: 'Setup', path: '/setup' },
-  { name: 'Settings', path: '/settings' },
+  { name: 'Settings', path: '/settings' }
 ];
 
 function Navigation() {

@@ -178,7 +178,7 @@ function defineRoutes() {
         try {
             const response = await axios({
                 method: req.method,
-                url: `http://localhost:${pythonServerPort}${req.url}`,
+                url: `http://127.0.0.1:${pythonServerPort}${req.url}`,
                 data: req.body,
                 headers: {
                     'Content-Type': 'application/json'
@@ -698,8 +698,20 @@ function defineRoutes() {
             } = req.body;
             
             // Log what's coming in from the client
-            console.log('Received rawWeights:', JSON.stringify(rawWeights));
-            console.log('rawWeights type:', typeof rawWeights);
+            console.log('Creating new feed entry with:');
+            console.log('- Weight:', weight);
+            console.log('- User:', userId);
+            console.log('- Organization:', organization);
+            console.log('- Department:', department);
+            console.log('- Type:', type);
+            console.log('- Feed Start Time:', feedStartedTime);
+            console.log('- Raw Weights provided:', rawWeights ? 'YES' : 'NO');
+            
+            if (rawWeights) {
+                console.log('- Raw Weights type:', typeof rawWeights);
+                console.log('- Raw Weights entry count:', Object.keys(rawWeights).length);
+                console.log('- Raw Weights sample:', JSON.stringify(rawWeights[Object.keys(rawWeights)[0]]));
+            }
             
             if (!weight || !userId || !organization || !department || !type) {
                 return res.status(400).json({ error: 'Missing required fields' });
@@ -735,21 +747,34 @@ function defineRoutes() {
             };
             
             // Add raw weights if provided
-            if (rawWeights && typeof rawWeights === 'object') {
+            if (rawWeights && typeof rawWeights === 'object' && Object.keys(rawWeights).length > 0) {
+                // Ensure rawWeights is valid
                 feedDocument.rawWeights = rawWeights;
                 console.log('Adding rawWeights to feedDocument');
             } else {
                 console.log('rawWeights missing or invalid format');
+                // Create a dummy rawWeights entry to ensure the field exists
+                feedDocument.rawWeights = {
+                    'entry_0': {
+                        timestamp: timestamp.toISOString(),
+                        value: String(weight)
+                    }
+                };
+                console.log('Created dummy rawWeights entry');
             }
             
             // Log the final document before storage
-            console.log('Final feed document:', JSON.stringify(feedDocument));
+            console.log('Final feed document:', JSON.stringify(feedDocument, null, 2));
             
             const result = await db.collection('localFeeds').insertOne(feedDocument);
             
             // Verify the document was created correctly
             const savedDocument = await db.collection('localFeeds').findOne({ _id: result.insertedId });
-            console.log('Saved document has rawWeights:', savedDocument.rawWeights ? 'yes' : 'no');
+            console.log('Saved document has rawWeights:', savedDocument.rawWeights ? 'YES' : 'NO');
+            
+            if (savedDocument.rawWeights) {
+                console.log('Saved rawWeights entry count:', Object.keys(savedDocument.rawWeights).length);
+            }
             
             res.status(201).json({ 
                 success: true, 

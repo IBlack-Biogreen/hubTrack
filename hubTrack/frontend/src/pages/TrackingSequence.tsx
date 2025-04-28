@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -27,6 +27,7 @@ import {
   Department,
   FeedType
 } from '../api/trackingService';
+import Webcam from 'react-webcam';
 
 // Steps in the tracking sequence
 const steps = [
@@ -46,19 +47,86 @@ const TrackingSequence: React.FC = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [feedTypes, setFeedTypes] = useState<FeedType[]>([]);
   
-  // Raw weight tracking
-  const [rawWeights, setRawWeights] = useState<Record<string, {timestamp: string, value: string}>>({});
+  // Weight tracking
+  const [weightHistory, setWeightHistory] = useState<Array<{voltage: number, weight: number, timestamp: string}>>([]);
+  const [rawWeights, setRawWeights] = useState<Record<string, any>>({});
   const [feedStartTime, setFeedStartTime] = useState<Date | null>(null);
-  const [steadyStateBeforeWeight, setSteadyStateBeforeWeight] = useState<number | null>(null);
-  const [steadyStateAfterWeight, setSteadyStateAfterWeight] = useState<number | null>(null);
   
   // Selected values
   const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
   const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
   const [selectedFeedType, setSelectedFeedType] = useState<FeedType | null>(null);
   
+  // Webcam state
+  const webcamRef = useRef<Webcam>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+  const [imageFilename, setImageFilename] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraReady, setCameraReady] = useState<boolean>(false);
+  const [isPlaceholderImage, setIsPlaceholderImage] = useState<boolean>(false);
+  
+  // Add camera facing mode state
+  const [cameraFacingMode, setCameraFacingMode] = useState<"environment" | "user">("environment");
+  
   const { currentUser, isAuthenticated, logout } = useUser();
   const navigate = useNavigate();
+  
+  // Weight tracking interval reference
+  const weightIntervalRef = useRef<number | null>(null);
+  
+  // Start weight tracking when the component mounts
+  useEffect(() => {
+    if (isAuthenticated) {
+      console.log('Starting weight tracking...');
+      
+      // Set feed start time to two minutes ago
+      const startTime = new Date();
+      startTime.setMinutes(startTime.getMinutes() - 2);
+      setFeedStartTime(startTime);
+      console.log('Feed start time set to:', startTime.toISOString());
+      
+      // Function to fetch and format weight data
+      const fetchWeightData = async () => {
+        try {
+          const history = await getWeightHistory();
+          setWeightHistory(history);
+          
+          // Format weights in the exact structure needed for MongoDB
+          // MongoDB expects: "rawWeights": { {timestamp:"2025-04-22T19:08:29.717Z", value:"1.7"}, ... }
+          const formattedWeights: Record<string, any> = {};
+          
+          history.forEach((entry, index) => {
+            // Use index as key
+            formattedWeights[index.toString()] = {
+              timestamp: entry.timestamp,
+              value: entry.voltage.toString()
+            };
+          });
+          
+          setRawWeights(formattedWeights);
+          console.log(`Updated rawWeights with ${Object.keys(formattedWeights).length} entries`);
+        } catch (err) {
+          console.error('Error fetching weight history:', err);
+        }
+      };
+      
+      // Initial fetch
+      fetchWeightData();
+      
+      // Set up polling interval (every 1 second)
+      const intervalId = window.setInterval(fetchWeightData, 1000);
+      weightIntervalRef.current = intervalId;
+      
+      // Cleanup interval on unmount
+      return () => {
+        if (weightIntervalRef.current !== null) {
+          window.clearInterval(weightIntervalRef.current);
+          weightIntervalRef.current = null;
+          console.log('Weight tracking stopped');
+        }
+      };
+    }
+  }, [isAuthenticated]);
   
   // Check if user is authenticated
   useEffect(() => {
@@ -75,42 +143,32 @@ const TrackingSequence: React.FC = () => {
     return () => clearTimeout(timer);
   }, [isAuthenticated, navigate]);
   
-  // Start weight tracking at the beginning of the sequence
-  useEffect(() => {
-    if (isAuthenticated) {
-      // Start recording feed start time and collecting weight history
-      setFeedStartTime(new Date(Date.now() - 120000)); // Start from 2 minutes ago
+  // Create a fallback image if the webcam fails
+  // ... existing code ...
+
+  // Fetch the current weight from the scale
+  const fetchWeight = async () => {
+    try {
+      setLoading(true);
+      setError(null);
       
-      // Start collecting weight data
-      const fetchWeightData = async () => {
-        try {
-          const history = await getWeightHistory();
-          // Filter history to only include data from after feedStartTime
-          const relevantHistory = history.filter(entry => 
-            new Date(entry.timestamp) >= (feedStartTime || new Date(0))
-          );
-          
-          // Convert to the format required by the API - exactly matching what's shown in instructions.md
-          const formattedWeights: Record<string, {timestamp: string, value: string}> = {};
-          relevantHistory.forEach((entry, index) => {
-            formattedWeights[index.toString()] = {
-              timestamp: entry.timestamp,
-              value: entry.voltage.toString()
-            };
-          });
-          
-          setRawWeights(formattedWeights);
-        } catch (err) {
-          console.error('Error fetching weight history:', err);
-        }
-      };
+      // Get the current weight reading
+      const weightValue = await getWeight();
+      setWeight(weightValue);
       
-      // Fetch weight data every second
-      const intervalId = setInterval(fetchWeightData, 1000);
+      // Log the current state of rawWeights
+      console.log(`Current rawWeights contains ${Object.keys(rawWeights).length} entries`);
+      console.log('First 3 entries:', Object.entries(rawWeights).slice(0, 3));
       
-      return () => clearInterval(intervalId);
+      setActiveStep(4); // Move to confirmation step
+      
+    } catch (err) {
+      console.error('Error fetching weight:', err);
+      setError('Failed to get weight from scale. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  }, [isAuthenticated, feedStartTime]);
+  };
   
   // Fetch organizations for the tracking sequence
   const fetchOrganizations = async () => {
@@ -190,59 +248,6 @@ const TrackingSequence: React.FC = () => {
     }
   };
   
-  // Fetch the current weight from the scale
-  const fetchWeight = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Get all weight history up to now to calculate steady state weight
-      const history = await getWeightHistory();
-      
-      // Store raw weights for all time during this sequence - matching the exact structure in instructions.md
-      const formattedWeights: Record<string, {timestamp: string, value: string}> = {};
-      history.forEach((entry, index) => {
-        formattedWeights[index.toString()] = {
-          timestamp: entry.timestamp,
-          value: entry.voltage.toString()
-        };
-      });
-      setRawWeights(formattedWeights);
-      
-      // Calculate steady state weights before bin was added
-      // Assuming the first 1/3 of readings represent the empty scale
-      const earlyReadings = history.slice(0, Math.floor(history.length / 3));
-      if (earlyReadings.length > 0) {
-        const beforeWeight = earlyReadings.reduce((sum, entry) => sum + entry.weight, 0) / earlyReadings.length;
-        setSteadyStateBeforeWeight(beforeWeight);
-      }
-      
-      // Calculate steady state weights after bin was added
-      // Assuming the last 1/3 of readings represent the scale with bin
-      const lateReadings = history.slice(Math.floor(history.length * 2 / 3));
-      if (lateReadings.length > 0) {
-        const afterWeight = lateReadings.reduce((sum, entry) => sum + entry.weight, 0) / lateReadings.length;
-        setSteadyStateAfterWeight(afterWeight);
-      }
-      
-      // Calculate the actual weight as the difference
-      const calculatedWeight = steadyStateAfterWeight !== null && steadyStateBeforeWeight !== null
-        ? Math.max(0, steadyStateAfterWeight - steadyStateBeforeWeight)
-        : 0;
-      
-      // If we have a reasonable calculated weight, use it, otherwise fall back to current reading
-      const weightValue = calculatedWeight > 0 ? calculatedWeight : await getWeight();
-      setWeight(weightValue);
-      setActiveStep(4); // Move to confirmation step
-      
-    } catch (err) {
-      console.error('Error fetching weight:', err);
-      setError('Failed to get weight from scale. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-  
   // Handle organization selection
   const handleSelectOrganization = async (organization: Organization) => {
     setSelectedOrganization(organization);
@@ -274,9 +279,13 @@ const TrackingSequence: React.FC = () => {
       setLoading(true);
       setError(null);
       
-      // Debug logs
-      console.log('Raw weights object structure:', rawWeights);
-      console.log('Raw weights JSON:', JSON.stringify(rawWeights));
+      // Log how many raw weight readings we've collected
+      console.log(`Submitting with ${Object.keys(rawWeights).length} rawWeight readings`);
+      
+      // Debug the rawWeights object
+      console.log('rawWeights content:', rawWeights);
+      console.log('rawWeights type:', typeof rawWeights);
+      console.log('Sample of rawWeights:', Object.entries(rawWeights).slice(0, 3));
       
       const feedData = {
         weight,
@@ -286,27 +295,39 @@ const TrackingSequence: React.FC = () => {
         type: selectedFeedType.type,
         typeDisplayName: selectedFeedType.displayName,
         feedTypeId: selectedFeedType.id,
-        feedStartedTime: feedStartTime?.toISOString() || new Date(Date.now() - 120000).toISOString(),
+        imageFilename: imageFilename || undefined,
+        feedStartedTime: feedStartTime?.toISOString(),
         rawWeights: rawWeights
       };
       
-      console.log('Feed data being sent:', JSON.stringify(feedData));
+      console.log('Feed data being submitted:', JSON.stringify(feedData, null, 2));
       
-      await createFeed(feedData);
+      // Stop the weight tracking interval before submission
+      if (weightIntervalRef.current !== null) {
+        window.clearInterval(weightIntervalRef.current);
+        weightIntervalRef.current = null;
+        console.log('Weight tracking stopped before submission');
+      }
+      
+      const response = await createFeed(feedData);
+      console.log('Feed creation response:', response);
       
       // Show success message
       alert('Feed entry successfully created!');
       
-      // Reset the form and return to home
+      // Reset the form
       setActiveStep(0);
       setSelectedOrganization(null);
       setSelectedDepartment(null);
       setSelectedFeedType(null);
       setWeight(null);
+      setCapturedImage(null);
+      setImageFilename(null);
       setRawWeights({});
       setFeedStartTime(null);
-      setSteadyStateBeforeWeight(null);
-      setSteadyStateAfterWeight(null);
+      
+      // Log the user out before navigating back to home
+      logout();
       
       // Navigate back to home
       navigate('/');
@@ -339,94 +360,109 @@ const TrackingSequence: React.FC = () => {
         );
       case 1:
         return (
-          <Box sx={{ my: 4 }}>
+          <Box>
             <Typography variant="h6" gutterBottom>
-              Select an Organization
+              Select Organization
             </Typography>
-            {loading ? (
-              <Box sx={{ textAlign: 'center', my: 2 }}>
-                <CircularProgress />
-              </Box>
-            ) : (
+            {organizations.length > 0 ? (
               <Grid container spacing={2}>
                 {organizations.map((org) => (
-                  <Grid item xs={12} sm={6} md={4} key={org.name}>
-                    <Card>
+                  <Grid item xs={12} sm={6} md={4} key={org.id}>
+                    <Card 
+                      raised={selectedOrganization?.id === org.id}
+                      sx={{ 
+                        bgcolor: selectedOrganization?.id === org.id ? 'primary.light' : 'background.paper',
+                        transition: 'all 0.3s'
+                      }}
+                    >
                       <CardActionArea onClick={() => handleSelectOrganization(org)}>
                         <CardContent>
-                          <Typography variant="h6">{org.displayName}</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {org.name}
-                          </Typography>
+                          <Typography variant="h6">{org.name}</Typography>
+                          {org.description && (
+                            <Typography variant="body2" color="text.secondary">
+                              {org.description}
+                            </Typography>
+                          )}
                         </CardContent>
                       </CardActionArea>
                     </Card>
                   </Grid>
                 ))}
               </Grid>
+            ) : (
+              <Typography>No organizations found.</Typography>
             )}
           </Box>
         );
       case 2:
         return (
-          <Box sx={{ my: 4 }}>
+          <Box>
             <Typography variant="h6" gutterBottom>
-              Select a Department
+              Select Department for {selectedOrganization?.name}
             </Typography>
-            {loading ? (
-              <Box sx={{ textAlign: 'center', my: 2 }}>
-                <CircularProgress />
-              </Box>
-            ) : (
+            {departments.length > 0 ? (
               <Grid container spacing={2}>
                 {departments.map((dept) => (
-                  <Grid item xs={12} sm={6} md={4} key={dept.name}>
-                    <Card>
+                  <Grid item xs={12} sm={6} md={4} key={dept.id}>
+                    <Card 
+                      raised={selectedDepartment?.id === dept.id}
+                      sx={{ 
+                        bgcolor: selectedDepartment?.id === dept.id ? 'primary.light' : 'background.paper',
+                        transition: 'all 0.3s'
+                      }}
+                    >
                       <CardActionArea onClick={() => handleSelectDepartment(dept)}>
                         <CardContent>
-                          <Typography variant="h6">{dept.displayName}</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {dept.name}
-                          </Typography>
+                          <Typography variant="h6">{dept.name}</Typography>
+                          {dept.description && (
+                            <Typography variant="body2" color="text.secondary">
+                              {dept.description}
+                            </Typography>
+                          )}
                         </CardContent>
                       </CardActionArea>
                     </Card>
                   </Grid>
                 ))}
               </Grid>
+            ) : (
+              <Typography>No departments found.</Typography>
             )}
           </Box>
         );
       case 3:
         return (
-          <Box sx={{ my: 4 }}>
+          <Box>
             <Typography variant="h6" gutterBottom>
-              Select a Feed Type
+              Select Feed Type
             </Typography>
-            {loading ? (
-              <Box sx={{ textAlign: 'center', my: 2 }}>
-                <CircularProgress />
-              </Box>
-            ) : (
+            {feedTypes.length > 0 ? (
               <Grid container spacing={2}>
-                {feedTypes.map((feedType) => (
-                  <Grid item xs={12} sm={6} md={4} key={feedType.id}>
-                    <Card sx={{ 
-                      bgcolor: `#${feedType.buttonColor}`, 
-                      color: isLightColor(feedType.buttonColor) ? '#000' : '#fff' 
-                    }}>
-                      <CardActionArea onClick={() => handleSelectFeedType(feedType)}>
+                {feedTypes.map((type) => (
+                  <Grid item xs={12} sm={6} md={4} key={type.id}>
+                    <Card 
+                      raised={selectedFeedType?.id === type.id}
+                      sx={{ 
+                        bgcolor: selectedFeedType?.id === type.id ? 'primary.light' : 'background.paper',
+                        transition: 'all 0.3s'
+                      }}
+                    >
+                      <CardActionArea onClick={() => handleSelectFeedType(type)}>
                         <CardContent>
-                          <Typography variant="h6">{feedType.displayName}</Typography>
-                          <Typography variant="body2">
-                            {feedType.explanation}
-                          </Typography>
+                          <Typography variant="h6">{type.displayName}</Typography>
+                          {type.description && (
+                            <Typography variant="body2" color="text.secondary">
+                              {type.description}
+                            </Typography>
+                          )}
                         </CardContent>
                       </CardActionArea>
                     </Card>
                   </Grid>
                 ))}
               </Grid>
+            ) : (
+              <Typography>No feed types found.</Typography>
             )}
           </Box>
         );

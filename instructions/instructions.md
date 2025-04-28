@@ -62,6 +62,8 @@ Data written to local MongoDB with sync flags
 
 Image saved locally and uploaded to S3 when online
 
+rawWeights taken from the load cell a min before the feed happens to the time the feed is completed
+
 Example MongoDB Documents
 
 Feed Entry (localFeeds collection)
@@ -87,7 +89,7 @@ Feed Entry (localFeeds collection)
   "imageStatus": "pending",  // pending, uploaded, error
   "syncStatus": "pending",   // pending, uploaded, error
   "rawWeights": {
-    {timestamp:"2025-04-22T19:08:29.717Z",value:"1.7"},...
+    {timestamp: "ISO-date-string", value: "voltage-as-string"},...
   }
 }
 

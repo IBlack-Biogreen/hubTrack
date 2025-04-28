@@ -34,7 +34,7 @@ const steps = [
   'Select Organization',
   'Select Department',
   'Select Feed Type',
-  'Confirm & Submit'
+  'Summary'
 ];
 
 const TrackingSequence: React.FC = () => {
@@ -62,6 +62,10 @@ const TrackingSequence: React.FC = () => {
   // Add camera facing mode state
   const [cameraFacingMode, setCameraFacingMode] = useState<"environment" | "user">("environment");
   
+  // Add rawWeights state
+  const [rawWeights, setRawWeights] = useState<Array<{timestamp: string, value: string}>>([]);
+  const [feedStartedTime, setFeedStartedTime] = useState<string | null>(null);
+  
   const { currentUser, isAuthenticated, logout } = useUser();
   const navigate = useNavigate();
   
@@ -76,9 +80,27 @@ const TrackingSequence: React.FC = () => {
     const timer = setTimeout(() => {
       // The camera will take a photo automatically when loaded via handleCameraLoad
       fetchOrganizations();
+      
+      // Record feed start time
+      const startTime = new Date().toISOString();
+      setFeedStartedTime(startTime);
+      console.log('Feed started at:', startTime);
+      
+      // Start collecting raw weights
+      startCollectingWeights();
     }, 1000);
     
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      // Clean up weight collection interval
+      // @ts-ignore
+      if (window.weightsInterval) {
+        // @ts-ignore
+        clearInterval(window.weightsInterval);
+        // @ts-ignore
+        window.weightsInterval = null;
+      }
+    };
   }, [isAuthenticated, navigate]);
   
   // Create a fallback image if the webcam fails
@@ -415,7 +437,7 @@ const TrackingSequence: React.FC = () => {
       
       const weightValue = await getWeight();
       setWeight(weightValue);
-      setActiveStep(4); // Move to confirmation step
+      setActiveStep(4); // Move to summary step
       
     } catch (err) {
       console.error('Error fetching weight:', err);
@@ -443,63 +465,84 @@ const TrackingSequence: React.FC = () => {
   const handleSelectFeedType = async (feedType: FeedType) => {
     setSelectedFeedType(feedType);
     await fetchWeight();
+    // Auto-submit when we get the weight
+    handleSubmitFeed();
   };
   
   // Submit the feed entry
   const handleSubmitFeed = async () => {
-    if (!selectedOrganization || !selectedDepartment || !selectedFeedType || !weight || !currentUser) {
-      setError('Missing required information. Please try again.');
+    if (!selectedFeedType || !selectedOrganization || !selectedDepartment || !weight) {
+      setError('Please complete all required fields');
       return;
     }
-    
+
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
-      
       const feedData = {
-        weight,
-        userId: currentUser.name,
+        weight: weight,
+        userId: currentUser?._id || '',
         organization: selectedOrganization.name,
         department: selectedDepartment.name,
         type: selectedFeedType.type,
         typeDisplayName: selectedFeedType.displayName,
         feedTypeId: selectedFeedType.id,
-        imageFilename: imageFilename || undefined  // Include the image filename
+        imageFilename: imageFilename || undefined,
+        feedStartedTime: feedStartedTime || undefined,
+        rawWeights: rawWeights.reduce((acc, weight, index) => {
+          acc[`entry_${index}`] = weight;
+          return acc;
+        }, {} as Record<string, { timestamp: string; value: string; }>)
       };
+
+      const response = await createFeed(feedData);
       
-      await createFeed(feedData);
-      
-      // Show success message
-      alert('Feed entry successfully created!');
-      
-      // Reset the form
-      setActiveStep(0);
-      setSelectedOrganization(null);
-      setSelectedDepartment(null);
-      setSelectedFeedType(null);
-      setWeight(null);
-      setCapturedImage(null);
-      setImageFilename(null);
-      
-      // Log the user out before navigating back to home
-      logout();
-      
-      // Navigate back to home
-      navigate('/');
-      
+      if (response.success) {
+        // Show success message
+        setActiveStep(4); // Move to summary step
+        
+        // After 5 seconds, return to home
+        const timeoutId = setTimeout(() => {
+          console.log('Timeout triggered - returning to home');
+          logout();
+          navigate('/');
+        }, 5000);
+
+        // Clean up timeout on component unmount
+        return () => clearTimeout(timeoutId);
+      } else {
+        setError('Failed to submit feed. Please try again.');
+      }
     } catch (err) {
       console.error('Error submitting feed:', err);
-      setError('Failed to submit feed entry. Please try again.');
+      setError('Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
   };
   
+  // Add useEffect to handle the timeout when we reach the summary step
+  useEffect(() => {
+    if (activeStep === 4) {
+      console.log('Summary step reached - setting timeout');
+      const timeoutId = setTimeout(() => {
+        console.log('Timeout triggered - returning to home');
+        logout();
+        navigate('/');
+      }, 5000);
+
+      // Clean up timeout on component unmount
+      return () => clearTimeout(timeoutId);
+    }
+  }, [activeStep, navigate]);
+  
   const handleExit = () => {
-    // Option to log out the user when exiting the sequence
-    logout();
-    // Navigate back to the home page
-    navigate('/');
+    // Only allow exit if we're not on the summary step
+    if (activeStep !== 4) {
+      logout();
+      navigate('/');
+    }
   };
   
   // Get step content based on active step
@@ -742,7 +785,7 @@ const TrackingSequence: React.FC = () => {
         return (
           <Box sx={{ my: 4 }}>
             <Typography variant="h6" gutterBottom>
-              Confirm Feed Entry
+              Feed Summary
             </Typography>
             {loading ? (
               <Box sx={{ textAlign: 'center', my: 2 }}>
@@ -775,6 +818,9 @@ const TrackingSequence: React.FC = () => {
                         </Typography>
                         <Typography variant="body1" sx={{ mb: 1 }}>
                           <strong>Image:</strong> {imageFilename || 'None'}
+                        </Typography>
+                        <Typography variant="body1" sx={{ mb: 1 }}>
+                          <strong>Raw Weights Collected:</strong> {rawWeights.length}
                         </Typography>
                       </Box>
                     </Paper>
@@ -828,23 +874,10 @@ const TrackingSequence: React.FC = () => {
                   </Grid>
                 </Grid>
                 
-                <Box sx={{ display: 'flex', gap: 2, mt: 3 }}>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={handleSubmitFeed}
-                    disabled={loading}
-                  >
-                    Submit Feed Entry
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    color="error"
-                    onClick={handleExit}
-                    disabled={loading}
-                  >
-                    Cancel
-                  </Button>
+                <Box sx={{ mt: 3, textAlign: 'center' }}>
+                  <Typography variant="body1" color="text.secondary">
+                    Returning to home screen in 5 seconds...
+                  </Typography>
                 </Box>
               </>
             )}
@@ -906,6 +939,65 @@ const TrackingSequence: React.FC = () => {
   
   // Add a key state to force webcam re-render
   const [key, setKey] = useState<number>(0);
+  
+  // Add a function to start collecting weight data
+  const startCollectingWeights = () => {
+    console.log('Starting to collect weight data...');
+    
+    // Clear any existing interval
+    // @ts-ignore
+    if (window.weightsInterval) {
+      // @ts-ignore
+      clearInterval(window.weightsInterval);
+      // @ts-ignore
+      window.weightsInterval = null;
+    }
+    
+    // Initial weight collection
+    collectWeight();
+    
+    // Start collecting raw weights every 3 seconds
+    const weightsInterval = setInterval(collectWeight, 3000);
+
+    // Store the interval ID so we can clear it when needed
+    // @ts-ignore
+    window.weightsInterval = weightsInterval;
+
+    return () => {
+      // @ts-ignore
+      if (window.weightsInterval) {
+        // @ts-ignore
+        clearInterval(window.weightsInterval);
+        // @ts-ignore
+        window.weightsInterval = null;
+      }
+    };
+  };
+
+  // Separate function to collect a single weight reading
+  const collectWeight = async () => {
+    try {
+      console.log('Collecting a weight sample...');
+      const response = await fetch('http://localhost:5001/api/labjack/ain1');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Weight sample collected:', data);
+        
+        // Add to rawWeights state
+        const newEntry = { 
+          timestamp: data.timestamp, 
+          value: data.voltage.toString() 
+        };
+        setRawWeights(prevWeights => [...prevWeights, newEntry]);
+        
+        console.log('Current rawWeights count:', rawWeights.length + 1);
+      } else {
+        console.error('Failed to get weight reading:', response.statusText);
+      }
+    } catch (error) {
+      console.error('Error collecting weight data:', error);
+    }
+  };
   
   return (
     <Container maxWidth="md">

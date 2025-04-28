@@ -8,18 +8,35 @@ import {
   Paper,
   Grid,
   TextField,
-  IconButton,
   CircularProgress
 } from '@mui/material';
 import { useUser } from '../contexts/UserContext';
 import BackspaceIcon from '@mui/icons-material/Backspace';
+import axios from 'axios';
+
+const API_URL = 'http://localhost:5000/api';
 
 const Home: React.FC = () => {
   const [pin, setPin] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [hasFeedTypes, setHasFeedTypes] = useState<boolean>(true);
   const { login, isAuthenticated } = useUser();
   const navigate = useNavigate();
+
+  // Check for feed types on component mount
+  useEffect(() => {
+    const checkFeedTypes = async () => {
+      try {
+        const response = await axios.get(`${API_URL}/feed-types`);
+        setHasFeedTypes(response.data.length > 0);
+      } catch (error) {
+        console.error('Error checking feed types:', error);
+        setHasFeedTypes(false);
+      }
+    };
+    checkFeedTypes();
+  }, []);
 
   // If user is already authenticated, redirect to tracking sequence
   useEffect(() => {
@@ -28,14 +45,14 @@ const Home: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  // Handle PIN input and attempt login when PIN is 4 digits
+  // Handle PIN input
   const handlePinInput = (digit: string) => {
     if (pin.length < 4) {
       const newPin = pin + digit;
       setPin(newPin);
       setError(null);
       
-      // Automatically attempt login when pin reaches 4 digits
+      // If we've reached 4 digits, attempt login
       if (newPin.length === 4) {
         handleLogin(newPin);
       }
@@ -55,8 +72,8 @@ const Home: React.FC = () => {
   };
 
   // Handle login with PIN
-  const handleLogin = async (pinToUse: string) => {
-    if (pinToUse.length !== 4) {
+  const handleLogin = async (pinToCheck: string) => {
+    if (pinToCheck.length !== 4) {
       setError('Please enter a 4-digit PIN');
       return;
     }
@@ -65,7 +82,7 @@ const Home: React.FC = () => {
     setError(null);
 
     try {
-      const success = await login(pinToUse);
+      const success = await login(pinToCheck);
       
       if (success) {
         // Redirect to tracking sequence will happen in useEffect
@@ -90,10 +107,38 @@ const Home: React.FC = () => {
     ['C', '0', '⌫']
   ];
 
+  if (!hasFeedTypes) {
+    return (
+      <Container maxWidth="sm">
+        <Paper elevation={3} sx={{ p: 4, borderRadius: 2, mt: 8 }}>
+          <Typography variant="h5" component="h2" align="center" gutterBottom>
+            No Feed Types Available
+          </Typography>
+          <Typography variant="body1" align="center" sx={{ mb: 4 }}>
+            Please add feed types in the Audits page to start tracking.
+          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+            <Button
+              variant="contained"
+              color="primary"
+              size="large"
+              onClick={() => navigate('/audits')}
+            >
+              Go to Audits
+            </Button>
+          </Box>
+        </Paper>
+      </Container>
+    );
+  }
+
   return (
     <Container maxWidth="sm">
       <Paper elevation={3} sx={{ p: 4, borderRadius: 2, mt: 8 }}>
-        
+        <Typography variant="h5" component="h2" align="center" gutterBottom>
+          Enter Your PIN
+        </Typography>
+
         <Box sx={{ mb: 3 }}>
           <TextField
             fullWidth
@@ -158,12 +203,6 @@ const Home: React.FC = () => {
             </Grid>
           ))}
         </Grid>
-
-        {loading && (
-          <Box sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
-            <CircularProgress />
-          </Box>
-        )}
       </Paper>
     </Container>
   );

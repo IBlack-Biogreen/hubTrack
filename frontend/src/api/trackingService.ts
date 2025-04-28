@@ -88,7 +88,12 @@ export const getWeight = async (): Promise<number> => {
     console.log('Getting weight from LabJack sensor...');
     const response = await axios.get('http://localhost:5001/api/labjack/ain1');
     console.log('LabJack response:', response.data);
-    return response.data.weight || 0;
+    
+    // Format weight to 2 decimal places
+    const rawWeight = response.data.weight || 0;
+    const formattedWeight = parseFloat(rawWeight.toFixed(2));
+    
+    return formattedWeight;
   } catch (error) {
     console.error('Error getting weight:', error);
     throw new Error('Failed to get weight from sensor');
