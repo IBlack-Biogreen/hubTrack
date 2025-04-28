@@ -89,9 +89,16 @@ export const getWeight = async (): Promise<number> => {
     const response = await axios.get('http://localhost:5001/api/labjack/ain1');
     console.log('LabJack response:', response.data);
     
-    // Format weight to 2 decimal places
+    // Ensure we have a valid weight value
     const rawWeight = response.data.weight || 0;
+    if (typeof rawWeight !== 'number' || isNaN(rawWeight)) {
+      console.error('Invalid weight value received:', rawWeight);
+      return 0;
+    }
+    
+    // Format weight to 2 decimal places
     const formattedWeight = parseFloat(rawWeight.toFixed(2));
+    console.log('Formatted weight:', formattedWeight);
     
     return formattedWeight;
   } catch (error) {

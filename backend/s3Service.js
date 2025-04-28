@@ -1,32 +1,34 @@
-const AWS = require('aws-sdk');
+const { S3Client, PutObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const fs = require('fs');
 const path = require('path');
 
 // Configure AWS
-AWS.config.update({
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    region: process.env.AWS_REGION || 'us-east-1'
+const s3Client = new S3Client({
+    region: process.env.AWS_REGION || 'us-east-1',
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+    }
 });
 
-const s3 = new AWS.S3();
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'hubtrack-images';
+const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'bgtrackimages';
 
 // Function to upload an image to S3
 async function uploadImageToS3(localFilePath, s3Key) {
     try {
         const fileContent = fs.readFileSync(localFilePath);
         
-        const params = {
+        const command = new PutObjectCommand({
             Bucket: BUCKET_NAME,
             Key: s3Key,
             Body: fileContent,
             ContentType: 'image/jpeg'
-        };
+        });
 
-        const result = await s3.upload(params).promise();
-        console.log(`Image uploaded successfully to ${result.Location}`);
-        return result.Location;
+        const result = await s3Client.send(command);
+        const s3Url = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`;
+        console.log(`Image uploaded successfully to ${s3Url}`);
+        return s3Url;
     } catch (error) {
         console.error('Error uploading image to S3:', error);
         throw error;

@@ -10,17 +10,22 @@ const migrateCarts = require('./scripts/migrateCarts');
 const path = require('path');
 const fs = require('fs');
 const s3Service = require('./s3Service');
+const os = require('os');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 const pythonServerPort = 5001; // Python server will run on this port
 
-// Add static file serving for images
-const documentsPath = process.env.DOCUMENTS_PATH || path.join(process.env.USERPROFILE || process.env.HOME, 'Documents');
+// Get the user's documents directory
+const documentsPath = process.env.DOCUMENTS_PATH || path.join(os.homedir(), 'Documents');
 const imagesDir = path.join(documentsPath, 'hubtrack_images');
+
+// Create images directory if it doesn't exist
 if (!fs.existsSync(imagesDir)) {
     fs.mkdirSync(imagesDir, { recursive: true });
 }
+
+// Serve static files from the images directory
 app.use('/images', express.static(imagesDir));
 
 // Define collection names based on connection type (Atlas or local)

@@ -69,6 +69,8 @@ const TrackingSequence: React.FC = () => {
   const [rawWeights, setRawWeights] = useState<Record<string, { timestamp: string; value: string }>>({});
   const [feedStartTime, setFeedStartTime] = useState<Date | null>(null);
   
+  const [feedData, setFeedData] = useState<any>(null);
+  
   const { currentUser, isAuthenticated, logout } = useUser();
   const navigate = useNavigate();
   
@@ -560,6 +562,9 @@ const TrackingSequence: React.FC = () => {
       console.log('Feed creation response:', response);
       
       if (response.success) {
+        // Update feedData for summary display
+        setFeedData(feedData);
+        
         // Reset the form
         setActiveStep(0);
         setSelectedOrganization(null);
@@ -877,25 +882,25 @@ const TrackingSequence: React.FC = () => {
                       </Typography>
                       <Box sx={{ my: 2 }}>
                         <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Weight:</strong> {weight?.toFixed(2)} lbs
+                          <strong>Weight:</strong> {feedData?.weight ? `${feedData.weight.toFixed(2)} lbs` : 'Not available'}
                         </Typography>
                         <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Organization:</strong> {selectedOrganization?.displayName}
+                          <strong>Organization:</strong> {feedData?.organization || 'Not selected'}
                         </Typography>
                         <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Department:</strong> {selectedDepartment?.displayName}
+                          <strong>Department:</strong> {feedData?.department || 'Not selected'}
                         </Typography>
                         <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Feed Type:</strong> {selectedFeedType?.displayName}
+                          <strong>Feed Type:</strong> {feedData?.typeDisplayName || 'Not selected'}
                         </Typography>
                         <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>User:</strong> {currentUser?.name}
+                          <strong>User:</strong> {feedData?.userId || 'Not available'}
                         </Typography>
                         <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Image:</strong> {imageFilename || 'None'}
+                          <strong>Image:</strong> {feedData?.imageFilename ? 'Captured' : 'None'}
                         </Typography>
                         <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Raw Weights Collected:</strong> {Object.keys(rawWeights).length}
+                          <strong>Raw Weights Collected:</strong> {feedData?.rawWeights ? Object.keys(feedData.rawWeights).length : 0}
                         </Typography>
                       </Box>
                     </Paper>
