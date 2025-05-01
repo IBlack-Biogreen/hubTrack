@@ -362,31 +362,6 @@ function Settings() {
 
         <Box sx={{ mt: 4 }}>
           <Typography variant="h6" gutterBottom>
-            Network Information
-          </Typography>
-          <Box sx={{ p: 2, backgroundColor: 'info.light', borderRadius: 1 }}>
-            <Typography variant="body1" gutterBottom>
-              <strong>Connection Type:</strong> {navigator.connection?.type || 'Unknown'}
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              <strong>Effective Type:</strong> {navigator.connection?.effectiveType || 'Unknown'}
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              <strong>Downlink:</strong> {navigator.connection?.downlink ? `${navigator.connection.downlink} Mbps` : 'Unknown'}
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              <strong>RTT:</strong> {navigator.connection?.rtt ? `${navigator.connection.rtt} ms` : 'Unknown'}
-            </Typography>
-            <Typography variant="body1" gutterBottom>
-              <strong>Online Status:</strong> {navigator.onLine ? 'Connected' : 'Offline'}
-            </Typography>
-          </Box>
-        </Box>
-
-        <Divider sx={{ my: 4 }} />
-
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h6" gutterBottom>
             WiFi Networks
           </Typography>
           

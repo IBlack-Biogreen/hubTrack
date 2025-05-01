@@ -1,3 +1,5 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 const { S3Client, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 
 // Configure AWS
