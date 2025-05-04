@@ -2,11 +2,8 @@ const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const url = require('url');
 const fs = require('fs');
-const { initialize, enable } = require('@electron/remote/main');
+require('@electron/remote/main').initialize();
 const wifi = require('node-wifi');
-
-// Initialize @electron/remote
-initialize();
 
 // Initialize wifi
 wifi.init({
@@ -21,7 +18,7 @@ function debugLog(...args) {
   console.log(...args);
   
   // Also log to a file
-  const logFile = path.join(app.getPath('documents'), 'hubtrack_debug.log');
+  const logFile = path.join(app.getPath('userData'), 'hubtrack_debug.log');
   const logMessage = args.map(arg => 
     typeof arg === 'object' ? JSON.stringify(arg) : arg
   ).join(' ') + '\n';
@@ -45,7 +42,7 @@ function createWindow() {
   });
   
   // Enable remote module for this window
-  enable(mainWindow.webContents);
+  require('@electron/remote/main').enable(mainWindow.webContents);
   
   // Check if we're in development or production mode
   const isDev = process.env.NODE_ENV === 'development';
@@ -58,13 +55,7 @@ function createWindow() {
     debugLog('Opened in development mode');
   } else {
     // Load from built files in production
-    mainWindow.loadURL(
-      url.format({
-        pathname: path.join(__dirname, 'dist', 'index.html'),
-        protocol: 'file:',
-        slashes: true
-      })
-    );
+    mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
     debugLog('Opened in production mode');
   }
   
@@ -91,11 +82,11 @@ function setupIPCListeners() {
       // Create a simpler filename
       const simpleFilename = `hubtrack_image_${Date.now()}.jpg`;
       
-      // Save to documents folder (guaranteed to exist)
-      const documentsPath = app.getPath('documents');
-      const imagesDir = path.join(documentsPath, 'hubtrack_images');
+      // Save to userData folder (guaranteed to exist and writable)
+      const userDataPath = app.getPath('userData');
+      const imagesDir = path.join(userDataPath, 'hubtrack_images');
       
-      debugLog('Documents path:', documentsPath);
+      debugLog('UserData path:', userDataPath);
       debugLog('Images dir:', imagesDir);
       
       // Ensure images directory exists

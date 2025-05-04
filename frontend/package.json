@@ -2,7 +2,9 @@
   "name": "frontend",
   "private": true,
   "version": "0.0.0",
-  "type": "module",
+  "description": "HubTrack - A comprehensive tracking and monitoring application",
+  "author": "BioGreen360",
+  "type": "commonjs",
   "main": "electron.js",
   "scripts": {
     "dev": "vite",
@@ -14,6 +16,8 @@
     "electron:start": "electron ."
   },
   "dependencies": {
+    "@electron/remote": "^2.1.2",
+    "node-wifi": "^2.0.15",
     "@emotion/react": "^11.11.3",
     "@emotion/styled": "^11.11.0",
     "@mui/icons-material": "^5.15.10",
@@ -27,14 +31,13 @@
     "react-webcam": "^7.2.0"
   },
   "devDependencies": {
-    "@electron/remote": "^2.1.2",
     "@types/node": "^22.14.1",
     "@types/react": "^18.2.55",
     "@types/react-dom": "^18.2.19",
     "@vitejs/plugin-react": "^4.2.1",
     "concurrently": "^8.2.2",
-    "electron": "^35.2.1",
-    "electron-builder": "^24.13.3",
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1",
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
@@ -53,7 +56,24 @@
       "output": "dist_electron"
     },
     "win": {
-      "target": "nsis"
-    }
+      "target": "dir",
+      "sign": null,
+      "certificateFile": null,
+      "certificatePassword": null,
+      "publisherName": null,
+      "verifyUpdateCodeSignature": false,
+      "signAndEditExecutable": false,
+      "signDlls": false
+    },
+    "extraResources": [
+      {
+        "from": "public",
+        "to": "public",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "forceCodeSigning": false
   }
 }
