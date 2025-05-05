@@ -33,6 +33,7 @@ export default function Setup() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [scaleFactor, setScaleFactor] = useState(24.5);
+  const [tareVoltage, setTareVoltage] = useState(0.0);
   const [carts, setCarts] = useState<Array<{ 
     _id: string, 
     serialNumber: string, 
@@ -162,6 +163,7 @@ export default function Setup() {
         }
         const data = await response.json();
         setScaleFactor(data.scale_factor);
+        setTareVoltage(data.tare_voltage);
       } catch (err) {
         console.error('Error fetching config:', err);
       }
@@ -286,7 +288,30 @@ export default function Setup() {
       if (!response.ok) {
         throw new Error('Failed to tare');
       }
+      const data = await response.json();
+      setTareVoltage(data.tare_voltage);
+      
+      // Save the tare voltage to the cart document
+      if (selectedCart) {
+        console.log('Selected cart:', selectedCart); // Debug log
+        
+        // Use the serialNumber directly since that's what we have in selectedCart
+        const url = `http://localhost:5000/api/carts/${selectedCart}/update-scale-config`;
+        console.log('Making request to:', url); // Debug log
+        
+        await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            tareVoltage: data.tare_voltage,
+            scaleFactor: scaleFactor
+          }),
+        });
+      }
     } catch (err) {
+      console.error('Tare error:', err); // Debug log
       setError(err instanceof Error ? err.message : 'Failed to tare');
     }
   };
@@ -307,6 +332,23 @@ export default function Setup() {
         throw new Error('Failed to update scale');
       }
       setScaleFactor(newScale);
+      
+      // Save the scale factor to the cart document
+      if (selectedCart) {
+        const cartData = carts.find(cart => cart.serialNumber === selectedCart);
+        if (cartData) {
+          await fetch(`http://localhost:5000/api/carts/${cartData.serialNumber}/update-scale-config`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              tareVoltage: tareVoltage,
+              scaleFactor: newScale
+            }),
+          });
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update scale');
     }
@@ -470,6 +512,15 @@ export default function Setup() {
               />
             </Grid2>
             <Grid2 item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Tare Voltage (V)"
+                type="number"
+                value={tareVoltage.toFixed(4)}
+                disabled
+              />
+            </Grid2>
+            <Grid2 item xs={12}>
               <Button
                 fullWidth
                 variant="contained"

@@ -511,7 +511,32 @@ function defineRoutes() {
             res.json({ success: true });
         } catch (error) {
             console.error('Error selecting cart:', error);
-            res.status(500).json({ error: error.message });
+            res.status(500).json({ error: 'Failed to select cart' });
+        }
+    });
+
+    app.post('/api/carts/:serialNumber/update-scale-config', async (req, res) => {
+        try {
+            const { serialNumber } = req.params;
+            const { tareVoltage, scaleFactor } = req.body;
+            
+            const db = dbManager.getDb();
+            const result = await db.collection(collections.carts).updateOne(
+                { serialNumber: serialNumber },
+                { $set: { 
+                    tareVoltage: parseFloat(tareVoltage),
+                    scaleFactor: parseFloat(scaleFactor)
+                }}
+            );
+            
+            if (result.matchedCount === 0) {
+                return res.status(404).json({ error: 'Cart not found' });
+            }
+            
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Error updating scale config:', error);
+            res.status(500).json({ error: 'Failed to update scale configuration' });
         }
     });
 

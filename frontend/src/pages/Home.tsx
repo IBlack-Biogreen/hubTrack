@@ -203,26 +203,26 @@ const Home: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               Tracking Statistics
             </Typography>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <Paper sx={{ p: 2, bgcolor: '#e3f2fd' }}>
-                <Typography variant="body1">Today</Typography>
-                <Typography variant="h4">{stats.today.toFixed(2)} lbs</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Paper sx={{ p: 1.5, bgcolor: '#e3f2fd' }}>
+                <Typography variant="body2">Today</Typography>
+                <Typography variant="h5">{stats.today.toFixed(2)} lbs</Typography>
               </Paper>
-              <Paper sx={{ p: 2, bgcolor: '#e8f5e9' }}>
-                <Typography variant="body1">This Week</Typography>
-                <Typography variant="h4">{stats.thisWeek.toFixed(2)} lbs</Typography>
+              <Paper sx={{ p: 1.5, bgcolor: '#e8f5e9' }}>
+                <Typography variant="body2">This Week</Typography>
+                <Typography variant="h5">{stats.thisWeek.toFixed(2)} lbs</Typography>
               </Paper>
-              <Paper sx={{ p: 2, bgcolor: '#fff3e0' }}>
-                <Typography variant="body1">This Month</Typography>
-                <Typography variant="h4">{stats.thisMonth.toFixed(2)} lbs</Typography>
+              <Paper sx={{ p: 1.5, bgcolor: '#fff3e0' }}>
+                <Typography variant="body2">This Month</Typography>
+                <Typography variant="h5">{stats.thisMonth.toFixed(2)} lbs</Typography>
               </Paper>
-              <Paper sx={{ p: 2, bgcolor: '#fce4ec' }}>
-                <Typography variant="body1">This Year</Typography>
-                <Typography variant="h4">{stats.thisYear.toFixed(2)} lbs</Typography>
+              <Paper sx={{ p: 1.5, bgcolor: '#fce4ec' }}>
+                <Typography variant="body2">This Year</Typography>
+                <Typography variant="h5">{stats.thisYear.toFixed(2)} lbs</Typography>
               </Paper>
-              <Paper sx={{ p: 2, bgcolor: '#f3e5f5' }}>
-                <Typography variant="body1">All Time</Typography>
-                <Typography variant="h4">{stats.allTime.toFixed(2)} lbs</Typography>
+              <Paper sx={{ p: 1.5, bgcolor: '#f3e5f5' }}>
+                <Typography variant="body2">All Time</Typography>
+                <Typography variant="h5">{stats.allTime.toFixed(2)} lbs</Typography>
               </Paper>
             </Box>
           </Paper>
