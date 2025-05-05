@@ -90,7 +90,7 @@ function Navigation() {
             sx={{
               mr: 2,
               display: { xs: 'none', md: 'flex' },
-              height: '40px',
+              height: '60px',
               '& img': {
                 height: '100%',
                 width: 'auto'
@@ -154,7 +154,7 @@ function Navigation() {
               mr: 2,
               display: { xs: 'flex', md: 'none' },
               flexGrow: 1,
-              height: '30px',
+              height: '59px',
               '& img': {
                 height: '100%',
                 width: 'auto'

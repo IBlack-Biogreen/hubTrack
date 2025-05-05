@@ -28,6 +28,7 @@ import {
   FeedType
 } from '../api/trackingService';
 import Webcam from 'react-webcam';
+import axios from 'axios';
 
 // Steps in the tracking sequence
 const steps = [
@@ -242,40 +243,57 @@ const TrackingSequence: React.FC = () => {
     setCameraError(null);
     setCameraReady(true);
     
-    // Try to capture image immediately while we know the webcam ref is valid
-    setTimeout(() => {
-      console.log('Attempting immediate capture after camera load...');
-      if (webcamRef.current) {
-        try {
-          const imageSrc = webcamRef.current.getScreenshot({
-            width: 640,
-            height: 480
-          });
+    // Only attempt capture if we don't already have an image
+    if (!capturedImage) {
+      // Wait for camera to be fully initialized
+      const checkCameraReady = setInterval(() => {
+        if (webcamRef.current) {
+          console.log('Webcam ref is now available, attempting capture...');
+          clearInterval(checkCameraReady);
           
-          if (imageSrc) {
-            console.log('Immediate capture successful!');
-            setCapturedImage(imageSrc);
-            setIsPlaceholderImage(false);
+          try {
+            const imageSrc = webcamRef.current.getScreenshot({
+              width: 640,
+              height: 480
+            });
             
-            // Generate filename
-            const now = new Date();
-            const deviceLabel = localStorage.getItem('selectedDeviceLabel') || 'bgtrack_61';
-            const timestamp = now.toISOString();
-            let filename = `${deviceLabel}_${timestamp}.jpg`;
-            filename = sanitizeFilename(filename);
-            
-            setImageFilename(filename);
-            saveImageLocally(imageSrc, filename);
-          } else {
-            console.error('Immediate capture returned null image');
+            if (imageSrc) {
+              console.log('Capture successful!');
+              setCapturedImage(imageSrc);
+              setIsPlaceholderImage(false);
+              
+              // Generate filename
+              const now = new Date();
+              const deviceLabel = localStorage.getItem('selectedDeviceLabel') || 'bgtrack_61';
+              const timestamp = now.toISOString();
+              let filename = `${deviceLabel}_${timestamp}.jpg`;
+              filename = sanitizeFilename(filename);
+              
+              console.log('Generated filename:', filename);
+              setImageFilename(filename);
+              saveImageLocally(imageSrc, filename);
+            } else {
+              console.error('Capture returned null image');
+              createFallbackImage();
+            }
+          } catch (error) {
+            console.error('Error during capture:', error);
+            createFallbackImage();
           }
-        } catch (error) {
-          console.error('Error during immediate capture:', error);
+        } else {
+          console.log('Waiting for webcam ref to be available...');
         }
-      } else {
-        console.error('Webcam ref not available for immediate capture');
-      }
-    }, 500); // Very short delay to ensure camera is fully initialized
+      }, 100); // Check every 100ms
+      
+      // Clear interval after 5 seconds if camera isn't ready
+      setTimeout(() => {
+        clearInterval(checkCameraReady);
+        if (!webcamRef.current && !capturedImage) {
+          console.error('Camera not ready after 5 seconds');
+          createFallbackImage();
+        }
+      }, 5000);
+    }
   };
   
   // Effect to observe camera ready state - no longer trying to auto-capture here
@@ -288,6 +306,9 @@ const TrackingSequence: React.FC = () => {
   // Save image to local storage
   const saveImageLocally = async (imageSrc: string, filename: string) => {
     console.log('Attempting to save image locally...');
+    console.log('Image source type:', typeof imageSrc);
+    console.log('Image source length:', imageSrc.length);
+    console.log('Filename:', filename);
     
     try {
       // In an Electron environment, we would use the exposed electron API
@@ -313,15 +334,46 @@ const TrackingSequence: React.FC = () => {
         }
       }
       
-      // For web environment or if IPC failed
+      // For web development environment
+      console.log('Using web development mode - saving to backend');
+      try {
+        // Convert base64 to blob
+        const base64Data = imageSrc.replace(/^data:image\/jpeg;base64,/, '');
+        console.log('Base64 data length after cleanup:', base64Data.length);
+        
+        const blob = await fetch(`data:image/jpeg;base64,${base64Data}`).then(res => res.blob());
+        console.log('Blob size:', blob.size);
+        
+        // Create form data
+        const formData = new FormData();
+        formData.append('image', blob, filename);
+        
+        console.log('Sending image to backend...');
+        // Send to backend
+        const response = await axios.post('http://localhost:5000/api/save-image', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        
+        console.log('Backend response:', response.data);
+        
+        if (response.data.success) {
+          console.log('Image saved successfully via backend');
+          return;
+        } else {
+          throw new Error('Backend returned unsuccessful response');
+        }
+      } catch (apiError) {
+        console.error('Failed to save via backend:', apiError);
+        if (apiError.response) {
+          console.error('Backend error response:', apiError.response.data);
+        }
+      }
+      
+      // Fallback to browser download if all else fails
       console.log('Using browser download fallback');
       triggerBrowserDownload(imageSrc, filename);
-      
-      // For web environment, also store in localStorage
-      if (!window.electron) {
-        console.log('Electron not detected, using localStorage');
-        localStorage.setItem(`image_${filename}`, imageSrc);
-      }
       
     } catch (err) {
       console.error('Error in saveImageLocally:', err);
@@ -940,7 +992,7 @@ const TrackingSequence: React.FC = () => {
                           mt: 2
                         }}>
                           <img 
-                            src={capturedImage} 
+                            src={imageFilename ? `http://localhost:5000/images/${imageFilename}` : capturedImage}
                             alt="Feed"
                             style={{ 
                               maxWidth: '100%', 

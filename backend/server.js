@@ -11,6 +11,7 @@ const path = require('path');
 const fs = require('fs');
 const s3Service = require('./s3Service');
 const os = require('os');
+const multer = require('multer');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,11 +23,28 @@ const imagesDir = path.join(documentsPath, 'hubtrack_images');
 
 // Create images directory if it doesn't exist
 if (!fs.existsSync(imagesDir)) {
+    console.log('Creating images directory at:', imagesDir);
     fs.mkdirSync(imagesDir, { recursive: true });
 }
 
-// Serve static files from the images directory
-app.use('/images', express.static(imagesDir));
+// Enable CORS for all routes with specific configuration
+app.use(cors({
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'file://*'], // Allow file:// URLs for Electron
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Selected-Cart'],
+    credentials: true
+}));
+
+app.use(express.json());
+
+// Serve images with CORS headers
+app.use('/images', (req, res, next) => {
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET');
+    next();
+}, express.static(imagesDir));
+
+const upload = multer({ dest: imagesDir });
 
 // Define collection names based on connection type (Atlas or local)
 const getCollectionNames = () => {
@@ -47,16 +65,6 @@ const getCollectionNames = () => {
         };
     }
 };
-
-// Enable CORS for all routes with specific configuration
-app.use(cors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'file://*'], // Allow file:// URLs for Electron
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Selected-Cart'],
-    credentials: true
-}));
-
-app.use(express.json());
 
 // Add request logging middleware
 app.use((req, res, next) => {
@@ -929,6 +937,86 @@ function defineRoutes() {
         } catch (error) {
             console.error('Error getting stats:', error);
             res.status(500).json({ error: error.message });
+        }
+    });
+
+    // Add image upload endpoint
+    app.post('/api/save-image', upload.single('image'), (req, res) => {
+        try {
+            if (!req.file) {
+                return res.status(400).json({ success: false, error: 'No image file provided' });
+            }
+
+            // Get the original filename from the request
+            const originalFilename = req.file.originalname;
+            const newPath = path.join(imagesDir, originalFilename);
+
+            console.log('Saving image to:', newPath);
+            console.log('Original file path:', req.file.path);
+            console.log('Original filename:', originalFilename);
+            console.log('Images directory:', imagesDir);
+
+            // Ensure the images directory exists
+            if (!fs.existsSync(imagesDir)) {
+                console.log('Creating images directory:', imagesDir);
+                fs.mkdirSync(imagesDir, { recursive: true });
+            }
+
+            // List files before saving
+            console.log('Files in images directory before save:', fs.readdirSync(imagesDir));
+
+            // Copy the file instead of renaming to avoid potential issues
+            fs.copyFileSync(req.file.path, newPath);
+            // Remove the temporary file
+            fs.unlinkSync(req.file.path);
+            
+            console.log('Image saved successfully at:', newPath);
+
+            // List files after saving
+            console.log('Files in images directory after save:', fs.readdirSync(imagesDir));
+
+            // Verify the file exists after saving
+            if (fs.existsSync(newPath)) {
+                console.log('Verified file exists after save');
+                const stats = fs.statSync(newPath);
+                console.log('File size:', stats.size, 'bytes');
+            } else {
+                console.error('File not found after save!');
+            }
+
+            res.json({ 
+                success: true, 
+                message: 'Image saved successfully',
+                filename: originalFilename
+            });
+        } catch (error) {
+            console.error('Error saving image:', error);
+            res.status(500).json({ success: false, error: error.message });
+        }
+    });
+
+    // API endpoint to get cart by serial number
+    app.get('/api/carts/:serialNumber', async (req, res) => {
+        try {
+            const { serialNumber } = req.params;
+            const db = dbManager.getDb();
+            
+            let query = { serialNumber };
+            if (!dbManager.isLocalConnection()) {
+                // If connected to Atlas, also check for machineType
+                query = { serialNumber, machineType: 'BGTrack' };
+            }
+            
+            const cart = await db.collection(collections.carts).findOne(query);
+            
+            if (!cart) {
+                return res.status(404).json({ error: 'Cart not found' });
+            }
+            
+            res.json(cart);
+        } catch (error) {
+            console.error('Error getting cart:', error);
+            res.status(500).json({ error: 'Failed to get cart' });
         }
     });
 }

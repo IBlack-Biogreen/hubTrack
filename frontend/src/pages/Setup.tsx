@@ -44,6 +44,7 @@ export default function Setup() {
   const [cartsLoading, setCartsLoading] = useState(true);
   const [cartsError, setCartsError] = useState<string | null>(null);
   const [isCartSelected, setIsCartSelected] = useState(false);
+  const [cartConfigLoaded, setCartConfigLoaded] = useState(false);
   const chartRef = useRef<HTMLCanvasElement>(null);
   const chartInstance = useRef<Chart | null>(null);
   const webcamRef = useRef<Webcam>(null);
@@ -56,9 +57,42 @@ export default function Setup() {
   useEffect(() => {
     const savedCart = localStorage.getItem('selectedCart');
     const savedDeviceLabel = localStorage.getItem('selectedDeviceLabel');
+    console.log('Saved cart from localStorage:', savedCart);
+    
     if (savedCart) {
       setSelectedCart(savedCart);
       setIsCartSelected(true);
+      
+      // Load scale configuration from the cart
+      const fetchCartConfig = async () => {
+        try {
+          console.log('Fetching cart config for:', savedCart);
+          const response = await fetch(`http://localhost:5000/api/carts/${savedCart}`);
+          if (response.ok) {
+            const cartData = await response.json();
+            console.log('Cart data received:', cartData);
+            if (cartData.tareVoltage !== undefined) {
+              console.log('Setting tare voltage from cart:', cartData.tareVoltage);
+              setTareVoltage(cartData.tareVoltage);
+            }
+            if (cartData.scaleFactor !== undefined) {
+              console.log('Setting scale factor from cart:', cartData.scaleFactor);
+              setScaleFactor(cartData.scaleFactor);
+            }
+            setCartConfigLoaded(true);
+          } else {
+            console.error('Failed to fetch cart config:', response.status, response.statusText);
+            setCartConfigLoaded(true); // Still mark as loaded even if it failed
+          }
+        } catch (err) {
+          console.error('Error fetching cart config:', err);
+          setCartConfigLoaded(true); // Still mark as loaded even if it failed
+        }
+      };
+      
+      fetchCartConfig();
+    } else {
+      setCartConfigLoaded(true); // No cart to load, so we're done
     }
   }, []);
 
@@ -155,22 +189,33 @@ export default function Setup() {
   };
 
   useEffect(() => {
+    // Only fetch LabJack config after cart config is loaded
+    if (!cartConfigLoaded) return;
+
     const fetchConfig = async () => {
       try {
+        console.log('Fetching LabJack config, selectedCart:', selectedCart);
         const response = await fetch('http://localhost:5001/api/labjack/config');
         if (!response.ok) {
           throw new Error('Failed to fetch config');
         }
         const data = await response.json();
-        setScaleFactor(data.scale_factor);
-        setTareVoltage(data.tare_voltage);
+        console.log('LabJack config received:', data);
+        // Only set these values if we don't have a cart selected
+        if (!selectedCart) {
+          console.log('No cart selected, using LabJack defaults');
+          setScaleFactor(data.scale_factor);
+          setTareVoltage(data.tare_voltage);
+        } else {
+          console.log('Cart is selected, ignoring LabJack defaults');
+        }
       } catch (err) {
         console.error('Error fetching config:', err);
       }
     };
 
     fetchConfig();
-  }, []);
+  }, [selectedCart, cartConfigLoaded]);
 
   useEffect(() => {
     const fetchReading = async () => {

@@ -34,18 +34,14 @@ const Home: React.FC = () => {
     thisYear: 0,
     allTime: 0
   });
+  const [weight, setWeight] = useState<number | null>(null);
 
   // Fetch stats on component mount
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        if (window.electron) {
-          const stats = await window.electron.api.get('stats');
-          setStats(stats);
-        } else {
-          const response = await axios.get(`${API_URL}/stats`);
-          setStats(response.data);
-        }
+        const response = await axios.get('http://localhost:5000/api/stats');
+        setStats(response.data);
       } catch (error) {
         console.error('Error fetching stats:', error);
       }
@@ -57,16 +53,10 @@ const Home: React.FC = () => {
   useEffect(() => {
     const checkFeedTypes = async () => {
       try {
-        if (window.electron) {
-          const feedTypes = await window.electron.api.get('feed-types');
-          setHasFeedTypes(feedTypes.length > 0);
-        } else {
-          const response = await axios.get(`${API_URL}/feed-types`);
-          setHasFeedTypes(response.data.length > 0);
-        }
+        const response = await axios.get('http://localhost:5000/api/feed-types');
+        setHasFeedTypes(response.data.length > 0);
       } catch (error) {
         console.error('Error checking feed types:', error);
-        setHasFeedTypes(false);
       }
     };
     checkFeedTypes();
@@ -78,6 +68,30 @@ const Home: React.FC = () => {
       navigate('/tracking-sequence');
     }
   }, [isAuthenticated, navigate]);
+
+  // Fetch weight reading
+  useEffect(() => {
+    const fetchWeight = async () => {
+      try {
+        const response = await fetch('http://localhost:5001/api/labjack/ain1');
+        if (!response.ok) {
+          throw new Error('Failed to fetch weight');
+        }
+        const data = await response.json();
+        setWeight(data.weight);
+      } catch (err) {
+        console.error('Error fetching weight:', err);
+      }
+    };
+
+    // Initial fetch
+    fetchWeight();
+
+    // Set up polling
+    const interval = setInterval(fetchWeight, 500);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Handle PIN input
   const handlePinInput = (digit: string) => {
@@ -300,7 +314,22 @@ const Home: React.FC = () => {
 
         {/* Right Column - Camera Preview */}
         <Grid item xs={12} md={4}>
-          <Paper elevation={3} sx={{ p: 3, height: 'calc(100vh - 128px)', borderRadius: 2, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          {/* Load Cell Reading Card */}
+          <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Current Scale Weight
+            </Typography>
+            <Box sx={{ textAlign: 'center' }}>
+              <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
+                {weight !== null ? weight.toFixed(2) : '--'} lbs
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Current Weight
+              </Typography>
+            </Box>
+          </Paper>
+
+          <Paper elevation={3} sx={{ p: 3, height: 'calc(100vh - 256px)', borderRadius: 2, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
             <Box sx={{ position: 'relative', width: '100%', height: 'auto' }}>
               <Webcam
                 ref={webcamRef}
