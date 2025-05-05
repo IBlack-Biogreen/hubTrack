@@ -80,6 +80,27 @@ function Settings() {
   const [password, setPassword] = useState('');
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
 
+  const saveSettingsToDeviceLabel = async (settings: any) => {
+    if (!currentDeviceLabel) return;
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/device-labels/${currentDeviceLabel.deviceLabel}/settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(settings),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save settings');
+      }
+    } catch (error) {
+      console.error('Error saving settings:', error);
+      setError(error instanceof Error ? error.message : 'Failed to save settings');
+    }
+  };
+
   const handleTimeoutChange = (value: number) => {
     if (value < 30) {
       setTimeoutValue(30);
@@ -88,6 +109,12 @@ function Settings() {
       setTimeoutValue(value);
       setTimeout(value * 1000);
     }
+    saveSettingsToDeviceLabel({
+      timeout: {
+        enabled: isEnabled,
+        value: value * 1000
+      }
+    });
   };
 
   const handleAddLanguage = () => {
@@ -96,8 +123,25 @@ function Settings() {
       if (language) {
         addEnabledLanguage(language);
         setSelectedLanguage('');
+        saveSettingsToDeviceLabel({
+          languages: enabledLanguages.map(lang => lang.code)
+        });
       }
     }
+  };
+
+  const handleRemoveLanguage = (code: string) => {
+    removeEnabledLanguage(code);
+    saveSettingsToDeviceLabel({
+      languages: enabledLanguages.filter(lang => lang.code !== code).map(lang => lang.code)
+    });
+  };
+
+  const handleDarkModeToggle = () => {
+    toggleDarkMode();
+    saveSettingsToDeviceLabel({
+      darkMode: !isDarkMode
+    });
   };
 
   const scanNetworks = async () => {
@@ -176,6 +220,50 @@ function Settings() {
             }
             const labels = await labelsResponse.json();
             setDeviceLabels(labels);
+
+            // Get the current device label
+            const currentLabel = currentCart?.currentDeviceLabelID 
+                ? labels.find((label: DeviceLabel) => label._id === currentCart.currentDeviceLabelID)
+                : null;
+
+            if (currentLabel) {
+                // Load saved settings
+                const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${currentLabel.deviceLabel}/settings`);
+                if (settingsResponse.ok) {
+                    const settings = await settingsResponse.json();
+                    
+                    // Apply dark mode setting
+                    if (settings.darkMode !== undefined) {
+                        if (settings.darkMode !== isDarkMode) {
+                            toggleDarkMode();
+                        }
+                    }
+
+                    // Apply timeout settings
+                    if (settings.timeout) {
+                        if (settings.timeout.enabled !== undefined) {
+                            setIsEnabled(settings.timeout.enabled);
+                        }
+                        if (settings.timeout.value) {
+                            setTimeout(settings.timeout.value);
+                            setTimeoutValue(settings.timeout.value / 1000);
+                        }
+                    }
+
+                    // Apply language settings
+                    if (settings.languages) {
+                        // Clear existing languages
+                        enabledLanguages.forEach(lang => removeEnabledLanguage(lang.code));
+                        // Add saved languages
+                        settings.languages.forEach((code: string) => {
+                            const language = availableLanguages.find(lang => lang.code === code);
+                            if (language) {
+                                addEnabledLanguage(language);
+                            }
+                        });
+                    }
+                }
+            }
         } catch (error) {
             console.error('Error fetching data:', error);
             setError(error instanceof Error ? error.message : 'Failed to fetch data');
@@ -210,7 +298,7 @@ function Settings() {
             control={
               <Switch
                 checked={isDarkMode}
-                onChange={toggleDarkMode}
+                onChange={handleDarkModeToggle}
                 color="primary"
               />
             }
@@ -274,7 +362,7 @@ function Settings() {
                       <IconButton
                         edge="end"
                         aria-label="delete"
-                        onClick={() => removeEnabledLanguage(language.code)}
+                        onClick={() => handleRemoveLanguage(language.code)}
                       >
                         <DeleteIcon />
                       </IconButton>

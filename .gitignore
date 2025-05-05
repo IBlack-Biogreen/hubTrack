@@ -12,6 +12,8 @@ LabJack-LJM_2025-02-12.zip
 dist/
 build/
 *.log
+frontend/dist_electron/
+frontend/dist/
 
 # Environment files
 .env
