@@ -4,6 +4,7 @@ const url = require('url');
 const fs = require('fs');
 require('@electron/remote/main').initialize();
 const wifi = require('node-wifi');
+const axios = require('axios');
 
 // Initialize wifi
 wifi.init({
@@ -34,9 +35,10 @@ function createWindow() {
     width: 1024,
     height: 768,
     webPreferences: {
-      nodeIntegration: false,
+      nodeIntegration: true,
       contextIsolation: true,
       enableRemoteModule: true,
+      webSecurity: false,
       preload: path.join(__dirname, 'preload.js')
     }
   });
@@ -56,6 +58,7 @@ function createWindow() {
   } else {
     // Load from built files in production
     mainWindow.loadFile(path.join(__dirname, 'dist', 'index.html'));
+    mainWindow.webContents.openDevTools(); // Keep DevTools open in production for now
     debugLog('Opened in production mode');
   }
   
@@ -74,6 +77,28 @@ function createWindow() {
 function setupIPCListeners() {
   debugLog('Setting up IPC listeners...');
   
+  // Backend API proxy
+  ipcMain.handle('backend-api', async (event, { method, endpoint, data }) => {
+    try {
+      debugLog(`Proxying ${method} request to ${endpoint}`);
+      const response = await axios({
+        method,
+        url: `http://localhost:5000/api/${endpoint}`,
+        data,
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+      return { success: true, data: response.data };
+    } catch (error) {
+      debugLog('API proxy error:', error.message);
+      return { 
+        success: false, 
+        error: error.response?.data?.error || error.message 
+      };
+    }
+  });
+
   // Listen for save-image events
   ipcMain.on('save-image', (event, { imageData, filename }) => {
     try {

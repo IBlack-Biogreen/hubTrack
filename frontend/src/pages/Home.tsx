@@ -15,7 +15,7 @@ import BackspaceIcon from '@mui/icons-material/Backspace';
 import axios from 'axios';
 import Webcam from 'react-webcam';
 
-const API_URL = 'http://localhost:5000/api';
+const API_URL = window.electron ? 'http://localhost:5000/api' : '/api';
 
 const Home: React.FC = () => {
   const [pin, setPin] = useState<string>('');
@@ -39,8 +39,13 @@ const Home: React.FC = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await axios.get(`${API_URL}/stats`);
-        setStats(response.data);
+        if (window.electron) {
+          const stats = await window.electron.api.get('stats');
+          setStats(stats);
+        } else {
+          const response = await axios.get(`${API_URL}/stats`);
+          setStats(response.data);
+        }
       } catch (error) {
         console.error('Error fetching stats:', error);
       }
@@ -52,8 +57,13 @@ const Home: React.FC = () => {
   useEffect(() => {
     const checkFeedTypes = async () => {
       try {
-        const response = await axios.get(`${API_URL}/feed-types`);
-        setHasFeedTypes(response.data.length > 0);
+        if (window.electron) {
+          const feedTypes = await window.electron.api.get('feed-types');
+          setHasFeedTypes(feedTypes.length > 0);
+        } else {
+          const response = await axios.get(`${API_URL}/feed-types`);
+          setHasFeedTypes(response.data.length > 0);
+        }
       } catch (error) {
         console.error('Error checking feed types:', error);
         setHasFeedTypes(false);
@@ -106,13 +116,24 @@ const Home: React.FC = () => {
     setError(null);
 
     try {
-      const success = await login(pinToCheck);
-      
-      if (success) {
-        // Redirect to tracking sequence will happen in useEffect
+      if (window.electron) {
+        const response = await window.electron.api.post('verify-pin', { pin: pinToCheck });
+        if (response.success) {
+          const success = await login(pinToCheck);
+          if (!success) {
+            setError('Invalid PIN. Please try again.');
+            setPin('');
+          }
+        } else {
+          setError('Invalid PIN. Please try again.');
+          setPin('');
+        }
       } else {
-        setError('Invalid PIN. Please try again.');
-        setPin('');
+        const success = await login(pinToCheck);
+        if (!success) {
+          setError('Invalid PIN. Please try again.');
+          setPin('');
+        }
       }
     } catch (err) {
       console.error('Login error:', err);
@@ -185,23 +206,23 @@ const Home: React.FC = () => {
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <Paper sx={{ p: 2, bgcolor: '#e3f2fd' }}>
                 <Typography variant="body1">Today</Typography>
-                <Typography variant="h4">{stats.today}</Typography>
+                <Typography variant="h4">{stats.today.toFixed(2)} lbs</Typography>
               </Paper>
               <Paper sx={{ p: 2, bgcolor: '#e8f5e9' }}>
                 <Typography variant="body1">This Week</Typography>
-                <Typography variant="h4">{stats.thisWeek}</Typography>
+                <Typography variant="h4">{stats.thisWeek.toFixed(2)} lbs</Typography>
               </Paper>
               <Paper sx={{ p: 2, bgcolor: '#fff3e0' }}>
                 <Typography variant="body1">This Month</Typography>
-                <Typography variant="h4">{stats.thisMonth}</Typography>
+                <Typography variant="h4">{stats.thisMonth.toFixed(2)} lbs</Typography>
               </Paper>
               <Paper sx={{ p: 2, bgcolor: '#fce4ec' }}>
                 <Typography variant="body1">This Year</Typography>
-                <Typography variant="h4">{stats.thisYear}</Typography>
+                <Typography variant="h4">{stats.thisYear.toFixed(2)} lbs</Typography>
               </Paper>
               <Paper sx={{ p: 2, bgcolor: '#f3e5f5' }}>
                 <Typography variant="body1">All Time</Typography>
-                <Typography variant="h4">{stats.allTime}</Typography>
+                <Typography variant="h4">{stats.allTime.toFixed(2)} lbs</Typography>
               </Paper>
             </Box>
           </Paper>

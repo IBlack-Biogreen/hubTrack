@@ -50,7 +50,7 @@ const getCollectionNames = () => {
 
 // Enable CORS for all routes with specific configuration
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'], // Vite's default ports
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'file://*'], // Allow file:// URLs for Electron
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Selected-Cart'],
     credentials: true
@@ -867,6 +867,42 @@ function defineRoutes() {
             res.json(formattedFeeds);
         } catch (error) {
             console.error('Error getting local feeds:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // API endpoint to get stats
+    app.get('/api/stats', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const feeds = await db.collection('localFeeds').find().toArray();
+            
+            const now = new Date();
+            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            const thisWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+            const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            const thisYear = new Date(now.getFullYear(), 0, 1);
+            
+            const stats = {
+                today: feeds
+                    .filter(feed => new Date(feed.timestamp) >= today)
+                    .reduce((sum, feed) => sum + parseFloat(feed.weight), 0),
+                thisWeek: feeds
+                    .filter(feed => new Date(feed.timestamp) >= thisWeek)
+                    .reduce((sum, feed) => sum + parseFloat(feed.weight), 0),
+                thisMonth: feeds
+                    .filter(feed => new Date(feed.timestamp) >= thisMonth)
+                    .reduce((sum, feed) => sum + parseFloat(feed.weight), 0),
+                thisYear: feeds
+                    .filter(feed => new Date(feed.timestamp) >= thisYear)
+                    .reduce((sum, feed) => sum + parseFloat(feed.weight), 0),
+                allTime: feeds
+                    .reduce((sum, feed) => sum + parseFloat(feed.weight), 0)
+            };
+            
+            res.json(stats);
+        } catch (error) {
+            console.error('Error getting stats:', error);
             res.status(500).json({ error: error.message });
         }
     });
