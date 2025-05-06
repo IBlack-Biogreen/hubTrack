@@ -115,4 +115,14 @@ export const getWeightHistory = async (): Promise<Array<{voltage: number, weight
     console.error('Error getting weight history:', error);
     throw new Error('Failed to get weight history');
   }
+};
+
+export const updateFeedWeights = async (feedId: string, weightData: { timestamp: string; value: string }) => {
+  try {
+    const response = await axios.post(`${API_URL}/feeds/${feedId}/weights`, weightData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating feed weights:', error);
+    throw error;
+  }
 }; 

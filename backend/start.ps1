@@ -194,146 +194,45 @@ if ($labjackProcess.HasExited) {
     Write-Host "LabJack server started successfully." -ForegroundColor Green
 }
 
-# Test the LabJack server with retries
-Write-Host "Testing LabJack server connection..." -ForegroundColor Green
-$maxRetries = 3
-$retryCount = 0
-$connected = $false
-
-while (-not $connected -and $retryCount -lt $maxRetries) {
-    try {
-        Write-Host "Attempt $($retryCount+1) to connect to LabJack server..." -ForegroundColor Yellow
-        $response = Invoke-WebRequest -Uri "http://localhost:5001/api/labjack/ain1" -UseBasicParsing
-        if ($response.StatusCode -eq 200) {
-            $connected = $true
-            Write-Host "LabJack server is responding successfully." -ForegroundColor Green
-            Write-Host "Response: $($response.Content)" -ForegroundColor Green
-        }
-    } catch {
-        $retryCount++
-        Write-Host "Connection attempt failed: $($_.Exception.Message)" -ForegroundColor Red
-        if ($retryCount -lt $maxRetries) {
-            Write-Host "Attempt $retryCount failed. Retrying in 2 seconds..." -ForegroundColor Yellow
-            # Check logs again
-            Write-Host "Current logs:" -ForegroundColor Yellow
-            Get-Content "labjack_output.log"
-            Get-Content "labjack_error.log"
-            Start-Sleep -Seconds 2
-        } else {
-            Write-Host "Failed to connect to LabJack server after $maxRetries attempts." -ForegroundColor Red
-            Write-Host "Final logs:" -ForegroundColor Red
-            Get-Content "labjack_output.log"
-            Get-Content "labjack_error.log"
-            exit 1
-        }
-    }
-}
-
-# Check and kill any process using port 5000
-Write-Host "Checking for processes using port 5000..." -ForegroundColor Green
-try {
-    Stop-ProcessOnPort -Port 5000
-} catch {
-    Write-Host "Error checking port 5000: $($_.Exception.Message)" -ForegroundColor Red
-    # Continue anyway
-}
-
-# Kill any existing Node.js processes
-Write-Host "Checking for existing Node.js processes..." -ForegroundColor Green
-try {
-    $nodeProcesses = Get-Process | Where-Object { $_.ProcessName -eq "node" }
-    if ($nodeProcesses) {
-        foreach ($proc in $nodeProcesses) {
-            Write-Host "Stopping Node.js process: (PID: $($proc.Id))" -ForegroundColor Yellow
-            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-        }
-        Start-Sleep -Seconds 2
-        Write-Host "Node.js processes stopped" -ForegroundColor Green
-    } else {
-        Write-Host "No Node.js processes found" -ForegroundColor Green
-    }
-} catch {
-    Write-Host "Error stopping Node.js processes: $($_.Exception.Message)" -ForegroundColor Red
-    # Continue anyway
-}
-
-# Verify Node.js server file exists
-Write-Host "Checking for server.js file..." -ForegroundColor Green
-if (Test-Path "server.js") {
-    Write-Host "server.js file found" -ForegroundColor Green
-} else {
-    Write-Host "server.js file NOT FOUND" -ForegroundColor Red
-    Write-Host "Current directory: $(Get-Location)" -ForegroundColor Red
-    Write-Host "Directory contents:" -ForegroundColor Red
-    Get-ChildItem -Path "." | Format-Table Name, Length, LastWriteTime
-    exit 1
-}
-
 # Start the Node.js server
 Write-Host "Starting Node.js server..." -ForegroundColor Green
-# Create a log file for the Node.js server
-New-Item -Path "node_error.log" -ItemType File -Force | Out-Null
-New-Item -Path "node_output.log" -ItemType File -Force | Out-Null
-
-# Start the Node.js server with output redirection
 try {
-    $nodeProcess = Start-Process -FilePath node -ArgumentList "server.js" -NoNewWindow -PassThru -RedirectStandardError "node_error.log" -RedirectStandardOutput "node_output.log"
-    Write-Host "Node.js process started with PID: $($nodeProcess.Id)" -ForegroundColor Green
+    $nodeProcess = Start-Process -FilePath node -ArgumentList ".\server.js" -NoNewWindow -PassThru -RedirectStandardError "node_error.log" -RedirectStandardOutput "node_output.log"
+    Write-Host "Node.js server started with PID: $($nodeProcess.Id)" -ForegroundColor Green
 } catch {
-    Write-Host "Error starting Node.js process: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Error starting Node.js server: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
 }
 
-# Wait for the server to start and check health
+# Wait for the Node.js server to start
 Write-Host "Waiting for Node.js server to initialize..." -ForegroundColor Yellow
 Start-Sleep -Seconds 5
 
-# Check if the process is still running
+# Check if the Node.js process is still running
 if ($nodeProcess.HasExited) {
     Write-Host "Node.js server failed to start. Exit code: $($nodeProcess.ExitCode)" -ForegroundColor Red
-    Write-Host "Check node_error.log for details:" -ForegroundColor Red
-    Get-Content "node_error.log"
+    Write-Host "Check node_error.log for details." -ForegroundColor Red
     exit 1
+} else {
+    Write-Host "Node.js server started successfully." -ForegroundColor Green
 }
 
-# Show current content of log files
-Write-Host "Current Node.js server logs:" -ForegroundColor Yellow
-Get-Content "node_output.log"
-Get-Content "node_error.log"
+Write-Host "All services started successfully!" -ForegroundColor Green
+Write-Host "Press Ctrl+C to stop all services" -ForegroundColor Yellow
 
-# Test the Node.js server with retries
-Write-Host "Testing Node.js server connection..." -ForegroundColor Green
-$maxRetries = 5  # Increased retries
-$retryCount = 0
-$connected = $false
-
-while (-not $connected -and $retryCount -lt $maxRetries) {
-    try {
-        Write-Host "Attempt $($retryCount+1) to connect to Node.js server..." -ForegroundColor Yellow
-        $response = Invoke-WebRequest -Uri "http://localhost:5000/api/health" -UseBasicParsing
-        if ($response.StatusCode -eq 200) {
-            $connected = $true
-            Write-Host "Node.js server is responding successfully." -ForegroundColor Green
-            Write-Host "Response: $($response.Content)" -ForegroundColor Green
-        }
-    } catch {
-        $retryCount++
-        Write-Host "Connection attempt failed: $($_.Exception.Message)" -ForegroundColor Red
-        if ($retryCount -lt $maxRetries) {
-            Write-Host "Attempt $retryCount failed. Retrying in 2 seconds..." -ForegroundColor Yellow
-            # Check logs
-            Write-Host "Current logs:" -ForegroundColor Yellow
-            Get-Content "node_error.log"
-            Get-Content "node_output.log"
-            Start-Sleep -Seconds 2
-        } else {
-            Write-Host "Failed to connect to Node.js server after $maxRetries attempts." -ForegroundColor Red
-            Write-Host "Final logs:" -ForegroundColor Red
-            Get-Content "node_error.log"
-            Get-Content "node_output.log"
-            exit 1
-        }
+# Keep the script running and handle cleanup on exit
+try {
+    Wait-Process -Id $labjackProcess.Id, $nodeProcess.Id
+} catch {
+    Write-Host "Error waiting for processes: $($_.Exception.Message)" -ForegroundColor Red
+} finally {
+    # Cleanup on exit
+    Write-Host "`nStopping all services..." -ForegroundColor Yellow
+    if (-not $labjackProcess.HasExited) {
+        Stop-Process -Id $labjackProcess.Id -Force
     }
-}
-
-Write-Host "All servers started successfully. You can now access the application." -ForegroundColor Green 
+    if (-not $nodeProcess.HasExited) {
+        Stop-Process -Id $nodeProcess.Id -Force
+    }
+    Write-Host "All services stopped." -ForegroundColor Green
+} 

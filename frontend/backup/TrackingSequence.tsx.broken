@@ -42,6 +42,7 @@ const steps = [
 ];
 
 const TrackingSequence: React.FC = () => {
+  // Component-specific state
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,25 +58,15 @@ const TrackingSequence: React.FC = () => {
   
   // Webcam state
   const webcamRef = useRef<Webcam>(null);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [imageFilename, setImageFilename] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraReady, setCameraReady] = useState<boolean>(false);
-  const [isPlaceholderImage, setIsPlaceholderImage] = useState<boolean>(false);
   
   // Add camera facing mode state
   const [cameraFacingMode, setCameraFacingMode] = useState<"environment" | "user">("environment");
   
   // Add weightIntervalRef
   const weightIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Add rawWeights state with correct type
-  const [rawWeights, setRawWeights] = useState<Record<string, { timestamp: string; value: string }>>({});
-  const [feedStartTime, setFeedStartTime] = useState<Date | null>(null);
-  const [postSequenceWeights, setPostSequenceWeights] = useState<Record<string, { timestamp: string; value: string }>>({});
-  const [isPostSequence, setIsPostSequence] = useState<boolean>(false);
   const postSequenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const [feedSummaryData, setFeedSummaryData] = useState<any>(null);
   
   const { currentUser, isAuthenticated, logout } = useUser();
   const navigate = useNavigate();
@@ -83,6 +74,9 @@ const TrackingSequence: React.FC = () => {
   
   // Add submission lock
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  
+  // Add a ref to store the summary image
+  const summaryImageRef = useRef<string | null>(null);
   
   // Check if user is authenticated
   useEffect(() => {
@@ -98,7 +92,6 @@ const TrackingSequence: React.FC = () => {
       
       // Record feed start time
       const startTime = new Date();
-      setFeedStartTime(startTime);
       console.log('Feed started at:', startTime.toISOString());
       
       // Start collecting raw weights
@@ -143,8 +136,7 @@ const TrackingSequence: React.FC = () => {
     }
     
     const placeholderImage = canvas.toDataURL('image/jpeg');
-    setCapturedImage(placeholderImage);
-    setImageFilename(filename);
+    console.log('Placeholder image:', placeholderImage);
     
     // Set placeholder flag
     setIsPlaceholderImage(true);
@@ -573,28 +565,6 @@ const TrackingSequence: React.FC = () => {
       // Start background weight collection
       const feedId = await startBackgroundWeightCollection(feedType, weightValue);
       
-      // Wait 5 seconds before resetting and navigating
-      setTimeout(() => {
-        // Reset the form
-        setActiveStep(0);
-        setSelectedOrganization(null);
-        setSelectedDepartment(null);
-        setSelectedFeedType(null);
-        setWeight(null);
-        setCapturedImage(null);
-        setImageFilename(null);
-        setRawWeights({});
-        setPostSequenceWeights({});
-        setFeedStartTime(null);
-        setIsPostSequence(false);
-        
-        // Log the user out before navigating back to home
-          logout();
-        
-        // Navigate back to home
-          navigate('/');
-        }, 5000);
-      
     } catch (err) {
       console.error('Error in feed type selection:', err);
       setError('Failed to process feed. Please try again.');
@@ -615,11 +585,11 @@ const TrackingSequence: React.FC = () => {
       type: feedType.type,
       typeDisplayName: feedType.displayName,
       feedTypeId: feedType.id,
-      imageFilename: imageFilename || undefined,
-      feedStartedTime: feedStartTime?.toISOString(),
-      rawWeights: rawWeights
-    };
-    
+        imageFilename: imageFilename || undefined,
+        feedStartedTime: feedStartTime?.toISOString(),
+        rawWeights: rawWeights
+      };
+      
     // Create the feed and get its ID
     const createResponse = await createFeed(initialFeedData);
     const feedId = createResponse.feedId;
@@ -649,29 +619,6 @@ const TrackingSequence: React.FC = () => {
     }, 30000);
     
     return feedId;
-  };
-  
-  // Add useEffect to handle the timeout when we reach the summary step
-  useEffect(() => {
-    if (activeStep === 4) {
-      console.log('Summary step reached - setting timeout');
-      const timeoutId = setTimeout(() => {
-        console.log('Timeout triggered - returning to home');
-        logout();
-        navigate('/');
-      }, 5000);
-
-      // Clean up timeout on component unmount
-      return () => clearTimeout(timeoutId);
-    }
-  }, [activeStep, navigate]);
-  
-  const handleExit = () => {
-    // Only allow exit if we're not on the summary step
-    if (activeStep !== 4) {
-      logout();
-      navigate('/');
-    }
   };
   
   // Get step content based on active step
@@ -994,7 +941,7 @@ const TrackingSequence: React.FC = () => {
                           mt: 2
                         }}>
                           <img 
-                            src={imageFilename ? `http://localhost:5000/images/${imageFilename}` : capturedImage}
+                            src={capturedImage}
                             alt="Feed"
                             style={{ 
                               maxWidth: '100%', 
@@ -1119,7 +1066,7 @@ const TrackingSequence: React.FC = () => {
     };
   };
 
-  // Separate function to collect a single weight reading
+  // Function to collect a single weight reading
   const collectWeight = async () => {
     try {
       console.log('Collecting a weight sample...');
@@ -1135,27 +1082,31 @@ const TrackingSequence: React.FC = () => {
         };
         
         if (isPostSequence) {
-          setPostSequenceWeights(prevWeights => {
-            // Keep only the last 30 samples for post-sequence (30 seconds at 1Hz)
-            const updatedWeights = { ...prevWeights, [data.timestamp]: newEntry };
-            const entries = Object.entries(updatedWeights);
-            if (entries.length > 30) {
-              const oldestEntries = entries.slice(0, entries.length - 30);
-              oldestEntries.forEach(([key]) => delete updatedWeights[key]);
-            }
-            return updatedWeights;
-          });
+          // Update the state with an updater function that returns the new state object
+          const updatedPostWeights = { ...postSequenceWeights };
+          updatedPostWeights[data.timestamp] = newEntry;
+          
+          // Limit to last 30 samples
+          const entries = Object.entries(updatedPostWeights);
+          if (entries.length > 30) {
+            const oldestEntries = entries.slice(0, entries.length - 30);
+            oldestEntries.forEach(([key]) => delete updatedPostWeights[key]);
+          }
+          
+          setPostSequenceWeights(updatedPostWeights);
         } else {
-          setRawWeights(prevWeights => {
-            // Keep only the last 120 samples (2 minutes at 1Hz)
-            const updatedWeights = { ...prevWeights, [data.timestamp]: newEntry };
-            const entries = Object.entries(updatedWeights);
-            if (entries.length > 120) {
-              const oldestEntries = entries.slice(0, entries.length - 120);
-              oldestEntries.forEach(([key]) => delete updatedWeights[key]);
-            }
-            return updatedWeights;
-          });
+          // Update the state with an updater function that returns the new state object
+          const updatedRawWeights = { ...rawWeights };
+          updatedRawWeights[data.timestamp] = newEntry;
+          
+          // Limit to last 120 samples
+          const entries = Object.entries(updatedRawWeights);
+          if (entries.length > 120) {
+            const oldestEntries = entries.slice(0, entries.length - 120);
+            oldestEntries.forEach(([key]) => delete updatedRawWeights[key]);
+          }
+          
+          setRawWeights(updatedRawWeights);
         }
       } else {
         console.error('Failed to get weight reading:', response.statusText);
@@ -1176,7 +1127,20 @@ const TrackingSequence: React.FC = () => {
       }
     };
   }, []);
-  
+
+  // Add useEffect to handle the timeout when we reach the summary step
+  useEffect(() => {
+    if (activeStep === 4) {
+      const timeoutId = setTimeout(() => {
+        logout();
+        navigate('/');
+      }, 5000);
+
+      // Clean up timeout on component unmount
+      return () => clearTimeout(timeoutId);
+    }
+  }, [activeStep, navigate, logout]);
+
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
@@ -1208,7 +1172,7 @@ const TrackingSequence: React.FC = () => {
             <Button
               variant="outlined"
               color="error"
-              onClick={handleExit}
+              onClick={logout}
             >
               Cancel
             </Button>

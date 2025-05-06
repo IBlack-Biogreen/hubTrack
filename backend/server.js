@@ -12,6 +12,7 @@ const fs = require('fs');
 const s3Service = require('./s3Service');
 const os = require('os');
 const multer = require('multer');
+const { ObjectId } = require('mongodb');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -1017,6 +1018,39 @@ function defineRoutes() {
         } catch (error) {
             console.error('Error getting cart:', error);
             res.status(500).json({ error: 'Failed to get cart' });
+        }
+    });
+
+    // API endpoint to update feed weights
+    app.post('/api/feeds/:feedId/weights', async (req, res) => {
+        try {
+            const { feedId } = req.params;
+            const { timestamp, value } = req.body;
+            
+            console.log('Updating feed weights for feed:', feedId);
+            console.log('Weight data:', { timestamp, value });
+            
+            const db = dbManager.getDb();
+            const result = await db.collection('localFeeds').updateOne(
+                { _id: new ObjectId(feedId) },
+                { 
+                    $set: { 
+                        lastUpdated: new Date(),
+                        [`rawWeights.${timestamp}`]: { timestamp, value }
+                    }
+                }
+            );
+            
+            if (result.matchedCount === 0) {
+                console.log('Feed not found:', feedId);
+                return res.status(404).json({ error: 'Feed not found' });
+            }
+            
+            console.log('Feed weights updated successfully');
+            res.json({ success: true, message: 'Feed weights updated successfully' });
+        } catch (error) {
+            console.error('Error updating feed weights:', error);
+            res.status(500).json({ error: error.message });
         }
     });
 }
