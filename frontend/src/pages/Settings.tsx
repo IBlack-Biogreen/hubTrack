@@ -31,6 +31,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import { useThemeContext } from '../contexts/ThemeContext';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 import { useTimeout } from '../contexts/TimeoutContext';
+import { Link as RouterLink } from 'react-router-dom';
 
 interface Cart {
     _id: string;
@@ -539,6 +540,36 @@ function Settings() {
             </DialogActions>
           </Dialog>
         </Box>
+      </Box>
+
+      {/* Hidden Setup Button */}
+      <Box
+        sx={{
+          position: 'fixed',
+          bottom: 20,
+          right: 20,
+          opacity: 0.1,
+          '&:hover': {
+            opacity: 0.3,
+          },
+          transition: 'opacity 0.3s ease',
+          zIndex: 1000
+        }}
+      >
+        <Button
+          component={RouterLink}
+          to="/setup"
+          variant="contained"
+          sx={{
+            bgcolor: isDarkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)',
+            color: isDarkMode ? 'rgba(255, 255, 255, 0.5)' : 'rgba(0, 0, 0, 0.5)',
+            '&:hover': {
+              bgcolor: isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)',
+            }
+          }}
+        >
+          Setup
+        </Button>
       </Box>
     </Container>
   );

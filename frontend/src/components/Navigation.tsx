@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import LanguageIcon from '@mui/icons-material/Language';
+import SettingsIcon from '@mui/icons-material/Settings';
 import { useCurrentTime } from '../hooks/useCurrentTime';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 import biogreenLogo from '../assets/biogreen-logo.svg';
@@ -28,9 +29,7 @@ const pages = [
   { name: 'Audits', path: '/audits' },
   { name: 'Stats', path: '/stats' },
   { name: 'Materials', path: '/materials' },
-  { name: 'Users', path: '/users' },
-  { name: 'Setup', path: '/setup' },
-  { name: 'Settings', path: '/settings' }
+  { name: 'Users', path: '/users' }
 ];
 
 function Navigation() {
@@ -82,22 +81,24 @@ function Navigation() {
 
   return (
     <AppBar position="static" color="primary">
-      <Container maxWidth="xl">
-        <Toolbar disableGutters sx={{ minHeight: '40px', py: 0 }}>
+      <Container maxWidth={false} sx={{ px: { xs: 1, sm: 2 } }}>
+        <Toolbar disableGutters sx={{ minHeight: { xs: '32px', sm: '40px' }, py: 0 }}>
           <Box
             component={RouterLink}
             to="/"
             sx={{
               mr: 2,
               display: { xs: 'none', md: 'flex' },
-              height: '40px',
+              height: { xs: '32px', sm: '40px' },
               lineHeight: 0,
               '& img': {
                 height: '100%',
                 width: 'auto',
+                maxWidth: '100%',
                 display: 'block',
                 margin: 0,
-                padding: 0
+                padding: 0,
+                objectFit: 'contain'
               }
             }}
           >
@@ -184,9 +185,9 @@ function Navigation() {
                     my: 2, 
                     color: 'white', 
                     display: 'block',
-                    backgroundColor: location.pathname === page.path ? '#ff9800' : 'transparent',
+                    backgroundColor: location.pathname === page.path ? '#ebb134' : 'transparent',
                     '&:hover': {
-                      backgroundColor: location.pathname === page.path ? '#f57c00' : 'rgba(255, 255, 255, 0.1)',
+                      backgroundColor: location.pathname === page.path ? '#d4a02e' : 'rgba(255, 255, 255, 0.1)',
                     },
                   }}
                 >
@@ -200,21 +201,39 @@ function Navigation() {
             display: 'flex', 
             alignItems: 'center',
             gap: 2,
-            ml: 'auto'
+            ml: 'auto',
+            minWidth: 0
           }}>
             <Box sx={{ 
               display: 'flex', 
               flexDirection: 'column', 
               alignItems: 'flex-end',
               color: 'white',
+              minWidth: 0,
+              '& .MuiTypography-root': {
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                width: '100%'
+              }
             }}>
-              <Typography variant="body2">
+              <Typography variant="body2" noWrap>
                 {formatDate(currentTime)}
               </Typography>
-              <Typography variant="body1" sx={{ fontWeight: 'bold' }}>
+              <Typography variant="body1" sx={{ fontWeight: 'bold' }} noWrap>
                 {formatTime(currentTime)}
               </Typography>
             </Box>
+
+            <IconButton
+              component={RouterLink}
+              to="/settings"
+              size="large"
+              aria-label="settings"
+              color="inherit"
+            >
+              <SettingsIcon />
+            </IconButton>
 
             <IconButton
               size="large"

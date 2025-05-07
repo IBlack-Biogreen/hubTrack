@@ -1042,12 +1042,6 @@ const TrackingSequence: React.FC = () => {
                         <Typography variant="body1" sx={{ mb: 1 }}>
                           <strong>User:</strong> {feedSummaryData?.userId || 'Not available'}
                         </Typography>
-                        <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Image:</strong> {feedSummaryData?.imageFilename ? 'Captured' : 'None'}
-                        </Typography>
-                        <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Raw Weights Collected:</strong> {feedSummaryData?.rawWeights ? Object.keys(feedSummaryData.rawWeights).length : 0}
-                        </Typography>
                       </Box>
                     </Paper>
                   </Grid>
@@ -1300,14 +1294,10 @@ const TrackingSequence: React.FC = () => {
   }, [capturedImage, isPlaceholderImage]);
   
   return (
-    <Container maxWidth="md">
-      <Box sx={{ mt: 4 }}>
-        <Typography variant="subtitle1" gutterBottom>
-          Welcome, {currentUser?.name || 'User'}
-        </Typography>
-        
-        <Paper sx={{ p: 3, mt: 3 }}>
-          <Stepper activeStep={activeStep} alternativeLabel>
+    <Container maxWidth="md" sx={{ height: '100vh', display: 'flex', flexDirection: 'column', py: 2 }}>
+      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <Paper sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <Stepper activeStep={activeStep} alternativeLabel sx={{ p: 2 }}>
             {steps.map((label) => (
               <Step key={label}>
                 <StepLabel>{t(label)}</StepLabel>
@@ -1316,17 +1306,17 @@ const TrackingSequence: React.FC = () => {
           </Stepper>
           
           {error && (
-            <Box sx={{ mt: 2, p: 2, bgcolor: '#ffeeee', borderRadius: 1 }}>
+            <Box sx={{ p: 2, bgcolor: '#ffeeee', borderRadius: 1, mx: 2 }}>
               <Typography color="error">{error}</Typography>
             </Box>
           )}
           
-          <Box sx={{ mt: 4 }}>
+          <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
             {getStepContent(activeStep)}
           </Box>
 
           {/* Global exit button that's always visible */}
-          <Box sx={{ mt: 3, display: 'flex', justifyContent: 'flex-end' }}>
+          <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end' }}>
             <Button
               variant="outlined"
               color="error"

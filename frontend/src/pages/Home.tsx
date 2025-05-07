@@ -316,15 +316,9 @@ const Home: React.FC = () => {
         <Grid item xs={12} md={4}>
           {/* Load Cell Reading Card */}
           <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 2 }}>
-            <Typography variant="h6" gutterBottom>
-              Current Scale Weight
-            </Typography>
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
                 {weight !== null ? weight.toFixed(2) : '--'} lbs
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Current Weight
               </Typography>
             </Box>
           </Paper>
