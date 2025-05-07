@@ -7,8 +7,18 @@ import {
   Grid, 
   Card, 
   CardContent,
-  CircularProgress
+  CircularProgress,
+  Button,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  IconButton,
+  Tooltip
 } from '@mui/material';
+import AddIcon from '@mui/icons-material/Add';
+import KeyboardIcon from '@mui/icons-material/Keyboard';
 import axios from 'axios';
 
 interface FeedType {
@@ -31,6 +41,18 @@ function Audits() {
   const [feedTypes, setFeedTypes] = useState<FeedType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [newFeedType, setNewFeedType] = useState({
+    type: '',
+    typeDispName: '',
+    organization: '',
+    orgDispName: '',
+    department: '',
+    deptDispName: '',
+    buttonColor: '000000',
+    explanation: '',
+    status: 'active'
+  });
 
   useEffect(() => {
     const fetchFeedTypes = async () => {
@@ -49,6 +71,47 @@ function Audits() {
 
     fetchFeedTypes();
   }, []);
+
+  const handleOpenKeyboard = () => {
+    if (window.electron) {
+      window.electron.shell.openExternal('osk.exe');
+    }
+  };
+
+  const handleCreateFeedType = async () => {
+    try {
+      const response = await axios.post(`${API_URL}/feed-types`, newFeedType);
+      setFeedTypes([...feedTypes, response.data]);
+      setOpenDialog(false);
+      setNewFeedType({
+        type: '',
+        typeDispName: '',
+        organization: '',
+        orgDispName: '',
+        department: '',
+        deptDispName: '',
+        buttonColor: '000000',
+        explanation: '',
+        status: 'active'
+      });
+    } catch (err) {
+      console.error('Error creating feed type:', err);
+      setError('Failed to create feed type. Please try again.');
+    }
+  };
+
+  const handleToggleStatus = async (feedTypeId: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
+      await axios.patch(`${API_URL}/feed-types/${feedTypeId}`, { status: newStatus });
+      setFeedTypes(feedTypes.map(ft => 
+        ft._id === feedTypeId ? { ...ft, status: newStatus } : ft
+      ));
+    } catch (err) {
+      console.error('Error updating feed type status:', err);
+      setError('Failed to update feed type status. Please try again.');
+    }
+  };
 
   if (loading) {
     return (
@@ -72,42 +135,128 @@ function Audits() {
 
   return (
     <Container>
-      <Box sx={{ mt: 4 }}>
-        <Typography variant="h5" gutterBottom>
+      <Box sx={{ mt: 4, mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography variant="h5">
           Feed Types
         </Typography>
-        <Grid container spacing={3}>
-          {feedTypes.map((feedType) => (
-            <Grid item xs={12} sm={6} md={4} key={feedType._id}>
-              <Card sx={{ 
-                bgcolor: `#${feedType.buttonColor || '000000'}`, 
-                color: '#fff',
-                height: '100%'
-              }}>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    {feedType.typeDispName || feedType.type}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    <strong>Organization:</strong> {feedType.orgDispName || feedType.organization}
-                  </Typography>
-                  <Typography variant="body2" sx={{ mb: 1 }}>
-                    <strong>Department:</strong> {feedType.deptDispName || feedType.department}
-                  </Typography>
-                  {feedType.explanation && (
-                    <Typography variant="body2" sx={{ mb: 1 }}>
-                      <strong>Description:</strong> {feedType.explanation}
-                    </Typography>
-                  )}
-                  <Typography variant="body2">
-                    <strong>Status:</strong> {feedType.status || 'Active'}
-                  </Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
+        <Box>
+          <Tooltip title="Open On-screen Keyboard">
+            <IconButton onClick={handleOpenKeyboard} sx={{ mr: 2 }}>
+              <KeyboardIcon />
+            </IconButton>
+          </Tooltip>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setOpenDialog(true)}
+          >
+            Add Feed Type
+          </Button>
+        </Box>
       </Box>
+
+      <Grid container spacing={3}>
+        {feedTypes.map((feedType) => (
+          <Grid item xs={12} sm={6} md={4} key={feedType._id}>
+            <Card sx={{ 
+              bgcolor: `#${feedType.buttonColor || '000000'}`, 
+              color: '#fff',
+              height: '100%',
+              opacity: feedType.status === 'inactive' ? 0.6 : 1
+            }}>
+              <CardContent>
+                <Typography variant="h6" gutterBottom>
+                  {feedType.typeDispName || feedType.type}
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  <strong>Organization:</strong> {feedType.orgDispName || feedType.organization}
+                </Typography>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  <strong>Department:</strong> {feedType.deptDispName || feedType.department}
+                </Typography>
+                {feedType.explanation && (
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>Description:</strong> {feedType.explanation}
+                  </Typography>
+                )}
+                <Typography variant="body2" sx={{ mb: 2 }}>
+                  <strong>Status:</strong> {feedType.status || 'Active'}
+                </Typography>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => handleToggleStatus(feedType._id, feedType.status)}
+                  sx={{ color: '#fff', borderColor: '#fff' }}
+                >
+                  {feedType.status === 'active' ? 'Deactivate' : 'Activate'}
+                </Button>
+              </CardContent>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+
+      <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add New Feed Type</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="Type"
+              value={newFeedType.type}
+              onChange={(e) => setNewFeedType({ ...newFeedType, type: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="Display Name"
+              value={newFeedType.typeDispName}
+              onChange={(e) => setNewFeedType({ ...newFeedType, typeDispName: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="Organization"
+              value={newFeedType.organization}
+              onChange={(e) => setNewFeedType({ ...newFeedType, organization: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="Organization Display Name"
+              value={newFeedType.orgDispName}
+              onChange={(e) => setNewFeedType({ ...newFeedType, orgDispName: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="Department"
+              value={newFeedType.department}
+              onChange={(e) => setNewFeedType({ ...newFeedType, department: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="Department Display Name"
+              value={newFeedType.deptDispName}
+              onChange={(e) => setNewFeedType({ ...newFeedType, deptDispName: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="Button Color (hex without #)"
+              value={newFeedType.buttonColor}
+              onChange={(e) => setNewFeedType({ ...newFeedType, buttonColor: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="Description"
+              value={newFeedType.explanation}
+              onChange={(e) => setNewFeedType({ ...newFeedType, explanation: e.target.value })}
+              fullWidth
+              multiline
+              rows={3}
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
+          <Button onClick={handleCreateFeedType} variant="contained">Create</Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
