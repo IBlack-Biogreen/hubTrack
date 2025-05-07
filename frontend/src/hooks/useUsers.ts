@@ -4,8 +4,12 @@ import { useState, useEffect } from 'react';
 export interface User {
   _id: string;
   name: string;
-  email: string;
-  role: 'admin' | 'user';
+  LANGUAGE: string;
+  CODE: string;
+  organization: string;
+  title: string;
+  siteChampion: boolean;
+  numberFeeds: number;
   status: 'active' | 'inactive';
   lastSignIn?: string;
   avatar: string;

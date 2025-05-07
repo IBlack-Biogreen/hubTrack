@@ -401,14 +401,19 @@ function defineRoutes() {
     app.get('/api/users', async (req, res) => {
         try {
             const db = dbManager.getDb();
-            const users = await db.collection(collections.users).find({}).toArray();
+            // Only fetch active users
+            const users = await db.collection(collections.users).find({ status: { $ne: 'inactive' } }).toArray();
             
             // Sanitize users (remove sensitive fields)
             const sanitizedUsers = users.map(user => ({
                 _id: user._id,
                 name: user.userName || `${user.FIRST || ''} ${user.LAST || ''}`.trim(),
-                email: user.email,
-                role: user.DEVICES && user.DEVICES.includes('admin') ? 'admin' : 'user',
+                LANGUAGE: user.LANGUAGE || 'en',
+                CODE: user.CODE || '',
+                organization: user.organization || '',
+                title: user.title || '',
+                siteChampion: user.siteChampion || false,
+                numberFeeds: user.numberFeeds || 0,
                 status: user.status || 'active',
                 lastSignIn: user.lastSignIn,
                 avatar: user.AVATAR || '👤'
