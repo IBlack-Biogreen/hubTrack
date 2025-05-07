@@ -83,17 +83,21 @@ function Navigation() {
   return (
     <AppBar position="static" color="primary">
       <Container maxWidth="xl">
-        <Toolbar disableGutters>
+        <Toolbar disableGutters sx={{ minHeight: '40px', py: 0 }}>
           <Box
             component={RouterLink}
             to="/"
             sx={{
               mr: 2,
               display: { xs: 'none', md: 'flex' },
-              height: '60px',
+              height: '40px',
+              lineHeight: 0,
               '& img': {
                 height: '100%',
-                width: 'auto'
+                width: 'auto',
+                display: 'block',
+                margin: 0,
+                padding: 0
               }
             }}
           >
@@ -154,10 +158,14 @@ function Navigation() {
               mr: 2,
               display: { xs: 'flex', md: 'none' },
               flexGrow: 1,
-              height: '59px',
+              height: '40px',
+              lineHeight: 0,
               '& img': {
                 height: '100%',
-                width: 'auto'
+                width: 'auto',
+                display: 'block',
+                margin: 0,
+                padding: 0
               }
             }}
           >

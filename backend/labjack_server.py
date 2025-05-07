@@ -218,7 +218,12 @@ def get_history():
 def tare():
     try:
         global tare_voltage
-        tare_voltage = last_second_average
+        # Check if tare_voltage is provided in request
+        if request.json and 'tare_voltage' in request.json:
+            tare_voltage = float(request.json['tare_voltage'])
+        else:
+            # Use current reading if no tare_voltage provided
+            tare_voltage = last_second_average
         logging.info(f"Tare set to {tare_voltage}V")
         return jsonify({'success': True, 'tare_voltage': tare_voltage})
     except Exception as e:

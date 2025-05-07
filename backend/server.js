@@ -96,6 +96,70 @@ app.post('/api/sync-images', async (req, res) => {
     }
 });
 
+// Add this new function before initializeServer()
+async function syncScaleConfiguration() {
+    try {
+        console.log('Syncing scale configuration with LabJack server...');
+        const db = dbManager.getDb();
+        const collections = getCollectionNames();
+        
+        // Get the first cart (there should only be one)
+        const cart = await db.collection(collections.carts).findOne({});
+        console.log('Cart found:', cart ? 'Yes' : 'No');
+        
+        if (cart && cart.tareVoltage !== undefined && cart.scaleFactor !== undefined) {
+            console.log('Found cart with scale configuration:', {
+                serialNumber: cart.serialNumber,
+                tareVoltage: cart.tareVoltage,
+                scaleFactor: cart.scaleFactor
+            });
+            
+            // Wait for LabJack server to be ready (retry a few times)
+            let retries = 0;
+            const maxRetries = 5;
+            while (retries < maxRetries) {
+                try {
+                    console.log(`Attempt ${retries + 1}/${maxRetries} to sync scale configuration...`);
+                    
+                    // Set the scale factor
+                    console.log('Setting scale factor:', cart.scaleFactor);
+                    const scaleResponse = await axios.post(`http://127.0.0.1:${pythonServerPort}/api/labjack/scale`, {
+                        scale: cart.scaleFactor
+                    });
+                    console.log('Scale factor response:', scaleResponse.data);
+                    
+                    // Set the tare voltage
+                    console.log('Setting tare voltage:', cart.tareVoltage);
+                    const tareResponse = await axios.post(`http://127.0.0.1:${pythonServerPort}/api/labjack/tare`, {
+                        tare_voltage: cart.tareVoltage
+                    });
+                    console.log('Tare voltage response:', tareResponse.data);
+                    
+                    console.log('Successfully synced scale configuration with LabJack server');
+                    return;
+                } catch (error) {
+                    retries++;
+                    console.error(`Attempt ${retries}/${maxRetries} failed:`, error.message);
+                    if (retries === maxRetries) {
+                        console.error('Failed to sync scale configuration after', maxRetries, 'attempts:', error.message);
+                        return;
+                    }
+                    console.log(`Retrying scale configuration sync (${retries}/${maxRetries})...`);
+                    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait 2 seconds between retries
+                }
+            }
+        } else {
+            console.log('No cart found or cart missing scale configuration:', {
+                hasCart: !!cart,
+                hasTareVoltage: cart?.tareVoltage !== undefined,
+                hasScaleFactor: cart?.scaleFactor !== undefined
+            });
+        }
+    } catch (error) {
+        console.error('Error syncing scale configuration:', error.message);
+    }
+}
+
 // Initialize server
 async function initializeServer() {
     try {
@@ -105,6 +169,11 @@ async function initializeServer() {
         console.log('Connecting to database...');
         await dbManager.connect();
         console.log('Database connection established');
+
+        // Sync scale configuration with LabJack server
+        console.log('Syncing scale configuration...');
+        await syncScaleConfiguration();
+        console.log('Scale configuration sync completed');
         
         // Migrate data
         console.log('Starting data migration...');
@@ -466,32 +535,15 @@ function defineRoutes() {
     app.get('/api/selected-cart', async (req, res) => {
         try {
             const db = dbManager.getDb();
-            const selectedCart = await db.collection(collections.carts).findOne({
-                serialNumber: req.headers['x-selected-cart']
-            });
+            const cart = await db.collection(collections.carts).findOne({});
 
-            if (!selectedCart) {
-                return res.status(404).json({ error: 'Selected cart not found' });
+            if (!cart) {
+                return res.status(404).json({ error: 'No cart found' });
             }
 
-            res.json(selectedCart);
+            res.json(cart);
         } catch (error) {
-            console.error('Error getting selected cart:', error);
-            res.status(500).json({ error: error.message });
-        }
-    });
-
-    // API endpoint to unselect all carts
-    app.post('/api/carts/unselect-all', async (req, res) => {
-        try {
-            const db = dbManager.getDb();
-            await db.collection(collections.carts).updateMany(
-                { isSelected: true },
-                { $set: { isSelected: false } }
-            );
-            res.json({ success: true });
-        } catch (error) {
-            console.error('Error unselecting all carts:', error);
+            console.error('Error getting cart:', error);
             res.status(500).json({ error: error.message });
         }
     });
@@ -502,19 +554,20 @@ function defineRoutes() {
             const { serialNumber } = req.params;
             const db = dbManager.getDb();
             
+            // First, delete any existing carts
+            await db.collection(collections.carts).deleteMany({});
+            
+            // Then insert the new cart
             let query = { serialNumber };
             if (!dbManager.isLocalConnection()) {
                 // If connected to Atlas, also check for machineType
                 query = { serialNumber, machineType: 'BGTrack' };
             }
             
-            const result = await db.collection(collections.carts).updateOne(
-                query,
-                { $set: { isSelected: true } }
-            );
+            const result = await db.collection(collections.carts).insertOne(query);
             
-            if (result.matchedCount === 0) {
-                return res.status(404).json({ error: 'Cart not found' });
+            if (!result.insertedId) {
+                return res.status(500).json({ error: 'Failed to insert cart' });
             }
             
             res.json({ success: true });
@@ -546,39 +599,6 @@ function defineRoutes() {
         } catch (error) {
             console.error('Error updating scale config:', error);
             res.status(500).json({ error: 'Failed to update scale configuration' });
-        }
-    });
-
-    // API endpoint to purge all carts except the selected one
-    app.post('/api/carts/purge-others', async (req, res) => {
-        try {
-            if (!dbManager.isConnectedToDatabase()) {
-                return res.status(503).json({
-                    error: 'Database not available',
-                    message: 'The database is currently not connected'
-                });
-            }
-
-            const { keepSerialNumber } = req.body;
-            if (!keepSerialNumber) {
-                return res.status(400).json({ error: 'keepSerialNumber is required' });
-            }
-
-            const db = dbManager.getDb();
-            // Delete all carts except the one with the specified serial number
-            let query = { serialNumber: { $ne: keepSerialNumber } };
-            if (!dbManager.isLocalConnection()) {
-                // If connected to Atlas, also filter by machineType
-                query = { serialNumber: { $ne: keepSerialNumber }, machineType: 'BGTrack' };
-            }
-            
-            const result = await db.collection(collections.carts).deleteMany(query);
-            
-            console.log(`Deleted ${result.deletedCount} carts, keeping ${keepSerialNumber}`);
-            res.json({ success: true, deletedCount: result.deletedCount });
-        } catch (error) {
-            console.error('Error purging other carts:', error);
-            res.status(500).json({ error: error.message });
         }
     });
 
