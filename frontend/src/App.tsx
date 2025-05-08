@@ -20,6 +20,8 @@ import { TimeoutProvider } from './contexts/TimeoutContext';
 import { ThemeProvider, useThemeContext } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { UserProvider } from './contexts/UserContext';
+import { ScreensaverProvider } from './contexts/ScreensaverContext';
+import { ScreensaverOverlay } from './components/ScreensaverOverlay';
 
 const lightTheme = createTheme({
   palette: {
@@ -84,6 +86,7 @@ function AppContent() {
   return (
     <>
       <Navigation />
+      <ScreensaverOverlay />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/storage" element={<Storage />} />
@@ -120,7 +123,9 @@ function App() {
         <TimeoutProvider>
           <LanguageProvider>
             <UserProvider>
-              <ThemeWrapper />
+              <ScreensaverProvider>
+                <ThemeWrapper />
+              </ScreensaverProvider>
             </UserProvider>
           </LanguageProvider>
         </TimeoutProvider>

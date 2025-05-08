@@ -32,6 +32,7 @@ import { useThemeContext } from '../contexts/ThemeContext';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 import { useTimeout } from '../contexts/TimeoutContext';
 import { Link as RouterLink } from 'react-router-dom';
+import { useScreensaver } from '../contexts/ScreensaverContext';
 
 interface Cart {
     _id: string;
@@ -67,6 +68,7 @@ function Settings() {
   const { isDarkMode, toggleDarkMode } = useThemeContext();
   const { enabledLanguages, addEnabledLanguage, removeEnabledLanguage, t } = useLanguage();
   const { timeout, setTimeout, isEnabled, setIsEnabled } = useTimeout();
+  const { settings: screensaverSettings, updateSettings: updateScreensaverSettings } = useScreensaver();
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [timeoutValue, setTimeoutValue] = useState(Math.max(30, timeout / 1000)); // Ensure minimum 30s
   const [deviceLabels, setDeviceLabels] = useState<DeviceLabel[]>([]);
@@ -193,6 +195,36 @@ function Settings() {
     }
   };
 
+  const handleScreensaverToggle = () => {
+    const newSettings = { enabled: !screensaverSettings.enabled };
+    updateScreensaverSettings(newSettings);
+    saveSettingsToDeviceLabel({
+      screensaver: newSettings
+    });
+  };
+
+  const handleNightModeStartChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(event.target.value);
+    if (value >= 0 && value <= 23) {
+      const newSettings = { nightModeStart: value };
+      updateScreensaverSettings(newSettings);
+      saveSettingsToDeviceLabel({
+        screensaver: { ...screensaverSettings, ...newSettings }
+      });
+    }
+  };
+
+  const handleNightModeEndChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(event.target.value);
+    if (value >= 0 && value <= 23) {
+      const newSettings = { nightModeEnd: value };
+      updateScreensaverSettings(newSettings);
+      saveSettingsToDeviceLabel({
+        screensaver: { ...screensaverSettings, ...newSettings }
+      });
+    }
+  };
+
   useEffect(() => {
     const fetchData = async () => {
         setLoading(true);
@@ -262,6 +294,11 @@ function Settings() {
                                 addEnabledLanguage(language);
                             }
                         });
+                    }
+
+                    // Apply screensaver settings
+                    if (settings.screensaver) {
+                        updateScreensaverSettings(settings.screensaver);
                     }
                 }
             }
@@ -539,6 +576,44 @@ function Settings() {
               </Button>
             </DialogActions>
           </Dialog>
+        </Box>
+
+        <Divider sx={{ my: 4 }} />
+
+        <Box sx={{ mt: 4 }}>
+          <Typography variant="h6" gutterBottom>
+            Screensaver Settings
+          </Typography>
+          <List>
+            <ListItem>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={screensaverSettings.enabled}
+                    onChange={handleScreensaverToggle}
+                  />
+                }
+                label="Enable Screensaver"
+              />
+            </ListItem>
+            <ListItem>
+              <TextField
+                label="Night Mode Start (0-23)"
+                type="number"
+                value={screensaverSettings.nightModeStart}
+                onChange={handleNightModeStartChange}
+                inputProps={{ min: 0, max: 23 }}
+                sx={{ mr: 2 }}
+              />
+              <TextField
+                label="Night Mode End (0-23)"
+                type="number"
+                value={screensaverSettings.nightModeEnd}
+                onChange={handleNightModeEndChange}
+                inputProps={{ min: 0, max: 23 }}
+              />
+            </ListItem>
+          </List>
         </Box>
       </Box>
 

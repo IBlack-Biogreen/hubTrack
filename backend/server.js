@@ -96,6 +96,123 @@ app.post('/api/sync-images', async (req, res) => {
     }
 });
 
+// Add these constants at the top with other constants
+const SYNC_QUEUE_COLLECTION = 'syncQueue';
+const SYNC_BATCH_SIZE = 50;
+const SYNC_INTERVAL = 60000; // 1 minute
+
+// Add these functions before defineRoutes()
+async function queueChange(collection, documentId, operation, data) {
+    try {
+        const db = dbManager.getDb();
+        const timestamp = new Date();
+        
+        await db.collection(SYNC_QUEUE_COLLECTION).insertOne({
+            collection,
+            documentId,
+            operation,
+            data,
+            timestamp,
+            status: 'pending',
+            attempts: 0,
+            lastAttempt: null,
+            error: null
+        });
+    } catch (error) {
+        console.error('Error queueing change:', error);
+    }
+}
+
+async function processSyncQueue() {
+    try {
+        if (!dbManager.isConnectedToDatabase() || !dbManager.isLocalConnection()) {
+            return; // Only process queue when connected to Atlas
+        }
+
+        const db = dbManager.getDb();
+        const queue = await db.collection(SYNC_QUEUE_COLLECTION)
+            .find({ 
+                status: 'pending',
+                attempts: { $lt: 3 } // Max 3 attempts
+            })
+            .sort({ timestamp: 1 })
+            .limit(SYNC_BATCH_SIZE)
+            .toArray();
+
+        for (const item of queue) {
+            try {
+                // Get the current version from Atlas
+                const atlasDoc = await db.collection(item.collection).findOne({ _id: item.documentId });
+                
+                if (atlasDoc) {
+                    // Check for conflicts by comparing lastUpdated timestamps
+                    if (item.data.lastUpdated && atlasDoc.lastUpdated && 
+                        new Date(item.data.lastUpdated) < new Date(atlasDoc.lastUpdated)) {
+                        // Conflict detected - use the newer version
+                        await db.collection(item.collection).updateOne(
+                            { _id: item.documentId },
+                            { $set: atlasDoc }
+                        );
+                        
+                        await db.collection(SYNC_QUEUE_COLLECTION).updateOne(
+                            { _id: item._id },
+                            { 
+                                $set: { 
+                                    status: 'resolved',
+                                    resolution: 'used_atlas_version',
+                                    resolvedAt: new Date()
+                                }
+                            }
+                        );
+                        continue;
+                    }
+                }
+
+                // Apply the change
+                switch (item.operation) {
+                    case 'update':
+                        await db.collection(item.collection).updateOne(
+                            { _id: item.documentId },
+                            { $set: item.data }
+                        );
+                        break;
+                    case 'insert':
+                        await db.collection(item.collection).insertOne(item.data);
+                        break;
+                    case 'delete':
+                        await db.collection(item.collection).deleteOne({ _id: item.documentId });
+                        break;
+                }
+
+                // Mark as successful
+                await db.collection(SYNC_QUEUE_COLLECTION).updateOne(
+                    { _id: item._id },
+                    { 
+                        $set: { 
+                            status: 'completed',
+                            completedAt: new Date()
+                        }
+                    }
+                );
+            } catch (error) {
+                // Update attempt count and error
+                await db.collection(SYNC_QUEUE_COLLECTION).updateOne(
+                    { _id: item._id },
+                    { 
+                        $inc: { attempts: 1 },
+                        $set: { 
+                            lastAttempt: new Date(),
+                            error: error.message
+                        }
+                    }
+                );
+            }
+        }
+    } catch (error) {
+        console.error('Error processing sync queue:', error);
+    }
+}
+
 // Add this new function before initializeServer()
 async function syncScaleConfiguration() {
     try {
@@ -285,6 +402,9 @@ async function initializeServer() {
                 console.error('Error in periodic S3 sync:', error);
             }
         }, 5 * 60 * 1000); // 5 minutes
+        
+        // Start the sync queue processor
+        setInterval(processSyncQueue, SYNC_INTERVAL);
         
         // Start server
         app.listen(PORT, () => {
@@ -490,6 +610,9 @@ function defineRoutes() {
             }
 
             const db = dbManager.getDb();
+            const timestamp = new Date();
+            
+            // Update local document
             const result = await db.collection(collections.deviceLabels).updateOne(
                 { 
                     deviceLabel,
@@ -498,7 +621,7 @@ function defineRoutes() {
                 { 
                     $set: { 
                         settings,
-                        lastUpdated: new Date()
+                        lastUpdated: timestamp
                     } 
                 }
             );
@@ -506,6 +629,19 @@ function defineRoutes() {
             if (result.matchedCount === 0) {
                 return res.status(404).json({ error: 'Device label not found' });
             }
+
+            // Queue the change for Atlas sync
+            const updatedDoc = await db.collection(collections.deviceLabels).findOne({ 
+                deviceLabel,
+                deviceType: 'trackingCart'
+            });
+            
+            await queueChange(
+                collections.deviceLabels,
+                updatedDoc._id,
+                'update',
+                updatedDoc
+            );
 
             res.json({ success: true, deviceLabel });
         } catch (error) {
@@ -532,6 +668,94 @@ function defineRoutes() {
             res.json(label.settings || {});
         } catch (error) {
             console.error('Error getting device label settings:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // API endpoint to sync global storage to local storage
+    app.post('/api/storage/sync', async (req, res) => {
+        try {
+            if (!dbManager.isConnectedToDatabase()) {
+                return res.status(503).json({
+                    error: 'Database not available',
+                    message: 'The database is currently not connected'
+                });
+            }
+
+            const db = dbManager.getDb();
+            
+            // Get all documents from global storage
+            const globalStorage = await db.collection('globalStorage').find({}).toArray();
+            
+            // Clear existing local storage
+            await db.collection('localStorage').deleteMany({});
+            
+            // Insert all documents into local storage
+            if (globalStorage.length > 0) {
+                await db.collection('localStorage').insertMany(globalStorage);
+            }
+            
+            res.json({ 
+                success: true, 
+                message: `Successfully synced ${globalStorage.length} storage records` 
+            });
+        } catch (error) {
+            console.error('Error syncing storage:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // API endpoint to get local storage data
+    app.get('/api/storage', async (req, res) => {
+        try {
+            if (!dbManager.isConnectedToDatabase()) {
+                return res.status(503).json({
+                    error: 'Database not available',
+                    message: 'The database is currently not connected'
+                });
+            }
+
+            const db = dbManager.getDb();
+            const storage = await db.collection('localStorage').find({}).toArray();
+            
+            res.json(storage);
+        } catch (error) {
+            console.error('Error fetching storage:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // API endpoint to update device label hasStorage property
+    app.post('/api/device-labels/:deviceLabel/storage', async (req, res) => {
+        try {
+            const { deviceLabel } = req.params;
+            const { hasStorage } = req.body;
+
+            if (typeof hasStorage !== 'boolean') {
+                return res.status(400).json({ error: 'hasStorage must be a boolean value' });
+            }
+
+            const db = dbManager.getDb();
+            const result = await db.collection(collections.deviceLabels).updateOne(
+                { 
+                    deviceLabel,
+                    deviceType: 'trackingCart'
+                },
+                { 
+                    $set: { 
+                        hasStorage,
+                        lastUpdated: new Date()
+                    } 
+                }
+            );
+            
+            if (result.matchedCount === 0) {
+                return res.status(404).json({ error: 'Device label not found' });
+            }
+
+            res.json({ success: true, deviceLabel, hasStorage });
+        } catch (error) {
+            console.error('Error updating device label storage property:', error);
             res.status(500).json({ error: error.message });
         }
     });

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import {
   AppBar,
@@ -12,17 +12,30 @@ import {
   MenuItem,
   useMediaQuery,
   useTheme,
+  Tooltip,
 } from '@mui/material';
 import MenuIcon from '@mui/icons-material/Menu';
 import LanguageIcon from '@mui/icons-material/Language';
 import SettingsIcon from '@mui/icons-material/Settings';
+import WifiIcon from '@mui/icons-material/Wifi';
+import WifiOffIcon from '@mui/icons-material/WifiOff';
 import { useCurrentTime } from '../hooks/useCurrentTime';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 import biogreenLogo from '../assets/biogreen-logo.svg';
 
-const pages = [
+interface DeviceLabel {
+  _id: string;
+  deviceLabel: string;
+  deviceType: string;
+  status: string;
+  feedOrgID: string[];
+  lastUpdated: string;
+  hasStorage?: boolean;
+  settings?: any;
+}
+
+const basePages = [
   { name: 'Home', path: '/' },
-  { name: 'Storage', path: '/storage' },
   { name: 'History', path: '/feed-viewer' },
   { name: 'Covers', path: '/covers' },
   { name: 'Events', path: '/events' },
@@ -35,11 +48,55 @@ const pages = [
 function Navigation() {
   const [anchorElNav, setAnchorElNav] = useState<null | HTMLElement>(null);
   const [anchorElLang, setAnchorElLang] = useState<null | HTMLElement>(null);
+  const [pages, setPages] = useState(basePages);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
   const currentTime = useCurrentTime();
   const { currentLanguage, setLanguage, enabledLanguages, t } = useLanguage();
+
+  useEffect(() => {
+    const fetchDeviceLabel = async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/device-labels');
+        if (!response.ok) {
+          throw new Error('Failed to fetch device labels');
+        }
+        const labels = await response.json();
+        const currentLabel = labels[0]; // Get the first device label
+        
+        // Update pages based on hasStorage property
+        if (currentLabel?.hasStorage) {
+          setPages([
+            ...basePages.slice(0, 1),
+            { name: 'Storage', path: '/storage' },
+            ...basePages.slice(1)
+          ]);
+        } else {
+          setPages(basePages);
+        }
+      } catch (error) {
+        console.error('Error fetching device label:', error);
+      }
+    };
+
+    fetchDeviceLabel();
+  }, []);
+
+  // Add online/offline event listeners
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const handleOpenNavMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorElNav(event.currentTarget);
@@ -224,6 +281,21 @@ function Navigation() {
                 {formatTime(currentTime)}
               </Typography>
             </Box>
+
+            <Tooltip title={isOnline ? "Connected to Atlas" : "Working Offline"}>
+              <IconButton
+                size="large"
+                color="inherit"
+                sx={{
+                  color: isOnline ? 'white' : 'error.main',
+                  '&:hover': {
+                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  }
+                }}
+              >
+                {isOnline ? <WifiIcon /> : <WifiOffIcon />}
+              </IconButton>
+            </Tooltip>
 
             <IconButton
               component={RouterLink}

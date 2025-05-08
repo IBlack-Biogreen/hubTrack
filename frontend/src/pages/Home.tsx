@@ -198,7 +198,7 @@ const Home: React.FC = () => {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'stretch',
-      bgcolor: '#f5f5f5',
+      bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1a1a1a' : '#f5f5f5',
       position: 'absolute',
       top: '64px',
       left: 0
@@ -218,23 +218,38 @@ const Home: React.FC = () => {
               Tracking Statistics
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-              <Paper sx={{ p: 1.5, bgcolor: '#e3f2fd' }}>
+              <Paper sx={{ 
+                p: 1.5, 
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1e3a5f' : '#e3f2fd'
+              }}>
                 <Typography variant="body2">Today</Typography>
                 <Typography variant="h5">{stats.today.toFixed(2)} lbs</Typography>
               </Paper>
-              <Paper sx={{ p: 1.5, bgcolor: '#e8f5e9' }}>
+              <Paper sx={{ 
+                p: 1.5, 
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1b4332' : '#e8f5e9'
+              }}>
                 <Typography variant="body2">This Week</Typography>
                 <Typography variant="h5">{stats.thisWeek.toFixed(2)} lbs</Typography>
               </Paper>
-              <Paper sx={{ p: 1.5, bgcolor: '#fff3e0' }}>
+              <Paper sx={{ 
+                p: 1.5, 
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#5c4033' : '#fff3e0'
+              }}>
                 <Typography variant="body2">This Month</Typography>
                 <Typography variant="h5">{stats.thisMonth.toFixed(2)} lbs</Typography>
               </Paper>
-              <Paper sx={{ p: 1.5, bgcolor: '#fce4ec' }}>
+              <Paper sx={{ 
+                p: 1.5, 
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#4a1c40' : '#fce4ec'
+              }}>
                 <Typography variant="body2">This Year</Typography>
                 <Typography variant="h5">{stats.thisYear.toFixed(2)} lbs</Typography>
               </Paper>
-              <Paper sx={{ p: 1.5, bgcolor: '#f3e5f5' }}>
+              <Paper sx={{ 
+                p: 1.5, 
+                bgcolor: (theme) => theme.palette.mode === 'dark' ? '#3c2a4a' : '#f3e5f5'
+              }}>
                 <Typography variant="body2">All Time</Typography>
                 <Typography variant="h5">{stats.allTime.toFixed(2)} lbs</Typography>
               </Paper>
