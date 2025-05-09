@@ -3,20 +3,11 @@ require('dotenv').config();
 const dbManager = require('../db/connection');
 
 async function migrateDeviceLabels() {
-    let atlasClient, localClient;
+    let atlasClient;
     let cart;
 
     try {
         console.log('====== STARTING DEVICE LABEL MIGRATION ======');
-
-        // Initialize dbManager
-        try {
-            await dbManager.connect();
-            console.log('dbManager connected');
-        } catch (error) {
-            console.error('Failed to connect dbManager:', error);
-            return;
-        }
 
         // If we're already connected to Atlas directly, skip migration
         if (!dbManager.isLocalConnection()) {
@@ -24,37 +15,25 @@ async function migrateDeviceLabels() {
             return;
         }
 
-        // Connect to local MongoDB first to check if migration is needed
-        console.log('1. Connecting to local MongoDB to check if migration is needed...');
-        try {
-            const localUri = 'mongodb://localhost:27017/hubtrack';
-            localClient = new MongoClient(localUri);
-            await localClient.connect();
-            console.log('   ✓ Connected to local MongoDB');
-            
-            const localDb = localClient.db('hubtrack');
-            
-            // Get the single cart from local collection
-            cart = await localDb.collection('Carts').findOne({
-                currentDeviceLabelID: { $exists: true, $ne: null, $ne: "" }
-            });
-            
-            if (!cart) {
-                console.log('   No cart found with device label ID. Skipping migration.');
-                return;
-            }
-
-            const cartId = cart.serialNumber || cart.machserial?.toString();
-            console.log(`   Found device label ID for cart ${cartId}: ${cart.currentDeviceLabelID}`);
-
-            // Clear existing device labels
-            console.log('   Clearing existing device labels from local database...');
-            await localDb.collection('cartDeviceLabels').deleteMany({});
-            console.log('   ✓ Cleared existing device labels');
-        } catch (localError) {
-            console.error('   ✗ Failed to connect to local MongoDB:', localError);
+        const db = dbManager.getDb();
+        
+        // Get the single cart from local collection
+        cart = await db.collection('Carts').findOne({
+            currentDeviceLabelID: { $exists: true, $ne: null, $ne: "" }
+        });
+        
+        if (!cart) {
+            console.log('   No cart found with device label ID. Skipping migration.');
             return;
         }
+
+        const cartId = cart.serialNumber || cart.machserial?.toString();
+        console.log(`   Found device label ID for cart ${cartId}: ${cart.currentDeviceLabelID}`);
+
+        // Clear existing device labels
+        console.log('   Clearing existing device labels from local database...');
+        await db.collection('cartDeviceLabels').deleteMany({});
+        console.log('   ✓ Cleared existing device labels');
 
         // Connect to MongoDB Atlas
         const atlasUri = process.env.MONGODB_ATLAS_URI;
@@ -75,7 +54,6 @@ async function migrateDeviceLabels() {
         }
 
         const atlasDb = atlasClient.db('globalDbs');
-        const localDb = localClient.db('hubtrack');
 
         // Get device label from Atlas
         console.log('3. Fetching device label from Atlas...');
@@ -94,11 +72,11 @@ async function migrateDeviceLabels() {
 
             // Insert the device label
             console.log('4. Inserting device label into local database...');
-            const result = await localDb.collection('cartDeviceLabels').insertOne(label);
+            const result = await db.collection('cartDeviceLabels').insertOne(label);
             console.log(`   ✓ Successfully inserted device label into local database`);
 
             // Verify the insertion
-            const count = await localDb.collection('cartDeviceLabels').countDocuments();
+            const count = await db.collection('cartDeviceLabels').countDocuments();
             console.log(`   ✓ Verification: ${count} document in cartDeviceLabels collection`);
         } catch (error) {
             console.error('   ✗ Error processing device label:', error);
@@ -115,19 +93,8 @@ async function migrateDeviceLabels() {
                 console.error('Error closing Atlas connection:', error);
             }
         }
-        if (localClient) {
-            try {
-                await localClient.close();
-                console.log('Disconnected from local MongoDB');
-            } catch (error) {
-                console.error('Error closing local connection:', error);
-            }
-        }
-        await dbManager.disconnect();
-        console.log('Disconnected dbManager');
         console.log('====== DEVICE LABEL MIGRATION COMPLETE ======');
     }
 }
 
-// Run the migration
-migrateDeviceLabels().catch(console.error); 
+module.exports = migrateDeviceLabels; 
