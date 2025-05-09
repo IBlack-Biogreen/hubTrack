@@ -1,5 +1,8 @@
-# MongoDB binary path
-$mongodPath = "C:\Program Files (x86)\mongodb-win32-x86_64-windows-8.0.8\bin\mongod.exe"
+# MongoDB binary paths
+$mongodPaths = @(
+    "C:\Program Files (x86)\mongodb-win32-x86_64-windows-8.0.8\bin\mongod.exe",
+    "C:\Program Files\MongoDB\Server\8.0\bin\mongod.exe"
+)
 $dataPath = "C:\data\db"  # Default MongoDB data directory
 
 # Get the script's directory
@@ -68,11 +71,21 @@ function Stop-ProcessOnPort {
 }
 
 # Check if MongoDB executable exists
-Write-Host "Checking MongoDB executable path..." -ForegroundColor Green
-if (Test-Path $mongodPath) {
-    Write-Host "MongoDB executable found at: $mongodPath" -ForegroundColor Green
-} else {
-    Write-Host "MongoDB executable NOT FOUND at: $mongodPath" -ForegroundColor Red
+Write-Host "Checking MongoDB executable paths..." -ForegroundColor Green
+$mongodPath = $null
+foreach ($path in $mongodPaths) {
+    if (Test-Path $path) {
+        $mongodPath = $path
+        Write-Host "MongoDB executable found at: $mongodPath" -ForegroundColor Green
+        break
+    }
+}
+
+if ($null -eq $mongodPath) {
+    Write-Host "MongoDB executable NOT FOUND in any of the expected locations:" -ForegroundColor Red
+    foreach ($path in $mongodPaths) {
+        Write-Host "- $path" -ForegroundColor Red
+    }
     Write-Host "Please make sure MongoDB is installed correctly" -ForegroundColor Red
     exit 1
 }
