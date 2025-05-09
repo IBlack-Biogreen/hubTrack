@@ -4,9 +4,19 @@ const dbManager = require('../db/connection');
 
 async function migrateDeviceLabels() {
     let atlasClient, localClient;
+    let cart;
 
     try {
         console.log('====== STARTING DEVICE LABEL MIGRATION ======');
+
+        // Initialize dbManager
+        try {
+            await dbManager.connect();
+            console.log('dbManager connected');
+        } catch (error) {
+            console.error('Failed to connect dbManager:', error);
+            return;
+        }
 
         // If we're already connected to Atlas directly, skip migration
         if (!dbManager.isLocalConnection()) {
@@ -24,27 +34,23 @@ async function migrateDeviceLabels() {
             
             const localDb = localClient.db('hubtrack');
             
-            // Check if cartDeviceLabels collection already has documents
-            const existingCount = await localDb.collection('cartDeviceLabels').countDocuments();
-            console.log(`   Found ${existingCount} existing device labels in local database`);
+            // Get the single cart from local collection
+            cart = await localDb.collection('Carts').findOne({
+                currentDeviceLabelID: { $exists: true, $ne: null, $ne: "" }
+            });
             
-            // Check if we still have a cart with missing device label
-            const cartsWithMissingLabels = await localDb.collection('Carts')
-                .find({ 
-                    $or: [
-                        { currentDeviceLabelID: { $exists: false } },
-                        { currentDeviceLabelID: null },
-                        { currentDeviceLabelID: "" }
-                    ]
-                })
-                .toArray();
-            
-            if (existingCount > 0 && cartsWithMissingLabels.length === 0) {
-                console.log('   All carts have device labels. Skipping migration.');
+            if (!cart) {
+                console.log('   No cart found with device label ID. Skipping migration.');
                 return;
             }
-            
-            console.log(`   Found ${cartsWithMissingLabels.length} carts with missing device labels`);
+
+            const cartId = cart.serialNumber || cart.machserial?.toString();
+            console.log(`   Found device label ID for cart ${cartId}: ${cart.currentDeviceLabelID}`);
+
+            // Clear existing device labels
+            console.log('   Clearing existing device labels from local database...');
+            await localDb.collection('cartDeviceLabels').deleteMany({});
+            console.log('   ✓ Cleared existing device labels');
         } catch (localError) {
             console.error('   ✗ Failed to connect to local MongoDB:', localError);
             return;
@@ -71,146 +77,31 @@ async function migrateDeviceLabels() {
         const atlasDb = atlasClient.db('globalDbs');
         const localDb = localClient.db('hubtrack');
 
-        // List all collections in Atlas
-        console.log('3. Listing collections in Atlas database...');
-        const collections = await atlasDb.listCollections().toArray();
-        console.log('   Available collections:', collections.map(c => c.name));
-
-        // Get carts from local DB
-        console.log('4. Fetching carts from local database...');
-        const carts = await localDb.collection('Carts').find({}).toArray();
-        console.log(`   Found ${carts.length} carts in local database`);
-        
-        if (carts.length === 0) {
-            console.log('   ✗ ERROR: No carts found in local database');
-            return;
-        }
-
-        // Drop existing collection if it exists
-        console.log('5. Dropping existing cartDeviceLabels collection...');
+        // Get device label from Atlas
+        console.log('3. Fetching device label from Atlas...');
         try {
-            await localDb.collection('cartDeviceLabels').drop();
-            console.log('   ✓ Dropped existing cartDeviceLabels collection');
-        } catch (error) {
-            if (error.code === 26) {
-                console.log('   ✓ cartDeviceLabels collection did not exist, no need to drop');
-            } else {
-                console.error('   ✗ Error dropping collection:', error.message);
+            const deviceLabelId = new ObjectId(cart.currentDeviceLabelID);
+            const label = await atlasDb.collection('globalDeviceLabels')
+                .findOne({ _id: deviceLabelId });
+            
+            if (!label) {
+                console.log('   ✗ No device label found in Atlas');
+                return;
             }
-        }
 
-        // Find all device labels related to BGTrack
-        console.log('6. Querying Atlas for BGTrack device labels...');
-        let deviceLabels = [];
-        
-        try {
-            // First approach: Try to find device labels by device type
-            deviceLabels = await atlasDb.collection('globalDeviceLabels')
-                .find({ deviceType: 'trackingCart' })
-                .toArray();
-            
-            console.log(`   Found ${deviceLabels.length} device labels with deviceType 'trackingCart'`);
-            
-            // If nothing found, try another approach
-            if (deviceLabels.length === 0) {
-                deviceLabels = await atlasDb.collection('globalDeviceLabels')
-                    .find({ deviceLabel: { $regex: /^bgtrack_/ } })
-                    .toArray();
-                console.log(`   Found ${deviceLabels.length} device labels with deviceLabel matching bgtrack_* pattern`);
-            }
-            
-            // If still nothing found, try to get all labels and print sample
-            if (deviceLabels.length === 0) {
-                const sampleLabels = await atlasDb.collection('globalDeviceLabels')
-                    .find({})
-                    .limit(5)
-                    .toArray();
-                
-                console.log('   No device labels found with expected criteria. Sample labels:');
-                sampleLabels.forEach((label, i) => {
-                    console.log(`   Sample ${i+1}:`, JSON.stringify(label, null, 2));
-                });
-                
-                // As a last resort, try finding by ID from the cart
-                for (const cart of carts) {
-                    if (cart.currentDeviceLabelID) {
-                        try {
-                            const deviceLabelId = new ObjectId(cart.currentDeviceLabelID);
-                            const label = await atlasDb.collection('globalDeviceLabels')
-                                .findOne({ _id: deviceLabelId });
-                            
-                            if (label) {
-                                console.log(`   ✓ Found device label by ID ${cart.currentDeviceLabelID} for cart ${cart.serialNumber}`);
-                                deviceLabels.push(label);
-                            }
-                        } catch (idError) {
-                            console.error(`   ✗ Invalid device label ID format for cart ${cart.serialNumber}:`, idError.message);
-                        }
-                    }
-                }
-            }
-        } catch (findError) {
-            console.error('   ✗ Error finding device labels:', findError);
-        }
+            const cartId = cart.serialNumber || cart.machserial?.toString();
+            console.log(`   ✓ Found device label for cart ${cartId}`);
 
-        if (deviceLabels.length === 0) {
-            console.log('   ✗ No device labels found in Atlas to migrate');
-            
-            // Create dummy device labels for each cart without one
-            console.log('7. Creating dummy device labels for carts...');
-            for (const cart of carts) {
-                const dummyLabel = {
-                    deviceLabel: `bgtrack_${cart.serialNumber}`,
-                    deviceType: "trackingCart",
-                    serialNumber: cart.serialNumber,
-                    machineType: "BGTrack",
-                    createdAt: new Date(),
-                    updatedAt: new Date()
-                };
-                
-                deviceLabels.push(dummyLabel);
-                console.log(`   ✓ Added dummy device label for cart ${cart.serialNumber}`);
-            }
-        }
-
-        // Insert the device labels
-        console.log(`8. Inserting ${deviceLabels.length} device labels into local database...`);
-        try {
-            const result = await localDb.collection('cartDeviceLabels').insertMany(deviceLabels);
-            console.log(`   ✓ Successfully inserted ${result.insertedCount} device labels into local database`);
+            // Insert the device label
+            console.log('4. Inserting device label into local database...');
+            const result = await localDb.collection('cartDeviceLabels').insertOne(label);
+            console.log(`   ✓ Successfully inserted device label into local database`);
 
             // Verify the insertion
             const count = await localDb.collection('cartDeviceLabels').countDocuments();
-            console.log(`   ✓ Verification: ${count} documents in cartDeviceLabels collection`);
-            
-            // Now update carts with device label IDs if they don't have one
-            console.log('9. Updating carts with device label IDs...');
-            for (const cart of carts) {
-                if (!cart.currentDeviceLabelID || cart.currentDeviceLabelID === '') {
-                    // Find a matching device label
-                    const deviceLabel = await localDb.collection('cartDeviceLabels').findOne({
-                        $or: [
-                            { serialNumber: cart.serialNumber },
-                            { deviceLabel: `bgtrack_${cart.serialNumber}` }
-                        ]
-                    });
-                    
-                    if (deviceLabel) {
-                        await localDb.collection('Carts').updateOne(
-                            { _id: cart._id },
-                            { 
-                                $set: { 
-                                    currentDeviceLabelID: deviceLabel._id.toString(),
-                                    currentDeviceLabel: deviceLabel.deviceLabel || `bgtrack_${cart.serialNumber}`
-                                } 
-                            }
-                        );
-                        console.log(`   ✓ Updated cart ${cart.serialNumber} with device label ID ${deviceLabel._id}`);
-                    }
-                }
-            }
-        } catch (insertError) {
-            console.error('   ✗ Failed to insert device labels:', insertError);
+            console.log(`   ✓ Verification: ${count} document in cartDeviceLabels collection`);
+        } catch (error) {
+            console.error('   ✗ Error processing device label:', error);
         }
 
     } catch (error) {
@@ -232,8 +123,11 @@ async function migrateDeviceLabels() {
                 console.error('Error closing local connection:', error);
             }
         }
+        await dbManager.disconnect();
+        console.log('Disconnected dbManager');
         console.log('====== DEVICE LABEL MIGRATION COMPLETE ======');
     }
 }
 
-module.exports = migrateDeviceLabels; 
+// Run the migration
+migrateDeviceLabels().catch(console.error); 
