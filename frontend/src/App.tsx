@@ -21,6 +21,7 @@ import { ThemeProvider, useThemeContext } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { UserProvider } from './contexts/UserContext';
 import { ScreensaverProvider } from './contexts/ScreensaverContext';
+import { TrackingSequenceProvider } from './contexts/TrackingSequenceContext';
 import { ScreensaverOverlay } from './components/ScreensaverOverlay';
 
 const lightTheme = createTheme({
@@ -106,31 +107,35 @@ function AppContent() {
   );
 }
 
-function ThemeWrapper() {
+function AppWrapper() {
   const { isDarkMode } = useThemeContext();
+  const theme = isDarkMode ? darkTheme : lightTheme;
+
   return (
-    <MuiThemeProvider theme={isDarkMode ? darkTheme : lightTheme}>
+    <MuiThemeProvider theme={theme}>
       <CssBaseline />
-      <AppContent />
+      <Router>
+        <LanguageProvider>
+          <UserProvider>
+            <TimeoutProvider>
+              <ScreensaverProvider>
+                <TrackingSequenceProvider>
+                  <AppContent />
+                </TrackingSequenceProvider>
+              </ScreensaverProvider>
+            </TimeoutProvider>
+          </UserProvider>
+        </LanguageProvider>
+      </Router>
     </MuiThemeProvider>
   );
 }
 
 function App() {
   return (
-    <Router>
-      <ThemeProvider>
-        <TimeoutProvider>
-          <LanguageProvider>
-            <UserProvider>
-              <ScreensaverProvider>
-                <ThemeWrapper />
-              </ScreensaverProvider>
-            </UserProvider>
-          </LanguageProvider>
-        </TimeoutProvider>
-      </ThemeProvider>
-    </Router>
+    <ThemeProvider>
+      <AppWrapper />
+    </ThemeProvider>
   );
 }
 

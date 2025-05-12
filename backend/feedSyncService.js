@@ -39,6 +39,14 @@ async function syncFeedToAtlas(feed, retryCount = 0) {
             throw new Error('MongoDB Atlas URI not found');
         }
 
+        console.log(`Attempting to sync feed ${feed._id} to Atlas (attempt ${retryCount + 1}/${MAX_RETRIES + 1})`);
+        console.log('Feed details:', {
+            deviceLabel: feed.deviceLabel,
+            timestamp: feed.timestamp,
+            hasRawWeights: !!feed.rawWeights,
+            rawWeightCount: feed.rawWeights ? Object.keys(feed.rawWeights).length : 0
+        });
+
         const client = new MongoClient(atlasUri);
         await client.connect();
 
@@ -59,12 +67,17 @@ async function syncFeedToAtlas(feed, retryCount = 0) {
         }
 
         // Insert the feed into Atlas
-        await globalFeeds.insertOne(feed);
+        const insertResult = await globalFeeds.insertOne(feed);
+        
+        if (!insertResult.acknowledged) {
+            throw new Error('Failed to insert feed into Atlas');
+        }
+        
         console.log(`Successfully synced feed ${feed._id} to Atlas`);
 
-        // Update local feed status
+        // Update local feed status only after confirming Atlas insert
         const localDb = dbManager.getDb();
-        await localDb.collection('localFeeds').updateOne(
+        const updateResult = await localDb.collection('localFeeds').updateOne(
             { _id: feed._id },
             { 
                 $set: { 
@@ -74,12 +87,20 @@ async function syncFeedToAtlas(feed, retryCount = 0) {
             }
         );
 
+        if (updateResult.modifiedCount !== 1) {
+            throw new Error('Failed to update local feed status');
+        }
+
+        console.log(`Updated local feed status: ${updateResult.modifiedCount} document(s) modified`);
+
         await client.close();
         return true;
     } catch (error) {
+        await client?.close();
         if (retryCount < MAX_RETRIES) {
             const delay = INITIAL_RETRY_DELAY * Math.pow(2, retryCount);
             console.log(`Sync failed, retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+            console.error('Sync error:', error.message);
             await wait(delay);
             return syncFeedToAtlas(feed, retryCount + 1);
         }
@@ -103,8 +124,10 @@ async function syncPendingFeeds() {
         // Find all feeds that need syncing
         const pendingFeeds = await db.collection('localFeeds')
             .find({ 
-                syncStatus: { $ne: 'synced' },
-                rawWeights: { $exists: true } // Only sync feeds with raw weights
+                $or: [
+                    { syncStatus: 'pending' },
+                    { syncStatus: { $exists: false } }
+                ]
             })
             .toArray();
 
@@ -130,6 +153,18 @@ async function syncPendingFeeds() {
 function startSyncService() {
     console.log('Starting feed sync service...');
     setInterval(syncPendingFeeds, SYNC_INTERVAL);
+}
+
+// Run sync immediately if this file is executed directly
+if (require.main === module) {
+    console.log('Running feed sync immediately...');
+    syncPendingFeeds().then(() => {
+        console.log('Initial sync completed');
+        process.exit(0);
+    }).catch(error => {
+        console.error('Error during initial sync:', error);
+        process.exit(1);
+    });
 }
 
 module.exports = {

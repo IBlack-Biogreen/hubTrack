@@ -1,6 +1,6 @@
 console.log('Preload script loaded!');
 
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, shell } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { app } from '@electron/remote';
@@ -29,6 +29,9 @@ contextBridge.exposeInMainWorld('electron', {
   app: {
     getPath: (name: AppGetPathName) => app.getPath(name)
   },
+  shell: {
+    openExternal: (url: string) => shell.openExternal(url)
+  },
   api: {
     get: async (endpoint: string) => {
       const response = await ipcRenderer.invoke('backend-api', { method: 'GET', endpoint });
@@ -46,89 +49,10 @@ contextBridge.exposeInMainWorld('electron', {
     }
   },
   ipcRenderer: {
-    saveImage: (imageData: string, filename: string) => {
-      return new Promise((resolve, reject) => {
-        try {
-          // Set up one-time listener for the response
-          ipcRenderer.once('save-image-response', (_, response) => {
-            if (response.success) {
-              resolve(response);
-            } else {
-              reject(new Error(response.error));
-            }
-          });
-          
-          // Send the request to the main process
-          ipcRenderer.send('save-image', { imageData, filename });
-        } catch (error) {
-          reject(error);
-        }
-      });
-    },
-    // WiFi functionality
-    scanNetworks: () => {
-      return new Promise((resolve, reject) => {
-        try {
-          ipcRenderer.once('scan-networks-response', (_, response) => {
-            if (response.success) {
-              resolve(response.networks);
-            } else {
-              reject(new Error(response.error));
-            }
-          });
-          ipcRenderer.send('scan-networks');
-        } catch (error) {
-          reject(error);
-        }
-      });
-    },
-    connectToNetwork: (ssid: string, password: string) => {
-      return new Promise((resolve, reject) => {
-        try {
-          ipcRenderer.once('connect-network-response', (_, response) => {
-            if (response.success) {
-              resolve(response);
-            } else {
-              reject(new Error(response.error));
-            }
-          });
-          ipcRenderer.send('connect-network', { ssid, password });
-        } catch (error) {
-          reject(error);
-        }
-      });
-    },
-    disconnectFromNetwork: () => {
-      return new Promise((resolve, reject) => {
-        try {
-          ipcRenderer.once('disconnect-network-response', (_, response) => {
-            if (response.success) {
-              resolve(response);
-            } else {
-              reject(new Error(response.error));
-            }
-          });
-          ipcRenderer.send('disconnect-network');
-        } catch (error) {
-          reject(error);
-        }
-      });
-    },
-    getCurrentConnection: () => {
-      return new Promise((resolve, reject) => {
-        try {
-          ipcRenderer.once('current-connection-response', (_, response) => {
-            if (response.success) {
-              resolve(response.connection);
-            } else {
-              reject(new Error(response.error));
-            }
-          });
-          ipcRenderer.send('get-current-connection');
-        } catch (error) {
-          reject(error);
-        }
-      });
-    }
+    saveImage: (imageData: string, filename: string) => ipcRenderer.invoke('save-image', { imageData, filename }),
+    scanNetworks: () => ipcRenderer.invoke('scan-networks'),
+    connectToNetwork: (ssid: string, password: string) => ipcRenderer.invoke('connect-to-network', { ssid, password }),
+    disconnectFromNetwork: () => ipcRenderer.invoke('disconnect-from-network'),
+    getCurrentConnection: () => ipcRenderer.invoke('get-current-connection')
   }
 }); 

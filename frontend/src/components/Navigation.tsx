@@ -21,6 +21,7 @@ import WifiIcon from '@mui/icons-material/Wifi';
 import WifiOffIcon from '@mui/icons-material/WifiOff';
 import { useCurrentTime } from '../hooks/useCurrentTime';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
+import { useTrackingSequence } from '../contexts/TrackingSequenceContext';
 import biogreenLogo from '../assets/biogreen-logo.svg';
 
 interface DeviceLabel {
@@ -55,6 +56,7 @@ function Navigation() {
   const location = useLocation();
   const currentTime = useCurrentTime();
   const { currentLanguage, setLanguage, enabledLanguages, t } = useLanguage();
+  const { isInTrackingSequence } = useTrackingSequence();
 
   useEffect(() => {
     const fetchDeviceLabel = async () => {
@@ -162,7 +164,7 @@ function Navigation() {
             <img src={biogreenLogo} alt="BioGreen Logo" />
           </Box>
 
-          {isMobile && (
+          {isMobile && !isInTrackingSequence && (
             <Box sx={{ flexGrow: 1, display: { xs: 'flex', md: 'none' } }}>
               <IconButton
                 size="large"
@@ -230,7 +232,7 @@ function Navigation() {
             <img src={biogreenLogo} alt="BioGreen Logo" />
           </Box>
 
-          {!isMobile && (
+          {!isMobile && !isInTrackingSequence && (
             <Box sx={{ flexGrow: 1, display: { xs: 'none', md: 'flex' } }}>
               {pages.map((page) => (
                 <Button

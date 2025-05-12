@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const dbManager = require('./db/connection');
@@ -1284,6 +1285,14 @@ function defineRoutes() {
             console.log('Weight data:', { timestamp, value });
             
             const db = dbManager.getDb();
+            
+            // Get the current feed document
+            const feed = await db.collection('localFeeds').findOne({ _id: new ObjectId(feedId) });
+            if (!feed) {
+                return res.status(404).json({ error: 'Feed not found' });
+            }
+
+            // Update the feed document with new weight
             const result = await db.collection('localFeeds').updateOne(
                 { _id: new ObjectId(feedId) },
                 { 
@@ -1297,6 +1306,24 @@ function defineRoutes() {
             if (result.matchedCount === 0) {
                 console.log('Feed not found:', feedId);
                 return res.status(404).json({ error: 'Feed not found' });
+            }
+
+            // Check if we've collected enough raw weights (30 seconds worth)
+            const updatedFeed = await db.collection('localFeeds').findOne({ _id: new ObjectId(feedId) });
+            const rawWeightCount = Object.keys(updatedFeed.rawWeights || {}).length;
+            
+            // If we have 30 or more raw weights, set status to pending for sync
+            if (rawWeightCount >= 30) {
+                await db.collection('localFeeds').updateOne(
+                    { _id: new ObjectId(feedId) },
+                    { 
+                        $set: { 
+                            syncStatus: 'pending',
+                            lastUpdated: new Date()
+                        }
+                    }
+                );
+                console.log(`Feed ${feedId} raw weights collection complete, set to pending sync`);
             }
             
             console.log('Feed weights updated successfully');

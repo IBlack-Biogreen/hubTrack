@@ -12,6 +12,9 @@ declare global {
       app: {
         getPath: (name: string) => string;
       };
+      shell: {
+        openExternal: (url: string) => void;
+      };
       api: {
         get: (endpoint: string) => Promise<any>;
         post: (endpoint: string, data: any) => Promise<any>;

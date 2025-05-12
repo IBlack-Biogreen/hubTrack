@@ -6,4 +6,6 @@ always refer to the instructions.md file for compliance when adding/editing code
 
 please do not start the frontend or backend for me
 
-never generate code that will delte or remove documents from the atlas database
+never generate code that will delete or remove documents from the atlas database
+
+never hardcode a URI, the .env files exist they are just hidden from the agent

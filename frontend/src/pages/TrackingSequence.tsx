@@ -17,6 +17,7 @@ import {
 } from '@mui/material';
 import { useUser } from '../contexts/UserContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useTrackingSequence } from '../contexts/TrackingSequenceContext';
 import {
   getOrganizations,
   getDepartments,
@@ -40,6 +41,8 @@ const steps = [
   'selectFeedType',
   'summary'
 ];
+
+const SEQUENCE_TIMEOUT = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 const TrackingSequence: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
@@ -80,6 +83,7 @@ const TrackingSequence: React.FC = () => {
   const { currentUser, isAuthenticated, logout } = useUser();
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const { setIsInTrackingSequence, setSequenceStartTime } = useTrackingSequence();
   
   // Add submission lock
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -87,6 +91,7 @@ const TrackingSequence: React.FC = () => {
   // Add refs to track timeouts
   const cameraCheckIntervalRef = useRef<number | null>(null);
   const cameraTimeoutRef = useRef<number | null>(null);
+  const sequenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   // Check if user is authenticated
   useEffect(() => {
@@ -95,13 +100,17 @@ const TrackingSequence: React.FC = () => {
       return;
     }
     
+    // Set tracking sequence state
+    setIsInTrackingSequence(true);
+    const startTime = new Date();
+    setSequenceStartTime(startTime);
+    
     // Start the sequence - first step is already done (user authenticated)
     const timer = setTimeout(() => {
       // The camera will take a photo automatically when loaded via handleCameraLoad
       fetchOrganizations();
       
       // Record feed start time
-      const startTime = new Date();
       setFeedStartTime(startTime);
       console.log('Feed started at:', startTime.toISOString());
       
@@ -109,18 +118,26 @@ const TrackingSequence: React.FC = () => {
       startCollectingWeights();
     }, 1000);
     
+    // Set up sequence timeout
+    sequenceTimeoutRef.current = setTimeout(() => {
+      console.log('Sequence timeout reached - returning to home');
+      handleExit();
+    }, SEQUENCE_TIMEOUT);
+    
     return () => {
       clearTimeout(timer);
-      // Clean up weight collection interval
-      // @ts-ignore
-      if (window.weightsInterval) {
-        // @ts-ignore
-        clearInterval(window.weightsInterval);
-        // @ts-ignore
-        window.weightsInterval = null;
+      if (sequenceTimeoutRef.current) {
+        clearTimeout(sequenceTimeoutRef.current);
       }
+      // Clean up weight collection interval
+      if (weightIntervalRef.current) {
+        clearInterval(weightIntervalRef.current);
+      }
+      // Reset tracking sequence state
+      setIsInTrackingSequence(false);
+      setSequenceStartTime(null);
     };
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, navigate, setIsInTrackingSequence, setSequenceStartTime]);
   
   // Create a fallback image if the webcam fails
   const createFallbackImage = useCallback(() => {
@@ -730,6 +747,13 @@ const TrackingSequence: React.FC = () => {
   const handleExit = () => {
     // Only allow exit if we're not on the summary step
     if (activeStep !== 4) {
+      // Clear any existing timeouts
+      if (sequenceTimeoutRef.current) {
+        clearTimeout(sequenceTimeoutRef.current);
+      }
+      // Reset tracking sequence state
+      setIsInTrackingSequence(false);
+      setSequenceStartTime(null);
       logout();
       navigate('/');
     }
