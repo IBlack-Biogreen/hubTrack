@@ -10,6 +10,7 @@ const migrateCarts = require('./scripts/migrateCarts');
 const path = require('path');
 const fs = require('fs');
 const s3Service = require('./s3Service');
+const feedSyncService = require('./feedSyncService');
 const os = require('os');
 const multer = require('multer');
 const { ObjectId } = require('mongodb');
@@ -405,6 +406,9 @@ async function initializeServer() {
         
         // Start the sync queue processor
         setInterval(processSyncQueue, SYNC_INTERVAL);
+        
+        // Start the feed sync service
+        feedSyncService.startSyncService();
         
         // Start server
         app.listen(PORT, () => {

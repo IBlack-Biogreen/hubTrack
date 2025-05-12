@@ -13,9 +13,14 @@ const s3Client = new S3Client({
 });
 
 const BUCKET_NAME = process.env.S3_BUCKET_NAME || 'bgtrackimages';
+const MAX_RETRIES = 3;
+const INITIAL_RETRY_DELAY = 1000; // 1 second
 
-// Function to upload an image to S3
-async function uploadImageToS3(localFilePath, s3Key) {
+// Helper function to wait
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Function to upload an image to S3 with retries
+async function uploadImageToS3(localFilePath, s3Key, retryCount = 0) {
     try {
         const fileContent = fs.readFileSync(localFilePath);
         
@@ -31,7 +36,13 @@ async function uploadImageToS3(localFilePath, s3Key) {
         console.log(`Image uploaded successfully to ${s3Url}`);
         return s3Url;
     } catch (error) {
-        console.error('Error uploading image to S3:', error);
+        if (retryCount < MAX_RETRIES) {
+            const delay = INITIAL_RETRY_DELAY * Math.pow(2, retryCount); // Exponential backoff
+            console.log(`Upload failed, retrying in ${delay}ms (attempt ${retryCount + 1}/${MAX_RETRIES})...`);
+            await wait(delay);
+            return uploadImageToS3(localFilePath, s3Key, retryCount + 1);
+        }
+        console.error('Error uploading image to S3 after all retries:', error);
         throw error;
     }
 }
@@ -88,8 +99,8 @@ async function syncPendingImages(db) {
                     continue;
                 }
 
-                // Upload to S3
-                const s3Key = `${feed.deviceLabel}/${feed.imageFilename}`;
+                // Upload to S3 with retry mechanism
+                const s3Key = `feed_images/${feed.imageFilename}`;
                 const s3Url = await uploadImageToS3(localFilePath, s3Key);
 
                 // Update feed status
@@ -97,7 +108,7 @@ async function syncPendingImages(db) {
 
                 console.log(`Successfully synced image for feed ${feed._id}`);
             } catch (error) {
-                console.error(`Error syncing image for feed ${feed._id}:`, error);
+                console.error(`Error syncing image for feed ${feed._id} after all retries:`, error);
                 // Continue with next feed even if this one fails
                 continue;
             }
