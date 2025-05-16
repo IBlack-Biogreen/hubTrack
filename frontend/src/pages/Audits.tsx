@@ -20,6 +20,7 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import KeyboardIcon from '@mui/icons-material/Keyboard';
 import axios from 'axios';
+import { Keyboard } from '../components/keyboard';
 
 interface FeedType {
   _id: string;
@@ -42,6 +43,8 @@ function Audits() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
+  const [keyboardDialogOpen, setKeyboardDialogOpen] = useState(false);
+  const [keyboardInput, setKeyboardInput] = useState('');
   const [newFeedType, setNewFeedType] = useState({
     type: '',
     typeDispName: '',
@@ -73,9 +76,23 @@ function Audits() {
   }, []);
 
   const handleOpenKeyboard = () => {
-    if (window.electron) {
-      window.electron.shell.openExternal('osk.exe');
-    }
+    setKeyboardDialogOpen(true);
+  };
+
+  const handleKeyboardKeyPress = (key: string) => {
+    setKeyboardInput(prev => prev + key);
+  };
+
+  const handleKeyboardBackspace = () => {
+    setKeyboardInput(prev => prev.slice(0, -1));
+  };
+
+  const handleKeyboardClear = () => {
+    setKeyboardInput('');
+  };
+
+  const handleKeyboardEnter = () => {
+    setKeyboardDialogOpen(false);
   };
 
   const handleCreateFeedType = async () => {
@@ -195,6 +212,39 @@ function Audits() {
           </Grid>
         ))}
       </Grid>
+
+      {/* Keyboard Dialog */}
+      <Dialog 
+        open={keyboardDialogOpen} 
+        onClose={() => setKeyboardDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>On-screen Keyboard</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              value={keyboardInput}
+              variant="outlined"
+              InputProps={{
+                readOnly: true,
+                sx: { fontSize: '1.25rem' }
+              }}
+            />
+          </Box>
+          <Keyboard
+            onKeyPress={handleKeyboardKeyPress}
+            onBackspace={handleKeyboardBackspace}
+            onClear={handleKeyboardClear}
+            onEnter={handleKeyboardEnter}
+            currentValue={keyboardInput}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setKeyboardDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog open={openDialog} onClose={() => setOpenDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Add New Feed Type</DialogTitle>

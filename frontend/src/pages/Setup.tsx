@@ -22,6 +22,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { Chart, registerables } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 import Webcam from 'react-webcam';
+import { NumberPad } from '../components/keyboard';
 
 // Register Chart.js components
 Chart.register(...registerables);
@@ -52,6 +53,8 @@ export default function Setup() {
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [showChangeCartDialog, setShowChangeCartDialog] = useState(false);
   const [webcamDimensions, setWebcamDimensions] = useState({ width: 640, height: 480 });
+  const [scaleFactorDialogOpen, setScaleFactorDialogOpen] = useState(false);
+  const [tempScaleFactor, setTempScaleFactor] = useState('');
 
   // Load saved cart on component mount
   useEffect(() => {
@@ -445,6 +448,46 @@ export default function Setup() {
     }
   }, [isCartSelected]);
 
+  const handleScaleFactorClick = () => {
+    setTempScaleFactor(scaleFactor.toString());
+    setScaleFactorDialogOpen(true);
+  };
+
+  const handleNumberPadKeyPress = (key: string) => {
+    setTempScaleFactor(prev => prev + key);
+  };
+
+  const handleNumberPadBackspace = () => {
+    setTempScaleFactor(prev => prev.slice(0, -1));
+  };
+
+  const handleNumberPadClear = () => {
+    setTempScaleFactor('');
+  };
+
+  const handleNumberPadEnter = async () => {
+    const newValue = parseFloat(tempScaleFactor);
+    if (!isNaN(newValue)) {
+      setScaleFactor(newValue);
+      try {
+        const response = await fetch('http://localhost:5001/api/labjack/config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ scaleFactor: newValue }),
+        });
+        if (!response.ok) {
+          throw new Error('Failed to update scale factor');
+        }
+      } catch (err) {
+        console.error('Error updating scale factor:', err);
+        setError('Failed to update scale factor. Please try again.');
+      }
+    }
+    setScaleFactorDialogOpen(false);
+  };
+
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
@@ -552,9 +595,19 @@ export default function Setup() {
                 label="Scale Factor (lbs/volt)"
                 type="number"
                 value={scaleFactor}
-                onChange={handleScaleChange}
-                disabled={loading}
+                onClick={handleScaleFactorClick}
+                InputProps={{
+                  readOnly: true,
+                }}
               />
+              <Button
+                fullWidth
+                variant="outlined"
+                onClick={handleScaleFactorClick}
+                sx={{ mt: 1 }}
+              >
+                Calibrate Scale
+              </Button>
             </Grid2>
             <Grid2 item xs={12} sm={6}>
               <TextField
@@ -564,13 +617,12 @@ export default function Setup() {
                 value={tareVoltage.toFixed(4)}
                 disabled
               />
-            </Grid2>
-            <Grid2 item xs={12}>
               <Button
                 fullWidth
                 variant="contained"
                 onClick={handleTare}
                 disabled={loading}
+                sx={{ mt: 1 }}
               >
                 Tare
               </Button>
@@ -675,6 +727,40 @@ export default function Setup() {
             Camera resolution: {webcamDimensions.width}x{webcamDimensions.height}
           </Typography>
         </Paper>
+
+        {/* Scale Factor Number Pad Dialog */}
+        <Dialog
+          open={scaleFactorDialogOpen}
+          onClose={() => setScaleFactorDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Enter Scale Factor</DialogTitle>
+          <DialogContent>
+            <Box sx={{ mb: 2 }}>
+              <TextField
+                fullWidth
+                value={tempScaleFactor}
+                variant="outlined"
+                InputProps={{
+                  readOnly: true,
+                  sx: { fontSize: '1.25rem' }
+                }}
+              />
+            </Box>
+            <NumberPad
+              onKeyPress={handleNumberPadKeyPress}
+              onBackspace={handleNumberPadBackspace}
+              onClear={handleNumberPadClear}
+              showDecimal={true}
+              currentValue={tempScaleFactor}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setScaleFactorDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleNumberPadEnter} variant="contained">Enter</Button>
+          </DialogActions>
+        </Dialog>
       </Box>
     </Container>
   );
