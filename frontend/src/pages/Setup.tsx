@@ -332,9 +332,15 @@ export default function Setup() {
     try {
       const response = await fetch('http://localhost:5001/api/labjack/tare', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})  // Send empty JSON object
       });
       if (!response.ok) {
-        throw new Error('Failed to tare');
+        const errorData = await response.json();
+        console.error('Tare error response:', errorData);
+        throw new Error(errorData.error || 'Failed to tare');
       }
       const data = await response.json();
       setTareVoltage(data.tare_voltage);

@@ -12,13 +12,16 @@ import argparse
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('labjack_server.log')
+        logging.FileHandler('labjack_server.log', mode='w')
     ]
 )
+
+# Set Flask's logging level to DEBUG
+logging.getLogger('werkzeug').setLevel(logging.DEBUG)
 
 # Parse command line arguments
 parser = argparse.ArgumentParser()
@@ -49,26 +52,33 @@ def initialize_labjack():
         # First, try to close any existing connections
         try:
             if labjack_device:
+                logging.info("Closing existing LabJack connection...")
                 labjack_device.close()
-        except:
-            pass
+                logging.info("Existing connection closed successfully")
+        except Exception as close_error:
+            logging.error(f"Error closing existing connection: {str(close_error)}")
             
         # Open the U3-HV device
+        logging.info("Opening new LabJack connection...")
         labjack_device = u3.U3()
         logging.info("LabJack device opened successfully")
+        
         config = labjack_device.configU3()
         logging.info(f"Serial Number: {config['SerialNumber']}")
         logging.info(f"Firmware Version: {config['FirmwareVersion']}")
         
         # Configure AIN1 for analog input
+        logging.info("Configuring AIN1 for analog input...")
         labjack_device.configIO(FIOAnalog=0x02)  # Set FIO1 to analog
         logging.info("AIN1 configured for analog input")
         
         # Configure AIN1 for single-ended input with gain of 1
+        logging.info("Loading calibration data...")
         labjack_device.getCalibrationData()
         logging.info("Calibration data loaded")
         
         # Print initial reading for debugging
+        logging.info("Taking initial reading...")
         initial_reading = labjack_device.getAIN(1)
         logging.info(f"Initial AIN1 reading: {initial_reading}V")
         
@@ -108,11 +118,14 @@ def read_voltage():
     
     try:
         # Read AIN1 (FIO1)
+        logging.info("Attempting to read voltage from LabJack...")
         voltage = labjack_device.getAIN(1)
-        logging.debug(f"Raw voltage reading: {voltage}V")
+        logging.info(f"Successfully read voltage: {voltage}V")
         return voltage
     except Exception as e:
         logging.error(f"Error reading voltage: {str(e)}")
+        logging.error(f"Error type: {type(e)}")
+        logging.error(f"Error details: {e.__dict__ if hasattr(e, '__dict__') else 'No additional details'}")
         return 2.5  # Fallback to mock value
 
 def get_weight(voltage):
@@ -218,16 +231,36 @@ def get_history():
 def tare():
     try:
         global tare_voltage
+        logging.info("Tare request received")
+        
+        # Check if LabJack is initialized
+        if labjack_device is None:
+            logging.error("LabJack device not initialized")
+            return jsonify({'error': 'LabJack device not initialized'}), 500
+        
         # Check if tare_voltage is provided in request
         if request.json and 'tare_voltage' in request.json:
+            logging.info("Using tare voltage from request")
             tare_voltage = float(request.json['tare_voltage'])
         else:
             # Use current reading if no tare_voltage provided
-            tare_voltage = last_second_average
+            logging.info("No tare voltage in request, getting current reading")
+            try:
+                current_voltage = read_voltage()
+                logging.info(f"Current voltage reading: {current_voltage}V")
+                tare_voltage = current_voltage
+            except Exception as read_error:
+                logging.error(f"Error reading voltage: {str(read_error)}")
+                logging.error(f"Error type: {type(read_error)}")
+                logging.error(f"Error details: {read_error.__dict__ if hasattr(read_error, '__dict__') else 'No additional details'}")
+                return jsonify({'error': f'Failed to read voltage: {str(read_error)}'}), 500
+        
         logging.info(f"Tare set to {tare_voltage}V")
         return jsonify({'success': True, 'tare_voltage': tare_voltage})
     except Exception as e:
         logging.error(f"Error in tare: {str(e)}")
+        logging.error(f"Error type: {type(e)}")
+        logging.error(f"Error details: {e.__dict__ if hasattr(e, '__dict__') else 'No additional details'}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/labjack/scale', methods=['POST'])
@@ -266,19 +299,27 @@ def after_request(response):
     return response
 
 if __name__ == '__main__':
-    # Set Flask's logging level to INFO to see more details
+    # Set Flask's logging level to DEBUG
     log = logging.getLogger('werkzeug')
-    log.setLevel(logging.INFO)
+    log.setLevel(logging.DEBUG)
     
     # Only initialize LabJack if we're not in a reload
     if not os.environ.get('WERKZEUG_RUN_MAIN'):
-        logging.info("Initializing LabJack...")
-        initialize_labjack()
-        
-        # Start the background reading thread
-        reading_thread = threading.Thread(target=continuous_reading)
-        reading_thread.daemon = True  # Thread will exit when main program exits
-        reading_thread.start()
+        logging.info("Starting LabJack server...")
+        try:
+            logging.info("Initializing LabJack...")
+            initialize_labjack()
+            
+            # Start the background reading thread
+            logging.info("Starting background reading thread...")
+            reading_thread = threading.Thread(target=continuous_reading)
+            reading_thread.daemon = True  # Thread will exit when main program exits
+            reading_thread.start()
+            logging.info("Background reading thread started")
+        except Exception as e:
+            logging.error(f"Error during server startup: {str(e)}")
+            logging.error(f"Error type: {type(e)}")
+            logging.error(f"Error details: {e.__dict__ if hasattr(e, '__dict__') else 'No additional details'}")
     
     try:
         logging.info(f"Server running on http://localhost:{args.port}")
