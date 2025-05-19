@@ -38,7 +38,10 @@ import SearchIcon from '@mui/icons-material/Search';
 import StarIcon from '@mui/icons-material/Star';
 import EditIcon from '@mui/icons-material/Edit';
 import AddIcon from '@mui/icons-material/Add';
+import KeyboardIcon from '@mui/icons-material/Keyboard';
 import { User } from '../hooks/useUsers';
+import { Keyboard } from './keyboard';
+import { NumberPad } from './keyboard';
 
 type Order = 'asc' | 'desc';
 type AddUserTab = 'activate' | 'create';
@@ -76,6 +79,11 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
   });
   const [organizations, setOrganizations] = useState<string[]>([]);
   const [codeError, setCodeError] = useState('');
+  const [keyboardDialogOpen, setKeyboardDialogOpen] = useState(false);
+  const [keyboardInput, setKeyboardInput] = useState('');
+  const [activeField, setActiveField] = useState<string | null>(null);
+  const [numberPadDialogOpen, setNumberPadDialogOpen] = useState(false);
+  const [numberPadInput, setNumberPadInput] = useState('');
 
   const emojiCategories = {
     'People': ['👤', '👨', '👩', '👨‍💻', '👩‍💻', '👨‍🔬', '👩‍🔬', '👨‍🏫', '👩‍🏫', '👨‍⚕️', '👩‍⚕️', '👨‍🌾', '👩‍🌾', '👨‍🍳', '👩‍🍳', '👨‍🏭', '👩‍🏭', '👨‍💼', '👩‍💼', '👨‍🔧', '👩‍🔧'],
@@ -325,6 +333,76 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
     fetchOrganizations();
   }, []);
 
+  const handleOpenKeyboard = (field: string) => {
+    setActiveField(field);
+    setKeyboardDialogOpen(true);
+  };
+
+  const handleKeyboardKeyPress = (key: string) => {
+    if (activeField === 'CODE' && !/^\d$/.test(key)) {
+      return; // Only allow digits for CODE field
+    }
+    if (activeField === 'LAST' && keyboardInput.length >= 1) {
+      return; // Only allow one character for LAST field
+    }
+    setKeyboardInput(prev => prev + key);
+  };
+
+  const handleKeyboardBackspace = () => {
+    setKeyboardInput(prev => prev.slice(0, -1));
+  };
+
+  const handleKeyboardClear = () => {
+    setKeyboardInput('');
+  };
+
+  const handleKeyboardEnter = () => {
+    if (activeField === 'FIRST') {
+      setNewUserForm(prev => ({
+        ...prev,
+        FIRST: keyboardInput
+      }));
+    } else if (activeField === 'LAST') {
+      setNewUserForm(prev => ({
+        ...prev,
+        LAST: keyboardInput.slice(0, 1) // Ensure only one character
+      }));
+    } else if (activeField === 'CODE') {
+      setNewUserForm(prev => ({
+        ...prev,
+        CODE: keyboardInput
+      }));
+      validateCode(keyboardInput);
+    }
+    setKeyboardDialogOpen(false);
+    setKeyboardInput('');
+    setActiveField(null);
+  };
+
+  const handleNumberPadKeyPress = (key: string) => {
+    if (numberPadInput.length < 4) {
+      setNumberPadInput(prev => prev + key);
+    }
+  };
+
+  const handleNumberPadBackspace = () => {
+    setNumberPadInput(prev => prev.slice(0, -1));
+  };
+
+  const handleNumberPadClear = () => {
+    setNumberPadInput('');
+  };
+
+  const handleNumberPadEnter = () => {
+    setNewUserForm(prev => ({
+      ...prev,
+      CODE: numberPadInput
+    }));
+    validateCode(numberPadInput);
+    setNumberPadDialogOpen(false);
+    setNumberPadInput('');
+  };
+
   if (!activeUsers?.length) {
     return (
       <Box sx={{ p: 3, textAlign: 'center' }}>
@@ -491,7 +569,21 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
               onChange={handleNewUserInputChange('FIRST')}
               fullWidth
               required
-              inputProps={{ inputMode: 'text' }}
+              inputProps={{ 
+                inputMode: 'text',
+                type: 'text',
+                readOnly: true
+              }}
+              onClick={() => handleOpenKeyboard('FIRST')}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => handleOpenKeyboard('FIRST')}>
+                      <KeyboardIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
               label="Last Initial"
@@ -501,7 +593,18 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
               required
               inputProps={{ 
                 inputMode: 'text',
-                maxLength: 1
+                maxLength: 1,
+                readOnly: true
+              }}
+              onClick={() => handleOpenKeyboard('LAST')}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => handleOpenKeyboard('LAST')}>
+                      <KeyboardIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
               }}
             />
             <FormControl fullWidth>
@@ -604,7 +707,18 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
               inputProps={{ 
                 inputMode: 'numeric',
                 maxLength: 4,
-                pattern: '[0-9]*'
+                pattern: '[0-9]*',
+                readOnly: true
+              }}
+              onClick={() => setNumberPadDialogOpen(true)}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setNumberPadDialogOpen(true)}>
+                      <KeyboardIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
               }}
             />
             <FormControl fullWidth required>
@@ -638,6 +752,73 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
           >
             Create User
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Number Pad Dialog */}
+      <Dialog
+        open={numberPadDialogOpen}
+        onClose={() => setNumberPadDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Enter Code</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              value={numberPadInput}
+              variant="outlined"
+              InputProps={{
+                readOnly: true,
+                sx: { fontSize: '1.25rem' }
+              }}
+            />
+          </Box>
+          <NumberPad
+            onKeyPress={handleNumberPadKeyPress}
+            onBackspace={handleNumberPadBackspace}
+            onClear={handleNumberPadClear}
+            showDecimal={false}
+            currentValue={numberPadInput}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNumberPadDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleNumberPadEnter} variant="contained">Enter</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Keyboard Dialog */}
+      <Dialog 
+        open={keyboardDialogOpen} 
+        onClose={() => setKeyboardDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>On-screen Keyboard</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              value={keyboardInput}
+              variant="outlined"
+              InputProps={{
+                readOnly: true,
+                sx: { fontSize: '1.25rem' }
+              }}
+            />
+          </Box>
+          <Keyboard
+            onKeyPress={handleKeyboardKeyPress}
+            onBackspace={handleKeyboardBackspace}
+            onClear={handleKeyboardClear}
+            onEnter={handleKeyboardEnter}
+            currentValue={keyboardInput}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setKeyboardDialogOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
 
