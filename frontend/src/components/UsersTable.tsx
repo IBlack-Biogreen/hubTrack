@@ -49,9 +49,10 @@ type AddUserTab = 'activate' | 'create';
 interface UsersTableProps {
   users: User[];
   loading?: boolean;
+  onRefetch?: () => Promise<void>;
 }
 
-const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
+const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefetch }) => {
   const [order, setOrder] = useState<Order>('asc');
   const [orderBy, setOrderBy] = useState<keyof User>('name');
   const [revealedCodes, setRevealedCodes] = useState<Set<string>>(new Set());
@@ -167,10 +168,11 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
 
       // Close the modal and refresh the user list
       handleCloseEdit();
-      // You might want to add a refetch function to the props to refresh the user list
+      if (onRefetch) {
+        await onRefetch();
+      }
     } catch (error) {
       console.error('Error updating user:', error);
-      // You might want to show an error message to the user
     }
   };
 
@@ -300,6 +302,10 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
       }
 
       handleCloseAddUser();
+      // Refresh the users list
+      if (onRefetch) {
+        await onRefetch();
+      }
     } catch (error) {
       console.error('Error creating user:', error);
     }

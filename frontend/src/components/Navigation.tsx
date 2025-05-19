@@ -42,7 +42,6 @@ const basePages = [
   { name: 'Events', path: '/events' },
   { name: 'Audits', path: '/audits' },
   { name: 'Stats', path: '/stats' },
-  { name: 'Materials', path: '/materials' },
   { name: 'Users', path: '/users' }
 ];
 

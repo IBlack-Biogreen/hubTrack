@@ -4,7 +4,7 @@ import UsersTable from '../components/UsersTable';
 import useUsers from '../hooks/useUsers';
 
 const Users: React.FC = () => {
-  const { users, loading, error } = useUsers();
+  const { users, loading, error, refetch } = useUsers();
 
   return (
     <Container maxWidth={false} sx={{ mt: 2, mb: 2, p: 0 }}>
@@ -17,7 +17,7 @@ const Users: React.FC = () => {
           <CircularProgress />
         </Box>
       ) : (
-        <UsersTable users={users} />
+        <UsersTable users={users} loading={loading} onRefetch={refetch} />
       )}
     </Container>
   );
