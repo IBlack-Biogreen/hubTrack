@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Paper,
   Table,
@@ -29,7 +29,10 @@ import {
   ListItem,
   ListItemText,
   ListItemAvatar,
-  Divider
+  Divider,
+  Select,
+  MenuItem,
+  FormControl
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import StarIcon from '@mui/icons-material/Star';
@@ -51,7 +54,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
   const [revealedCodes, setRevealedCodes] = useState<Set<string>>(new Set());
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showAddUser, setShowAddUser] = useState(false);
-  const [addUserTab, setAddUserTab] = useState<AddUserTab>('activate');
+  const [addUserTab, setAddUserTab] = useState<AddUserTab>('create');
   const [editForm, setEditForm] = useState({
     name: '',
     LANGUAGE: '',
@@ -62,15 +65,37 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
     numberFeeds: 0
   });
   const [newUserForm, setNewUserForm] = useState({
-    name: '',
+    FIRST: '',
+    LAST: '',
     LANGUAGE: 'en',
     CODE: '',
     organization: '',
-    title: '',
-    siteChampion: false,
     numberFeeds: 0,
-    status: 'active'
+    status: 'active',
+    AVATAR: '👤'
   });
+  const [organizations, setOrganizations] = useState<string[]>([]);
+  const [codeError, setCodeError] = useState('');
+
+  const emojiCategories = {
+    'People': ['👤', '👨', '👩', '👨‍💻', '👩‍💻', '👨‍🔬', '👩‍🔬', '👨‍🏫', '👩‍🏫', '👨‍⚕️', '👩‍⚕️', '👨‍🌾', '👩‍🌾', '👨‍🍳', '👩‍🍳', '👨‍🏭', '👩‍🏭', '👨‍💼', '👩‍💼', '👨‍🔧', '👩‍🔧'],
+    'Animals': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🦆', '🦅', '🦉', '🦇'],
+    'Nature': ['🌱', '🌲', '🌳', '🌴', '🌵', '🌾', '🌿', '☘️', '🍀', '🍁', '🍂', '🍃', '🌸', '💐', '🌺', '🌻', '🌼', '🌷', '🌹'],
+    'Food': ['🍎', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒'],
+    'Activities': ['⚽️', '🏀', '🏈', '⚾️', '🥎', '🎾', '🏐', '🏉', '🎱', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🥊', '🥋', '⛳️', '⛸️', '🎣', '🤿'],
+    'Objects': ['💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '🕹️', '🗜️', '💽', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️']
+  };
+
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('People');
+
+  const handleEmojiSelect = (emoji: string) => {
+    setNewUserForm(prev => ({
+      ...prev,
+      AVATAR: emoji
+    }));
+    setShowEmojiPicker(false);
+  };
 
   // Filter out inactive users for display
   const activeUsers = React.useMemo(() => {
@@ -174,16 +199,16 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
 
   const handleCloseAddUser = () => {
     setShowAddUser(false);
-    setAddUserTab('activate');
+    setAddUserTab('create');
     setNewUserForm({
-      name: '',
+      FIRST: '',
+      LAST: '',
       LANGUAGE: 'en',
       CODE: '',
       organization: '',
-      title: '',
-      siteChampion: false,
       numberFeeds: 0,
-      status: 'active'
+      status: 'active',
+      AVATAR: '👤'
     });
   };
 
@@ -212,7 +237,47 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
     }
   };
 
+  const validateCode = async (code: string) => {
+    if (!/^\d{4}$/.test(code)) {
+      setCodeError('Code must be exactly 4 numbers');
+      return false;
+    }
+
+    // Check if code already exists
+    try {
+      const response = await fetch('/api/users');
+      if (!response.ok) throw new Error('Failed to fetch users');
+      const users = await response.json();
+      const codeExists = users.some((user: User) => user.CODE === code);
+      if (codeExists) {
+        setCodeError('This code is already in use');
+        return false;
+      }
+      setCodeError('');
+      return true;
+    } catch (error) {
+      console.error('Error validating code:', error);
+      setCodeError('Error validating code');
+      return false;
+    }
+  };
+
+  const handleNewUserInputChange = (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value;
+    setNewUserForm(prev => ({
+      ...prev,
+      [field]: value
+    }));
+
+    if (field === 'CODE') {
+      validateCode(value);
+    }
+  };
+
   const handleCreateUser = async () => {
+    const isValidCode = await validateCode(newUserForm.CODE);
+    if (!isValidCode) return;
+
     try {
       const response = await fetch('/api/users', {
         method: 'POST',
@@ -227,18 +292,38 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
       }
 
       handleCloseAddUser();
-      // You might want to add a refetch function to the props to refresh the user list
     } catch (error) {
       console.error('Error creating user:', error);
     }
   };
 
-  const handleNewUserInputChange = (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
-    setNewUserForm(prev => ({
-      ...prev,
-      [field]: event.target.value
-    }));
-  };
+  // Fetch organizations from feed types
+  useEffect(() => {
+    const fetchOrganizations = async () => {
+      try {
+        const response = await fetch('/api/feed-types');
+        if (!response.ok) {
+          throw new Error('Failed to fetch feed types');
+        }
+        const feedTypes = await response.json();
+        // Extract unique organizations
+        const uniqueOrgs = [...new Set(feedTypes.map((ft: any) => ft.organization))].filter(Boolean) as string[];
+        setOrganizations(uniqueOrgs);
+        
+        // If there's only one organization, automatically select it
+        if (uniqueOrgs.length === 1) {
+          setNewUserForm(prev => ({
+            ...prev,
+            organization: uniqueOrgs[0]
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching organizations:', error);
+      }
+    };
+
+    fetchOrganizations();
+  }, []);
 
   if (!activeUsers?.length) {
     return (
@@ -396,93 +481,163 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
         <DialogTitle>Add User</DialogTitle>
         <DialogContent>
           <Tabs value={addUserTab} onChange={handleTabChange} sx={{ mb: 2 }}>
-            <Tab label="Activate Existing User" value="activate" />
             <Tab label="Create New User" value="create" />
           </Tabs>
 
-          {addUserTab === 'activate' ? (
-            <List sx={{ width: '100%', maxHeight: 400, overflow: 'auto' }}>
-              {inactiveUsers.length === 0 ? (
-                <Typography sx={{ p: 2, textAlign: 'center' }}>No inactive users found</Typography>
-              ) : (
-                inactiveUsers.map((user) => (
-                  <React.Fragment key={user._id}>
-                    <ListItem
-                      button
-                      onClick={() => handleActivateUser(user)}
-                      sx={{ py: 2 }}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+            <TextField
+              label="First Name"
+              value={newUserForm.FIRST}
+              onChange={handleNewUserInputChange('FIRST')}
+              fullWidth
+              required
+              inputProps={{ inputMode: 'text' }}
+            />
+            <TextField
+              label="Last Initial"
+              value={newUserForm.LAST}
+              onChange={handleNewUserInputChange('LAST')}
+              fullWidth
+              required
+              inputProps={{ 
+                inputMode: 'text',
+                maxLength: 1
+              }}
+            />
+            <FormControl fullWidth>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Avatar</Typography>
+              <Box sx={{ position: 'relative' }}>
+                <Button
+                  onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                  sx={{
+                    width: '100%',
+                    height: '56px',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    border: '1px solid rgba(0, 0, 0, 0.23)',
+                    borderRadius: '4px',
+                    padding: '0 14px',
+                    backgroundColor: 'white',
+                    '&:hover': {
+                      border: '1px solid rgba(0, 0, 0, 0.87)',
+                      backgroundColor: 'white',
+                    }
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <span style={{ fontSize: '24px' }}>{newUserForm.AVATAR}</span>
+                    <Typography>Select Avatar</Typography>
+                  </Box>
+                  <span style={{ fontSize: '20px' }}>{showEmojiPicker ? '▲' : '▼'}</span>
+                </Button>
+                {showEmojiPicker && (
+                  <Paper
+                    sx={{
+                      position: 'absolute',
+                      top: '100%',
+                      left: 0,
+                      right: 0,
+                      zIndex: 1000,
+                      mt: 1,
+                      p: 2,
+                      maxHeight: '300px',
+                      overflow: 'auto'
+                    }}
+                  >
+                    <Tabs
+                      value={selectedCategory}
+                      onChange={(_, newValue) => setSelectedCategory(newValue)}
+                      variant="scrollable"
+                      scrollButtons="auto"
+                      sx={{ mb: 2 }}
                     >
-                      <ListItemAvatar>
-                        <Avatar>{user.avatar}</Avatar>
-                      </ListItemAvatar>
-                      <ListItemText
-                        primary={user.name}
-                        secondary={`${user.organization || 'No Organization'} - ${user.CODE || 'No Code'}`}
-                      />
-                    </ListItem>
-                    <Divider />
-                  </React.Fragment>
-                ))
-              )}
-            </List>
-          ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-              <TextField
-                label="Name"
-                value={newUserForm.name}
-                onChange={handleNewUserInputChange('name')}
-                fullWidth
-                required
-              />
-              <TextField
-                label="Language"
+                      {Object.keys(emojiCategories).map((category) => (
+                        <Tab key={category} label={category} value={category} />
+                      ))}
+                    </Tabs>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 1 }}>
+                      {emojiCategories[selectedCategory as keyof typeof emojiCategories].map((emoji) => (
+                        <Button
+                          key={emoji}
+                          onClick={() => handleEmojiSelect(emoji)}
+                          sx={{
+                            minWidth: '40px',
+                            height: '40px',
+                            fontSize: '20px',
+                            padding: 0,
+                            '&:hover': {
+                              backgroundColor: 'rgba(0, 0, 0, 0.04)',
+                            }
+                          }}
+                        >
+                          {emoji}
+                        </Button>
+                      ))}
+                    </Box>
+                  </Paper>
+                )}
+              </Box>
+            </FormControl>
+            <FormControl fullWidth required>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Language</Typography>
+              <Select
                 value={newUserForm.LANGUAGE}
-                onChange={handleNewUserInputChange('LANGUAGE')}
-                fullWidth
-                required
-              />
-              <TextField
-                label="Code"
-                value={newUserForm.CODE}
-                onChange={handleNewUserInputChange('CODE')}
-                fullWidth
-                required
-              />
-              <TextField
-                label="Organization"
+                onChange={(e) => handleNewUserInputChange('LANGUAGE')(e as any)}
+              >
+                <MenuItem value="en">English</MenuItem>
+                <MenuItem value="es">Spanish</MenuItem>
+                <MenuItem value="fr">French</MenuItem>
+                <MenuItem value="de">German</MenuItem>
+                <MenuItem value="it">Italian</MenuItem>
+                <MenuItem value="pt">Portuguese</MenuItem>
+              </Select>
+            </FormControl>
+            <TextField
+              label="Code"
+              value={newUserForm.CODE}
+              onChange={handleNewUserInputChange('CODE')}
+              fullWidth
+              required
+              error={!!codeError}
+              helperText={codeError}
+              inputProps={{ 
+                inputMode: 'numeric',
+                maxLength: 4,
+                pattern: '[0-9]*'
+              }}
+            />
+            <FormControl fullWidth required>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Organization</Typography>
+              <Select
                 value={newUserForm.organization}
-                onChange={handleNewUserInputChange('organization')}
-                fullWidth
-                required
-              />
-              <TextField
-                label="Title"
-                value={newUserForm.title}
-                onChange={handleNewUserInputChange('title')}
-                fullWidth
-              />
-              <TextField
-                label="Number of Feeds"
-                type="number"
-                value={newUserForm.numberFeeds}
-                onChange={handleNewUserInputChange('numberFeeds')}
-                fullWidth
-              />
-            </Box>
-          )}
+                onChange={(e) => handleNewUserInputChange('organization')(e as any)}
+              >
+                {organizations.map((org) => (
+                  <MenuItem key={org} value={org}>
+                    {org}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseAddUser}>Cancel</Button>
-          {addUserTab === 'create' && (
-            <Button 
-              onClick={handleCreateUser} 
-              variant="contained" 
-              color="primary"
-              disabled={!newUserForm.name || !newUserForm.CODE}
-            >
-              Create User
-            </Button>
-          )}
+          <Button 
+            onClick={handleCreateUser} 
+            variant="contained" 
+            color="primary"
+            disabled={
+              !newUserForm.FIRST || 
+              !newUserForm.LAST || 
+              !newUserForm.CODE || 
+              !newUserForm.organization || 
+              !!codeError
+            }
+          >
+            Create User
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -501,37 +656,41 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false }) => {
               value={editForm.name}
               onChange={handleInputChange('name')}
               fullWidth
+              inputProps={{ inputMode: 'text' }}
             />
             <TextField
               label="Language"
               value={editForm.LANGUAGE}
               onChange={handleInputChange('LANGUAGE')}
               fullWidth
+              inputProps={{ inputMode: 'text' }}
             />
             <TextField
               label="Code"
               value={editForm.CODE}
               onChange={handleInputChange('CODE')}
               fullWidth
+              inputProps={{ inputMode: 'numeric' }}
             />
-            <TextField
-              label="Organization"
-              value={editForm.organization}
-              onChange={handleInputChange('organization')}
-              fullWidth
-            />
+            <FormControl fullWidth>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Organization</Typography>
+              <Select
+                value={editForm.organization}
+                onChange={(e) => handleInputChange('organization')(e as any)}
+              >
+                {organizations.map((org) => (
+                  <MenuItem key={org} value={org}>
+                    {org}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <TextField
               label="Title"
               value={editForm.title}
               onChange={handleInputChange('title')}
               fullWidth
-            />
-            <TextField
-              label="Number of Feeds"
-              type="number"
-              value={editForm.numberFeeds}
-              onChange={handleInputChange('numberFeeds')}
-              fullWidth
+              inputProps={{ inputMode: 'text' }}
             />
           </Box>
         </DialogContent>

@@ -526,8 +526,8 @@ function defineRoutes() {
     app.get('/api/users', async (req, res) => {
         try {
             const db = dbManager.getDb();
-            // Only fetch active users
-            const users = await db.collection(collections.users).find({ status: { $ne: 'inactive' } }).toArray();
+            // Fetch all users regardless of status
+            const users = await db.collection(collections.users).find({}).toArray();
             
             // Sanitize users (remove sensitive fields)
             const sanitizedUsers = users.map(user => ({
@@ -548,6 +548,86 @@ function defineRoutes() {
         } catch (error) {
             console.error('Error getting users:', error);
             res.status(500).json({ error: 'Server error while fetching users' });
+        }
+    });
+
+    // Create new user endpoint
+    app.post('/api/users', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const {
+                FIRST,
+                LAST,
+                LANGUAGE,
+                CODE,
+                organization,
+                AVATAR,
+                status = 'active'
+            } = req.body;
+
+            // Validate required fields
+            if (!FIRST || !LAST || !CODE || !organization) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+
+            // Check if CODE already exists in local collection
+            const existingUser = await db.collection(collections.users).findOne({ CODE });
+            if (existingUser) {
+                return res.status(400).json({ error: 'User code already exists' });
+            }
+
+            // Create new user document
+            const newUser = {
+                FIRST,
+                LAST,
+                LANGUAGE: LANGUAGE || 'en',
+                CODE,
+                organization,
+                AVATAR: AVATAR || '👤',
+                status,
+                numberFeeds: 0,
+                lastSignIn: null,
+                createdAt: new Date(),
+                updatedAt: new Date()
+            };
+
+            // Insert into local collection
+            const result = await db.collection(collections.users).insertOne(newUser);
+            
+            // If connected to Atlas, also insert into globalUsers
+            if (!dbManager.isLocalConnection()) {
+                try {
+                    await db.collection('globalUsers').insertOne({
+                        _id: result.insertedId, // Use the same _id
+                        ...newUser
+                    });
+                } catch (error) {
+                    console.error('Error inserting into Atlas:', error);
+                    // Queue the change for later sync
+                    await queueChange(
+                        'globalUsers',
+                        result.insertedId,
+                        'insert',
+                        newUser
+                    );
+                }
+            } else {
+                // If not connected to Atlas, queue the change
+                await queueChange(
+                    'globalUsers',
+                    result.insertedId,
+                    'insert',
+                    newUser
+                );
+            }
+            
+            res.status(201).json({
+                _id: result.insertedId,
+                ...newUser
+            });
+        } catch (error) {
+            console.error('Error creating user:', error);
+            res.status(500).json({ error: 'Server error while creating user' });
         }
     });
 
