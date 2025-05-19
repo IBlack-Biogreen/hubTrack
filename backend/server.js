@@ -571,7 +571,7 @@ function defineRoutes() {
             }
 
             // Check if CODE already exists in local collection
-            const existingUser = await db.collection(collections.users).findOne({ CODE });
+            const existingUser = await db.collection('Users').findOne({ CODE });
             if (existingUser) {
                 return res.status(400).json({ error: 'User code already exists' });
             }
@@ -591,8 +591,8 @@ function defineRoutes() {
                 updatedAt: new Date()
             };
 
-            // Insert into local collection
-            const result = await db.collection(collections.users).insertOne(newUser);
+            // Always insert into local Users collection first
+            const result = await db.collection('Users').insertOne(newUser);
             
             // If connected to Atlas, also insert into globalUsers
             if (!dbManager.isLocalConnection()) {
