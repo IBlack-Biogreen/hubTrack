@@ -568,13 +568,13 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
             <Tab label="Create New User" value="create" />
           </Tabs>
 
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-            <TextField
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
+              <TextField
               label="First Name"
               value={newUserForm.FIRST}
               onChange={handleNewUserInputChange('FIRST')}
-              fullWidth
-              required
+                fullWidth
+                required
               inputProps={{ 
                 inputMode: 'text',
                 type: 'text',
@@ -590,8 +590,8 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
                   </InputAdornment>
                 ),
               }}
-            />
-            <TextField
+              />
+              <TextField
               label="Last Initial"
               value={newUserForm.LAST}
               onChange={handleNewUserInputChange('LAST')}
@@ -702,12 +702,12 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
                 <MenuItem value="pt">Portuguese</MenuItem>
               </Select>
             </FormControl>
-            <TextField
-              label="Code"
-              value={newUserForm.CODE}
-              onChange={handleNewUserInputChange('CODE')}
-              fullWidth
-              required
+              <TextField
+                label="Code"
+                value={newUserForm.CODE}
+                onChange={handleNewUserInputChange('CODE')}
+                fullWidth
+                required
               error={!!codeError}
               helperText={codeError}
               inputProps={{ 
@@ -740,14 +740,14 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
                 ))}
               </Select>
             </FormControl>
-          </Box>
+            </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseAddUser}>Cancel</Button>
-          <Button 
-            onClick={handleCreateUser} 
-            variant="contained" 
-            color="primary"
+            <Button 
+              onClick={handleCreateUser} 
+              variant="contained" 
+              color="primary"
             disabled={
               !newUserForm.FIRST || 
               !newUserForm.LAST || 
@@ -755,9 +755,9 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
               !newUserForm.organization || 
               !!codeError
             }
-          >
-            Create User
-          </Button>
+            >
+              Create User
+            </Button>
         </DialogActions>
       </Dialog>
 
@@ -862,7 +862,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
             <FormControl fullWidth>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Organization</Typography>
               <Select
-                value={editForm.organization}
+              value={editForm.organization}
                 onChange={(e) => handleInputChange('organization')(e as any)}
               >
                 {organizations.map((org) => (

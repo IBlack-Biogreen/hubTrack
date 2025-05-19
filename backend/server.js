@@ -15,6 +15,7 @@ const feedSyncService = require('./feedSyncService');
 const os = require('os');
 const multer = require('multer');
 const { ObjectId } = require('mongodb');
+const { MongoClient } = require('mongodb');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -594,25 +595,29 @@ function defineRoutes() {
             // Always insert into local Users collection first
             const result = await db.collection('Users').insertOne(newUser);
             
-            // If connected to Atlas, also insert into globalUsers
-            if (!dbManager.isLocalConnection()) {
-                try {
-                    await db.collection('globalUsers').insertOne({
+            // Try to sync with Atlas
+            try {
+                const atlasUri = process.env.MONGODB_ATLAS_URI;
+                if (atlasUri) {
+                    const atlasClient = new MongoClient(atlasUri, {
+                        serverSelectionTimeoutMS: 5000,
+                        connectTimeoutMS: 5000
+                    });
+                    await atlasClient.connect();
+                    console.log('Connected to MongoDB Atlas for user sync');
+                    
+                    const atlasDb = atlasClient.db('globalDbs');
+                    await atlasDb.collection('globalUsers').insertOne({
                         _id: result.insertedId, // Use the same _id
                         ...newUser
                     });
-                } catch (error) {
-                    console.error('Error inserting into Atlas:', error);
-                    // Queue the change for later sync
-                    await queueChange(
-                        'globalUsers',
-                        result.insertedId,
-                        'insert',
-                        newUser
-                    );
+                    
+                    await atlasClient.close();
+                    console.log('Successfully synced new user to Atlas');
                 }
-            } else {
-                // If not connected to Atlas, queue the change
+            } catch (error) {
+                console.error('Error syncing user to Atlas:', error);
+                // Queue the change for later sync
                 await queueChange(
                     'globalUsers',
                     result.insertedId,
