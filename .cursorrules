@@ -9,3 +9,5 @@ please do not start the frontend or backend for me
 never generate code that will delete or remove documents from the atlas database
 
 never hardcode a URI, the .env files exist they are just hidden from the agent
+
+never user the browser dialogue box for messages, always have popups and messages rely on material ui

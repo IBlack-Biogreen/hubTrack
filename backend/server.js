@@ -6,6 +6,7 @@ const DataModel = require('./models/DataModel');
 const migrateDeviceLabels = require('./scripts/migrateDeviceLabels');
 const migrateUsers = require('./scripts/migrateUsers');
 const migrateFeedTypes = require('./scripts/migrateFeedTypes');
+const migrateOrgs = require('./scripts/migrateOrgs');
 const axios = require('axios');
 const migrateCarts = require('./scripts/migrateCarts');
 const path = require('path');
@@ -57,7 +58,8 @@ const getCollectionNames = () => {
             carts: 'Carts',
             deviceLabels: 'cartDeviceLabels',
             users: 'Users',
-            feedTypes: 'localFeedTypes'
+            feedTypes: 'localFeedTypes',
+            localOrgs: 'localOrgs'
         };
     } else {
         // Atlas collections
@@ -65,7 +67,8 @@ const getCollectionNames = () => {
             carts: 'globalMachines',
             deviceLabels: 'globalDeviceLabels',
             users: 'globalUsers',
-            feedTypes: 'globalFeedTypes'
+            feedTypes: 'globalFeedTypes',
+            localOrgs: 'localOrgs'
         };
     }
 };
@@ -368,6 +371,20 @@ async function initializeServer() {
         }
         console.log('USER MIGRATION COMPLETE OR SKIPPED');
         console.log('--------------------------------');
+
+        // Organizations migration
+        console.log('--------------------------------');
+        console.log('STARTING ORGANIZATIONS MIGRATION');
+        try {
+            await migrateOrgs();
+            console.log('Organizations migration completed successfully');
+        } catch (error) {
+            console.error('Organizations migration failed with error:', error.message);
+            console.error('Error stack:', error.stack);
+            console.error('This error was caught and handled, continuing server startup');
+        }
+        console.log('ORGANIZATIONS MIGRATION COMPLETE OR SKIPPED');
+        console.log('--------------------------------');
         
         // Feed types migration
         console.log('STARTING FEED TYPES MIGRATION');
@@ -527,28 +544,25 @@ function defineRoutes() {
     app.get('/api/users', async (req, res) => {
         try {
             const db = dbManager.getDb();
-            // Fetch all users regardless of status
+            const collections = getCollectionNames();
             const users = await db.collection(collections.users).find({}).toArray();
-            
-            // Sanitize users (remove sensitive fields)
-            const sanitizedUsers = users.map(user => ({
-                _id: user._id,
-                name: user.userName || `${user.FIRST || ''} ${user.LAST || ''}`.trim(),
-                LANGUAGE: user.LANGUAGE || 'en',
-                CODE: user.CODE || '',
-                organization: user.organization || '',
-                title: user.title || '',
-                siteChampion: user.siteChampion || false,
-                numberFeeds: user.numberFeeds || 0,
-                status: user.status || 'active',
-                lastSignIn: user.lastSignIn,
-                avatar: user.AVATAR || '👤'
-            }));
-            
-            res.json(sanitizedUsers);
+            res.json(users);
         } catch (error) {
-            console.error('Error getting users:', error);
-            res.status(500).json({ error: 'Server error while fetching users' });
+            console.error('Error fetching users:', error);
+            res.status(500).json({ error: 'Failed to fetch users' });
+        }
+    });
+
+    // Get all organizations
+    app.get('/api/organizations', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const collections = getCollectionNames();
+            const organizations = await db.collection(collections.localOrgs).find({}).toArray();
+            res.json(organizations);
+        } catch (error) {
+            console.error('Error fetching organizations:', error);
+            res.status(500).json({ error: 'Failed to fetch organizations' });
         }
     });
 
@@ -1416,6 +1430,119 @@ function defineRoutes() {
         } catch (error) {
             console.error('Error updating feed weights:', error);
             res.status(500).json({ error: error.message });
+        }
+    });
+
+    // API endpoint to update user status
+    app.put('/api/user/:userId', async (req, res) => {
+        try {
+            const { userId } = req.params;
+            const updates = req.body;
+
+            if (!userId) {
+                return res.status(400).json({ error: 'User ID is required' });
+            }
+
+            const db = dbManager.getDb();
+            const result = await db.collection(collections.users).updateOne(
+                { _id: new ObjectId(userId) },
+                { 
+                    $set: { 
+                        ...updates,
+                        lastUpdated: new Date()
+                    } 
+                }
+            );
+
+            if (result.matchedCount === 0) {
+                return res.status(404).json({ error: 'User not found' });
+            }
+
+            // Try to sync with Atlas
+            try {
+                const atlasUri = process.env.MONGODB_ATLAS_URI;
+                if (atlasUri) {
+                    const atlasClient = new MongoClient(atlasUri, {
+                        serverSelectionTimeoutMS: 5000,
+                        connectTimeoutMS: 5000
+                    });
+                    await atlasClient.connect();
+                    console.log('Connected to MongoDB Atlas for user sync');
+                    
+                    const atlasDb = atlasClient.db('globalDbs');
+                    await atlasDb.collection('globalUsers').updateOne(
+                        { _id: new ObjectId(userId) },
+                        { 
+                            $set: { 
+                                ...updates,
+                                lastUpdated: new Date()
+                            } 
+                        }
+                    );
+                    
+                    await atlasClient.close();
+                    console.log('Successfully synced user update to Atlas');
+                }
+            } catch (error) {
+                console.error('Error syncing user update to Atlas:', error);
+                // Queue the change for later sync
+                await queueChange(
+                    'globalUsers',
+                    userId,
+                    'update',
+                    updates
+                );
+            }
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Error updating user:', error);
+            res.status(500).json({ error: 'Failed to update user' });
+        }
+    });
+
+    // API endpoint to update global user status
+    app.put('/api/global-user/:userId', async (req, res) => {
+        try {
+            const { userId } = req.params;
+            const updates = req.body;
+
+            if (!userId) {
+                return res.status(400).json({ error: 'User ID is required' });
+            }
+
+            const atlasUri = process.env.MONGODB_ATLAS_URI;
+            if (!atlasUri) {
+                return res.status(503).json({ error: 'Atlas connection not configured' });
+            }
+
+            const atlasClient = new MongoClient(atlasUri, {
+                serverSelectionTimeoutMS: 5000,
+                connectTimeoutMS: 5000
+            });
+            await atlasClient.connect();
+            
+            const atlasDb = atlasClient.db('globalDbs');
+            const result = await atlasDb.collection('globalUsers').updateOne(
+                { _id: new ObjectId(userId) },
+                { 
+                    $set: { 
+                        ...updates,
+                        lastUpdated: new Date()
+                    } 
+                }
+            );
+            
+            await atlasClient.close();
+
+            if (result.matchedCount === 0) {
+                return res.status(404).json({ error: 'Global user not found' });
+            }
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Error updating global user:', error);
+            res.status(500).json({ error: 'Failed to update global user' });
         }
     });
 }

@@ -32,7 +32,8 @@ import {
   Divider,
   Select,
   MenuItem,
-  FormControl
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import StarIcon from '@mui/icons-material/Star';
@@ -52,7 +53,7 @@ interface UsersTableProps {
   onRefetch?: () => Promise<void>;
 }
 
-const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefetch }) => {
+const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: propLoading = false, onRefetch }) => {
   const [order, setOrder] = useState<Order>('asc');
   const [orderBy, setOrderBy] = useState<keyof User>('name');
   const [revealedCodes, setRevealedCodes] = useState<Set<string>>(new Set());
@@ -60,7 +61,8 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
   const [showAddUser, setShowAddUser] = useState(false);
   const [addUserTab, setAddUserTab] = useState<AddUserTab>('create');
   const [editForm, setEditForm] = useState({
-    name: '',
+    FIRST: '',
+    LAST: '',
     LANGUAGE: '',
     CODE: '',
     organization: '',
@@ -78,13 +80,16 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
     status: 'active',
     AVATAR: '👤'
   });
-  const [organizations, setOrganizations] = useState<string[]>([]);
+  const [organizations, setOrganizations] = useState<{ _id: string; org: string }[]>([]);
   const [codeError, setCodeError] = useState('');
   const [keyboardDialogOpen, setKeyboardDialogOpen] = useState(false);
   const [keyboardInput, setKeyboardInput] = useState('');
   const [activeField, setActiveField] = useState<string | null>(null);
   const [numberPadDialogOpen, setNumberPadDialogOpen] = useState(false);
   const [numberPadInput, setNumberPadInput] = useState('');
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [userToActivate, setUserToActivate] = useState<User | null>(null);
+  const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
 
   const emojiCategories = {
     'People': ['👤', '👨', '👩', '👨‍💻', '👩‍💻', '👨‍🔬', '👩‍🔬', '👨‍🏫', '👩‍🏫', '👨‍⚕️', '👩‍⚕️', '👨‍🌾', '👩‍🌾', '👨‍🍳', '👩‍🍳', '👨‍🏭', '👩‍🏭', '👨‍💼', '👩‍💼', '👨‍🔧', '👩‍🔧'],
@@ -108,12 +113,12 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
 
   // Filter out inactive users for display
   const activeUsers = React.useMemo(() => {
-    return users.filter(user => user.status !== 'inactive');
-  }, [users]);
+    return propUsers.filter(user => user.status !== 'inactive');
+  }, [propUsers]);
 
   const inactiveUsers = React.useMemo(() => {
-    return users.filter(user => user.status === 'inactive');
-  }, [users]);
+    return propUsers.filter(user => user.status === 'inactive');
+  }, [propUsers]);
 
   const handleCodeClick = (userId: string) => {
     setRevealedCodes(prev => {
@@ -136,7 +141,8 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
   const handleEditClick = (user: User) => {
     setEditingUser(user);
     setEditForm({
-      name: user.name,
+      FIRST: user.FIRST || '',
+      LAST: user.LAST || '',
       LANGUAGE: user.LANGUAGE || '',
       CODE: user.CODE || '',
       organization: user.organization || '',
@@ -150,11 +156,18 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
     setEditingUser(null);
   };
 
+  const handleInputChange = (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    setEditForm(prev => ({
+      ...prev,
+      [field]: event.target.value
+    }));
+  };
+
   const handleSaveEdit = async () => {
     if (!editingUser) return;
 
     try {
-      const response = await fetch(`/api/users/${editingUser._id}`, {
+      const response = await fetch(`http://localhost:5000/api/user/${editingUser._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -176,11 +189,51 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
     }
   };
 
-  const handleInputChange = (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
-    setEditForm(prev => ({
-      ...prev,
-      [field]: event.target.value
-    }));
+  const handleDeactivateUser = async () => {
+    if (!editingUser) return;
+
+    try {
+      // Update local user
+      const response = await fetch(`http://localhost:5000/api/user/${editingUser._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          status: 'inactive',
+          CODE: '0'
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to deactivate user');
+      }
+
+      // Update global user
+      const globalResponse = await fetch(`http://localhost:5000/api/global-user/${editingUser._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          status: 'inactive',
+          CODE: '0'
+        }),
+      });
+
+      if (!globalResponse.ok) {
+        throw new Error('Failed to deactivate global user');
+      }
+
+      // Close the modals and refresh the user list
+      setDeactivateConfirmOpen(false);
+      handleCloseEdit();
+      if (onRefetch) {
+        await onRefetch();
+      }
+    } catch (error) {
+      console.error('Error deactivating user:', error);
+    }
   };
 
   const sortedUsers = React.useMemo(() => {
@@ -193,6 +246,13 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
       if (!aValue || !bValue) {
         if (!aValue && !bValue) return 0;
         return !aValue ? -1 : 1;
+      }
+      
+      // Special handling for name sorting
+      if (orderBy === 'name') {
+        const aName = `${a.FIRST || ''} ${a.LAST || ''}`.trim();
+        const bName = `${b.FIRST || ''} ${b.LAST || ''}`.trim();
+        return order === 'desc' ? bName.localeCompare(aName) : aName.localeCompare(bName);
       }
       
       if (order === 'desc') {
@@ -228,22 +288,39 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
 
   const handleActivateUser = async (user: User) => {
     try {
-      const response = await fetch(`/api/users/${user._id}`, {
+      // Update local user
+      const response = await fetch(`http://localhost:5000/api/user/${user._id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ...user, status: 'active' }),
+        body: JSON.stringify({ status: 'active' }),
       });
 
       if (!response.ok) {
         throw new Error('Failed to activate user');
       }
 
-      handleCloseAddUser();
-      // You might want to add a refetch function to the props to refresh the user list
+      // Update global user
+      const globalResponse = await fetch(`http://localhost:5000/api/global-user/${user._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'active' }),
+      });
+
+      if (!globalResponse.ok) {
+        throw new Error('Failed to activate global user');
+      }
+
+      // Close the dialog and refresh the user list
+      setConfirmDialogOpen(false);
+      setUserToActivate(null);
+      onRefetch();
     } catch (error) {
       console.error('Error activating user:', error);
+      // Instead of alert, we could show a snackbar or other UI notification here
     }
   };
 
@@ -311,26 +388,14 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
     }
   };
 
-  // Fetch organizations from feed types
+  // Fetch organizations
   useEffect(() => {
     const fetchOrganizations = async () => {
       try {
-        const response = await fetch('/api/feed-types');
-        if (!response.ok) {
-          throw new Error('Failed to fetch feed types');
-        }
-        const feedTypes = await response.json();
-        // Extract unique organizations
-        const uniqueOrgs = [...new Set(feedTypes.map((ft: any) => ft.organization))].filter(Boolean) as string[];
-        setOrganizations(uniqueOrgs);
-        
-        // If there's only one organization, automatically select it
-        if (uniqueOrgs.length === 1) {
-          setNewUserForm(prev => ({
-            ...prev,
-            organization: uniqueOrgs[0]
-          }));
-        }
+        const response = await fetch('http://localhost:5000/api/organizations');
+        if (!response.ok) throw new Error('Failed to fetch organizations');
+        const orgsData = await response.json();
+        setOrganizations(orgsData);
       } catch (error) {
         console.error('Error fetching organizations:', error);
       }
@@ -481,7 +546,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
             </TableRow>
           </TableHead>
           <TableBody>
-            {loading ? (
+            {propLoading ? (
               <TableRow>
                 <TableCell colSpan={7} align="center">
                   <Typography>Loading users...</Typography>
@@ -507,8 +572,8 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
                   </TableCell>
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                      <Avatar sx={{ mr: 2, fontSize: '1rem' }}>{user.avatar}</Avatar>
-                      {user.name}
+                      <Avatar sx={{ mr: 2, fontSize: '1rem' }}>{user.AVATAR || '👤'}</Avatar>
+                      {`${user.FIRST || ''} ${user.LAST || ''}`.trim()}
                     </Box>
                   </TableCell>
                   <TableCell>{user.LANGUAGE || 'en'}</TableCell>
@@ -526,7 +591,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
                   </TableCell>
                   <TableCell>{user.organization || 'N/A'}</TableCell>
                   <TableCell>
-                    {user.siteChampion && (
+                    {user.siteChampion === true && (
                       <Tooltip title="Site Champion">
                         <StarIcon sx={{ color: 'primary.main' }} />
                       </Tooltip>
@@ -566,8 +631,10 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
         <DialogContent>
           <Tabs value={addUserTab} onChange={handleTabChange} sx={{ mb: 2 }}>
             <Tab label="Create New User" value="create" />
+            <Tab label="Activate User" value="activate" />
           </Tabs>
 
+          {addUserTab === 'create' ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
               <TextField
               label="First Name"
@@ -727,37 +794,72 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
                 ),
               }}
             />
-            <FormControl fullWidth required>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Organization</Typography>
+            <FormControl fullWidth>
+              <InputLabel>Organization</InputLabel>
               <Select
                 value={newUserForm.organization}
                 onChange={(e) => handleNewUserInputChange('organization')(e as any)}
+                label="Organization"
               >
                 {organizations.map((org) => (
-                  <MenuItem key={org} value={org}>
-                    {org}
+                  <MenuItem key={org._id} value={org.org}>
+                    {org.org}
                   </MenuItem>
                 ))}
               </Select>
             </FormControl>
             </Box>
+          ) : (
+            <Box sx={{ pt: 2 }}>
+              <Typography variant="h6" sx={{ mb: 2 }}>Inactive Users</Typography>
+              <List>
+                {inactiveUsers.map((user) => (
+                  <React.Fragment key={user._id}>
+                    <ListItem
+                      button
+                      onClick={() => {
+                        setUserToActivate(user);
+                        setConfirmDialogOpen(true);
+                      }}
+                    >
+                      <ListItemAvatar>
+                        <Avatar>{user.avatar}</Avatar>
+                      </ListItemAvatar>
+                      <ListItemText
+                        primary={user.name}
+                        secondary={`Code: ${user.CODE} | Organization: ${user.organization}`}
+                      />
+                    </ListItem>
+                    <Divider />
+                  </React.Fragment>
+                ))}
+                {inactiveUsers.length === 0 && (
+                  <ListItem>
+                    <ListItemText primary="No inactive users found" />
+                  </ListItem>
+                )}
+              </List>
+            </Box>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseAddUser}>Cancel</Button>
-            <Button 
-              onClick={handleCreateUser} 
-              variant="contained" 
-              color="primary"
+          <Button 
+            onClick={addUserTab === 'create' ? handleCreateUser : () => {}} 
+            variant="contained" 
+            color="primary"
             disabled={
-              !newUserForm.FIRST || 
-              !newUserForm.LAST || 
-              !newUserForm.CODE || 
-              !newUserForm.organization || 
-              !!codeError
+              addUserTab === 'create' && (
+                !newUserForm.FIRST || 
+                !newUserForm.LAST || 
+                !newUserForm.CODE || 
+                !newUserForm.organization || 
+                !!codeError
+              )
             }
-            >
-              Create User
-            </Button>
+          >
+            {addUserTab === 'create' ? 'Create User' : 'Activate User'}
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -839,35 +941,98 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
             <TextField
-              label="Name"
-              value={editForm.name}
-              onChange={handleInputChange('name')}
+              label="First Name"
+              value={editForm.FIRST}
+              onChange={handleInputChange('FIRST')}
               fullWidth
-              inputProps={{ inputMode: 'text' }}
+              required
+              inputProps={{ 
+                inputMode: 'text',
+                type: 'text',
+                readOnly: true
+              }}
+              onClick={() => handleOpenKeyboard('FIRST')}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => handleOpenKeyboard('FIRST')}>
+                      <KeyboardIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <TextField
-              label="Language"
-              value={editForm.LANGUAGE}
-              onChange={handleInputChange('LANGUAGE')}
+              label="Last Initial"
+              value={editForm.LAST}
+              onChange={handleInputChange('LAST')}
               fullWidth
-              inputProps={{ inputMode: 'text' }}
+              required
+              inputProps={{ 
+                inputMode: 'text',
+                maxLength: 1,
+                readOnly: true
+              }}
+              onClick={() => handleOpenKeyboard('LAST')}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => handleOpenKeyboard('LAST')}>
+                      <KeyboardIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
+            <FormControl fullWidth required>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Language</Typography>
+              <Select
+                value={editForm.LANGUAGE}
+                onChange={(e) => handleInputChange('LANGUAGE')(e as any)}
+              >
+                <MenuItem value="en">English</MenuItem>
+                <MenuItem value="es">Spanish</MenuItem>
+                <MenuItem value="fr">French</MenuItem>
+                <MenuItem value="de">German</MenuItem>
+                <MenuItem value="it">Italian</MenuItem>
+                <MenuItem value="pt">Portuguese</MenuItem>
+              </Select>
+            </FormControl>
             <TextField
               label="Code"
               value={editForm.CODE}
               onChange={handleInputChange('CODE')}
               fullWidth
-              inputProps={{ inputMode: 'numeric' }}
+              required
+              error={!!codeError}
+              helperText={codeError}
+              inputProps={{ 
+                inputMode: 'numeric',
+                maxLength: 4,
+                pattern: '[0-9]*',
+                readOnly: true
+              }}
+              onClick={() => setNumberPadDialogOpen(true)}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setNumberPadDialogOpen(true)}>
+                      <KeyboardIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <FormControl fullWidth>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Organization</Typography>
+              <InputLabel>Organization</InputLabel>
               <Select
-              value={editForm.organization}
+                value={editForm.organization}
                 onChange={(e) => handleInputChange('organization')(e as any)}
+                label="Organization"
               >
                 {organizations.map((org) => (
-                  <MenuItem key={org} value={org}>
-                    {org}
+                  <MenuItem key={org._id} value={org.org}>
+                    {org.org}
                   </MenuItem>
                 ))}
               </Select>
@@ -877,14 +1042,92 @@ const UsersTable: React.FC<UsersTableProps> = ({ users, loading = false, onRefet
               value={editForm.title}
               onChange={handleInputChange('title')}
               fullWidth
-              inputProps={{ inputMode: 'text' }}
+              inputProps={{ 
+                inputMode: 'text',
+                type: 'text',
+                readOnly: true
+              }}
+              onClick={() => handleOpenKeyboard('title')}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => handleOpenKeyboard('title')}>
+                      <KeyboardIcon />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
           </Box>
         </DialogContent>
+        <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
+          <Button 
+            onClick={() => setDeactivateConfirmOpen(true)} 
+            color="error"
+            variant="outlined"
+          >
+            Deactivate User
+          </Button>
+          <Box>
+            <Button onClick={handleCloseEdit}>Cancel</Button>
+            <Button onClick={handleSaveEdit} variant="contained" color="primary" sx={{ ml: 1 }}>
+              Save Changes
+            </Button>
+          </Box>
+        </DialogActions>
+      </Dialog>
+
+      {/* Confirmation Dialog */}
+      <Dialog
+        open={confirmDialogOpen}
+        onClose={() => setConfirmDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Confirm Activation</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to reactivate {userToActivate?.name}?
+          </Typography>
+        </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseEdit}>Cancel</Button>
-          <Button onClick={handleSaveEdit} variant="contained" color="primary">
-            Save Changes
+          <Button onClick={() => setConfirmDialogOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={() => {
+              if (userToActivate) {
+                handleActivateUser(userToActivate);
+                setConfirmDialogOpen(false);
+              }
+            }} 
+            variant="contained" 
+            color="primary"
+          >
+            Activate
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Deactivate Confirmation Dialog */}
+      <Dialog
+        open={deactivateConfirmOpen}
+        onClose={() => setDeactivateConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Confirm Deactivation</DialogTitle>
+        <DialogContent>
+          <Typography>
+            Are you sure you want to deactivate {editingUser?.name}? This will set their status to inactive and reset their code to 0.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeactivateConfirmOpen(false)}>Cancel</Button>
+          <Button 
+            onClick={handleDeactivateUser} 
+            variant="contained" 
+            color="error"
+          >
+            Deactivate
           </Button>
         </DialogActions>
       </Dialog>
