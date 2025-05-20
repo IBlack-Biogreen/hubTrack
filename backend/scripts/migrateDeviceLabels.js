@@ -3,97 +3,82 @@ require('dotenv').config();
 const dbManager = require('../db/connection');
 
 async function migrateDeviceLabels() {
-    let atlasClient;
-    let cart;
-
     try {
-        console.log('====== STARTING DEVICE LABEL MIGRATION ======');
-
-        // If we're already connected to Atlas directly, skip migration
-        if (!dbManager.isLocalConnection()) {
-            console.log('Connected directly to Atlas, skipping device labels migration');
-            return;
-        }
-
         const db = dbManager.getDb();
+        const collections = getCollectionNames();
         
-        // Get the single cart from local collection
-        cart = await db.collection('Carts').findOne({
-            currentDeviceLabelID: { $exists: true, $ne: null, $ne: "" }
-        });
+        // Check if we're connected to Atlas
+        const isAtlasConnected = !dbManager.isLocalConnection();
+        console.log('Atlas connection status:', isAtlasConnected ? 'Connected' : 'Not connected');
         
+        // Get the first cart
+        const cart = await db.collection(collections.carts).findOne({});
         if (!cart) {
-            console.log('   No cart found with device label ID. Skipping migration.');
+            console.log('No cart found, skipping device label migration');
             return;
         }
 
-        const cartId = cart.serialNumber || cart.machserial?.toString();
-        console.log(`   Found device label ID for cart ${cartId}: ${cart.currentDeviceLabelID}`);
-
-        // Clear existing device labels
-        console.log('   Clearing existing device labels from local database...');
-        await db.collection('cartDeviceLabels').deleteMany({});
-        console.log('   ✓ Cleared existing device labels');
-
-        // Connect to MongoDB Atlas
-        const atlasUri = process.env.MONGODB_ATLAS_URI;
-        if (!atlasUri) {
-            console.log('ERROR: MongoDB Atlas URI not found in environment variables');
-            console.log('Check if .env file exists and contains MONGODB_ATLAS_URI');
-            return;
-        }
+        // Check if we already have a device label
+        const existingLabel = await db.collection(collections.deviceLabels).findOne({});
         
-        console.log('2. Connecting to MongoDB Atlas...');
-        try {
-            atlasClient = new MongoClient(atlasUri);
-            await atlasClient.connect();
-            console.log('   ✓ Connected to MongoDB Atlas');
-        } catch (atlasError) {
-            console.error('   ✗ Failed to connect to MongoDB Atlas:', atlasError);
-            return;
-        }
-
-        const atlasDb = atlasClient.db('globalDbs');
-
-        // Get device label from Atlas
-        console.log('3. Fetching device label from Atlas...');
-        try {
-            const deviceLabelId = new ObjectId(cart.currentDeviceLabelID);
-            const label = await atlasDb.collection('globalDeviceLabels')
-                .findOne({ _id: deviceLabelId });
+        if (existingLabel) {
+            console.log('Device label already exists:', existingLabel.deviceLabel);
             
-            if (!label) {
-                console.log('   ✗ No device label found in Atlas');
+            // If we're offline, preserve the existing label and its settings
+            if (!isAtlasConnected) {
+                console.log('Offline mode: Preserving existing device label and settings');
                 return;
             }
-
-            const cartId = cart.serialNumber || cart.machserial?.toString();
-            console.log(`   ✓ Found device label for cart ${cartId}`);
-
-            // Insert the device label
-            console.log('4. Inserting device label into local database...');
-            const result = await db.collection('cartDeviceLabels').insertOne(label);
-            console.log(`   ✓ Successfully inserted device label into local database`);
-
-            // Verify the insertion
-            const count = await db.collection('cartDeviceLabels').countDocuments();
-            console.log(`   ✓ Verification: ${count} document in cartDeviceLabels collection`);
-        } catch (error) {
-            console.error('   ✗ Error processing device label:', error);
-        }
-
-    } catch (error) {
-        console.error('Error during device label migration:', error);
-    } finally {
-        if (atlasClient) {
+            
+            // If online, try to sync with Atlas
             try {
-                await atlasClient.close();
-                console.log('Disconnected from MongoDB Atlas');
+                const atlasUri = process.env.MONGODB_ATLAS_URI;
+                if (atlasUri) {
+                    const atlasClient = new MongoClient(atlasUri);
+                    await atlasClient.connect();
+                    const atlasDb = atlasClient.db('globalDbs');
+                    
+                    // Get the Atlas version
+                    const atlasLabel = await atlasDb.collection('globalDeviceLabels').findOne({
+                        deviceLabel: existingLabel.deviceLabel
+                    });
+                    
+                    if (atlasLabel) {
+                        // Merge settings, preferring local settings
+                        const mergedSettings = {
+                            ...atlasLabel.settings,
+                            ...existingLabel.settings
+                        };
+                        
+                        // Update both local and Atlas
+                        await db.collection(collections.deviceLabels).updateOne(
+                            { _id: existingLabel._id },
+                            { $set: { settings: mergedSettings } }
+                        );
+                        
+                        await atlasDb.collection('globalDeviceLabels').updateOne(
+                            { _id: atlasLabel._id },
+                            { $set: { settings: mergedSettings } }
+                        );
+                        
+                        console.log('Successfully synced device label settings with Atlas');
+                    }
+                    
+                    await atlasClient.close();
+                }
             } catch (error) {
-                console.error('Error closing Atlas connection:', error);
+                console.error('Error syncing with Atlas:', error);
+                // Don't throw, just log the error and continue with local data
             }
+            
+            return;
         }
-        console.log('====== DEVICE LABEL MIGRATION COMPLETE ======');
+
+        // If no device label exists, throw an error
+        throw new Error('No device label found. Device labels must be created in Atlas first.');
+    } catch (error) {
+        console.error('Error in migrateDeviceLabels:', error);
+        throw error;
     }
 }
 

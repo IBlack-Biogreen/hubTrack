@@ -24,9 +24,12 @@ import NavigateNextIcon from '@mui/icons-material/NavigateNext';
 interface Feed {
   id: string;
   weight: string;
+  totalWeight: string;
+  binWeight: string;
   type: string;
   department: string;
   organization: string;
+  user: string;
   timestamp: string;
   imageFilename: string;
 }
@@ -44,15 +47,20 @@ function FeedViewer() {
     const fetchFeeds = async () => {
       try {
         setLoading(true);
-        const response = await axios.get('http://localhost:5000/api/local-feeds');
-        // Sort feeds by timestamp, newest first
-        const sortedFeeds = response.data.sort((a: Feed, b: Feed) => 
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        );
-        setFeeds(sortedFeeds);
+        setError(null);
+        const response = await fetch('http://localhost:5000/api/local-feeds');
+        if (!response.ok) {
+          throw new Error('Failed to fetch feeds');
+        }
+        const data = await response.json();
+        setFeeds(data);
+        if (data.length > 0) {
+          setCurrentIndex(0);
+        }
         setLoading(false);
-      } catch (err) {
-        setError('Failed to load feed history');
+      } catch (error) {
+        console.error('Error fetching feeds:', error);
+        setError('Failed to load feeds. Please try again later.');
         setLoading(false);
       }
     };
@@ -154,23 +162,6 @@ function FeedViewer() {
           ) : (
             <Box sx={{ position: 'relative', maxWidth: '800px', margin: '0 auto' }}>
               <Card>
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    {feeds[currentIndex].type}
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    <strong>Weight:</strong> {feeds[currentIndex].weight} lbs
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    <strong>Organization:</strong> {feeds[currentIndex].organization}
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    <strong>Department:</strong> {feeds[currentIndex].department}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    <strong>Time:</strong> {formatDate(feeds[currentIndex].timestamp)}
-                  </Typography>
-                </CardContent>
                 {feeds[currentIndex].imageFilename && (
                   <Box sx={{ position: 'relative' }}>
                     <CardMedia
@@ -208,6 +199,35 @@ function FeedViewer() {
                     </IconButton>
                   </Box>
                 )}
+                <CardContent>
+                  <Typography variant="h6" gutterBottom>
+                    {feeds[currentIndex].type}
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    <strong>Type:</strong> {feeds[currentIndex].type}
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    <strong>Department:</strong> {feeds[currentIndex].department}
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    <strong>Weight:</strong> {Number(feeds[currentIndex].weight).toFixed(2)} lbs
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    <strong>Bin Weight:</strong> {Number(feeds[currentIndex].binWeight).toFixed(2)} lbs
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    <strong>Total Weight:</strong> {Number(feeds[currentIndex].totalWeight).toFixed(2)} lbs
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    <strong>Organization:</strong> {feeds[currentIndex].organization}
+                  </Typography>
+                  <Typography variant="body1" gutterBottom>
+                    <strong>User:</strong> {feeds[currentIndex].user}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Time:</strong> {formatDate(feeds[currentIndex].timestamp)}
+                  </Typography>
+                </CardContent>
               </Card>
               <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1 }}>
                 {currentIndex + 1} of {feeds.length}

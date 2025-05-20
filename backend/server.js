@@ -716,6 +716,16 @@ function defineRoutes() {
             const db = dbManager.getDb();
             const timestamp = new Date();
             
+            // Get the current document to ensure we have the _id
+            const currentDoc = await db.collection(collections.deviceLabels).findOne({ 
+                deviceLabel,
+                deviceType: 'trackingCart'
+            });
+
+            if (!currentDoc) {
+                return res.status(404).json({ error: 'Device label not found' });
+            }
+            
             // Update local document
             const result = await db.collection(collections.deviceLabels).updateOne(
                 { 
@@ -734,18 +744,44 @@ function defineRoutes() {
                 return res.status(404).json({ error: 'Device label not found' });
             }
 
-            // Queue the change for Atlas sync
+            // Get the updated document
             const updatedDoc = await db.collection(collections.deviceLabels).findOne({ 
                 deviceLabel,
                 deviceType: 'trackingCart'
             });
-            
-            await queueChange(
-                collections.deviceLabels,
-                updatedDoc._id,
-                'update',
-                updatedDoc
-            );
+
+            // Try to sync with Atlas immediately
+            try {
+                const atlasUri = process.env.MONGODB_ATLAS_URI;
+                if (atlasUri) {
+                    const atlasClient = new MongoClient(atlasUri);
+                    await atlasClient.connect();
+                    const atlasDb = atlasClient.db('globalDbs');
+                    
+                    // Update Atlas document
+                    await atlasDb.collection('globalDeviceLabels').updateOne(
+                        { deviceLabel },
+                        { 
+                            $set: { 
+                                settings,
+                                lastUpdated: timestamp
+                            } 
+                        }
+                    );
+                    
+                    await atlasClient.close();
+                    console.log('Successfully synced device label settings to Atlas');
+                }
+            } catch (error) {
+                console.error('Error syncing with Atlas:', error);
+                // Queue the change for later sync
+                await queueChange(
+                    collections.deviceLabels,
+                    updatedDoc._id,
+                    'update',
+                    updatedDoc
+                );
+            }
 
             res.json({ success: true, deviceLabel });
         } catch (error) {
@@ -1167,7 +1203,9 @@ function defineRoutes() {
             
             // Create the feed document
             const feedDocument = {
-                weight: String(weight),
+                weight: String(weight - (deviceLabelDoc.settings?.binWeight || 0)), // Subtract bin weight
+                totalWeight: String(weight), // Store total weight
+                binWeight: String(deviceLabelDoc.settings?.binWeight || 0), // Store bin weight
                 user: userId,
                 organization,
                 department,
@@ -1241,15 +1279,37 @@ function defineRoutes() {
             console.log(`Found ${feeds.length} feeds`);
             
             // Format the feeds for display
-            const formattedFeeds = feeds.map(feed => ({
-                id: feed._id,
-                weight: feed.weight,
-                type: feed.type,
-                department: feed.department,
-                organization: feed.organization,
-                timestamp: feed.timestamp,
-                imageFilename: feed.imageFilename
-            }));
+            const formattedFeeds = feeds.map(feed => {
+                // Log the raw feed data for debugging
+                console.log('Raw feed data:', feed);
+                
+                // Helper function to format weight with 2 decimal places
+                const formatWeight = (weight) => {
+                    if (!weight) return '0.00';
+                    const num = parseFloat(weight);
+                    return isNaN(num) ? '0.00' : num.toFixed(2);
+                };
+                // Helper to format timestamp
+                const formatTimestamp = (ts) => {
+                    if (!ts) return '';
+                    if (typeof ts === 'string') return ts;
+                    if (ts instanceof Date) return ts.toISOString();
+                    if (ts.$date) return new Date(ts.$date).toISOString();
+                    return String(ts);
+                };
+                return {
+                    id: feed._id,
+                    weight: formatWeight(feed.weight),
+                    binWeight: formatWeight(feed.binWeight),
+                    totalWeight: formatWeight(feed.totalWeight),
+                    type: feed.type,
+                    department: feed.department,
+                    organization: feed.organization,
+                    user: feed.user || feed.userId || '',
+                    timestamp: formatTimestamp(feed.timestamp),
+                    imageFilename: feed.imageFilename
+                };
+            });
             
             res.json(formattedFeeds);
         } catch (error) {

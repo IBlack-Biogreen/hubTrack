@@ -35,6 +35,7 @@ export default function Setup() {
   const [loading, setLoading] = useState(true);
   const [scaleFactor, setScaleFactor] = useState(24.5);
   const [tareVoltage, setTareVoltage] = useState(0.0);
+  const [binWeight, setBinWeight] = useState(0.0);
   const [carts, setCarts] = useState<Array<{ 
     _id: string, 
     serialNumber: string, 
@@ -55,6 +56,8 @@ export default function Setup() {
   const [webcamDimensions, setWebcamDimensions] = useState({ width: 640, height: 480 });
   const [scaleFactorDialogOpen, setScaleFactorDialogOpen] = useState(false);
   const [tempScaleFactor, setTempScaleFactor] = useState('');
+  const [binWeightDialogOpen, setBinWeightDialogOpen] = useState(false);
+  const [tempBinWeight, setTempBinWeight] = useState('');
 
   // Load saved cart on component mount
   useEffect(() => {
@@ -494,6 +497,58 @@ export default function Setup() {
     setScaleFactorDialogOpen(false);
   };
 
+  const handleBinWeightClick = () => {
+    setTempBinWeight(binWeight.toString());
+    setBinWeightDialogOpen(true);
+  };
+
+  const handleBinWeightNumberPadKeyPress = (key: string) => {
+    setTempBinWeight(prev => prev + key);
+  };
+
+  const handleBinWeightNumberPadBackspace = () => {
+    setTempBinWeight(prev => prev.slice(0, -1));
+  };
+
+  const handleBinWeightNumberPadClear = () => {
+    setTempBinWeight('');
+  };
+
+  const handleBinWeightNumberPadEnter = async () => {
+    const newValue = parseFloat(tempBinWeight);
+    if (!isNaN(newValue)) {
+      setBinWeight(newValue);
+      try {
+        // Get the device label from the database
+        const response = await fetch('http://localhost:5000/api/device-labels');
+        if (!response.ok) {
+          throw new Error('Failed to fetch device labels');
+        }
+        const deviceLabels = await response.json();
+        const deviceLabel = deviceLabels[0]?.deviceLabel;
+        
+        if (!deviceLabel) {
+          throw new Error('No device label found');
+        }
+
+        const updateResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/settings`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ binWeight: newValue }),
+        });
+        if (!updateResponse.ok) {
+          throw new Error('Failed to update bin weight');
+        }
+      } catch (err) {
+        console.error('Error updating bin weight:', err);
+        setError('Failed to update bin weight. Please try again.');
+      }
+    }
+    setBinWeightDialogOpen(false);
+  };
+
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
@@ -681,13 +736,17 @@ export default function Setup() {
           sx={{
             p: 3,
             mt: 4,
-            height: '300px',
+            height: '400px',
+            display: 'flex',
+            flexDirection: 'column'
           }}
         >
           <Typography variant="h6" gutterBottom>
             Weight History
           </Typography>
-          <canvas ref={chartRef} />
+          <Box sx={{ flex: 1, position: 'relative', minHeight: 0 }}>
+            <canvas ref={chartRef} style={{ width: '100%', height: '100%' }} />
+          </Box>
         </Paper>
 
         <Paper
@@ -695,6 +754,9 @@ export default function Setup() {
           sx={{
             p: 3,
             mt: 4,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2
           }}
         >
           <Typography variant="h6" gutterBottom>
@@ -708,7 +770,8 @@ export default function Setup() {
                 display: 'flex', 
                 justifyContent: 'center', 
                 overflow: 'hidden',
-                width: '100%'
+                width: '100%',
+                height: '400px'
               }}
             >
               <Webcam
@@ -724,7 +787,8 @@ export default function Setup() {
                 mirrored={false}
                 style={{
                   width: '100%',
-                  height: 'auto'
+                  height: '100%',
+                  objectFit: 'contain'
                 }}
               />
             </Box>
@@ -766,6 +830,97 @@ export default function Setup() {
             <Button onClick={() => setScaleFactorDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleNumberPadEnter} variant="contained">Enter</Button>
           </DialogActions>
+        </Dialog>
+
+        <Paper
+          elevation={3}
+          sx={{
+            p: 3,
+            mt: 4,
+          }}
+        >
+          <Typography variant="h6" gutterBottom>
+            Bin Weight
+          </Typography>
+          <Grid2 container spacing={2}>
+            <Grid2 item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Bin Weight (lbs)"
+                type="number"
+                value={binWeight.toFixed(2)}
+                onChange={(e) => setBinWeight(parseFloat(e.target.value))}
+              />
+            </Grid2>
+          </Grid2>
+          <Button
+            variant="outlined"
+            onClick={handleBinWeightClick}
+            sx={{ mt: 2 }}
+          >
+            Set Bin Weight
+          </Button>
+        </Paper>
+
+        {/* Bin Weight Dialog */}
+        <Dialog 
+          open={binWeightDialogOpen} 
+          onClose={() => setBinWeightDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{
+            sx: {
+              maxHeight: '80vh',
+              overflow: 'hidden'
+            }
+          }}
+        >
+          <DialogTitle>Set Bin Weight</DialogTitle>
+          <DialogContent>
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="h6" align="center" gutterBottom>
+                {tempBinWeight || '0.0'} lbs
+              </Typography>
+              <Grid2 container spacing={1}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, '.', 0, 'C'].map((key) => (
+                  <Grid2 item xs={4} key={key}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      onClick={() => {
+                        if (key === 'C') {
+                          handleBinWeightNumberPadClear();
+                        } else {
+                          handleBinWeightNumberPadKeyPress(key.toString());
+                        }
+                      }}
+                    >
+                      {key}
+                    </Button>
+                  </Grid2>
+                ))}
+                <Grid2 item xs={4}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={handleBinWeightNumberPadBackspace}
+                  >
+                    ←
+                  </Button>
+                </Grid2>
+                <Grid2 item xs={4}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="primary"
+                    onClick={handleBinWeightNumberPadEnter}
+                  >
+                    Enter
+                  </Button>
+                </Grid2>
+              </Grid2>
+            </Box>
+          </DialogContent>
         </Dialog>
       </Box>
     </Container>

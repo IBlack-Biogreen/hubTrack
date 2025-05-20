@@ -32,6 +32,8 @@ import {
 } from '../api/trackingService';
 import Webcam from 'react-webcam';
 import axios from 'axios';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CheckIcon from '@mui/icons-material/Check';
 
 // Steps in the tracking sequence
 const steps = [
@@ -606,6 +608,37 @@ const TrackingSequence: React.FC = () => {
       const weightValue = await getWeight();
       console.log('Got weight value:', weightValue);
       setWeight(weightValue);
+
+      // Fetch the device label string from the backend
+      let binWeight = null;
+      let deviceLabelString = null;
+      try {
+        const response = await fetch('http://localhost:5000/api/device-labels');
+        if (response.ok) {
+          const deviceLabels = await response.json();
+          if (Array.isArray(deviceLabels) && deviceLabels.length > 0) {
+            deviceLabelString = deviceLabels[0].deviceLabel;
+            try {
+              const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabelString}/settings`);
+              if (settingsResponse.ok) {
+                const settings = await settingsResponse.json();
+                console.log('Fetched device label settings:', settings);
+                binWeight = settings.binWeight !== undefined ? settings.binWeight : null;
+              } else {
+                console.error('Failed to fetch device label settings:', settingsResponse.status, settingsResponse.statusText);
+              }
+            } catch (err) {
+              console.error('Error fetching device label settings:', err);
+            }
+          } else {
+            console.error('No device labels found in local collection.');
+          }
+        } else {
+          console.error('Failed to fetch device labels:', response.status, response.statusText);
+        }
+      } catch (err) {
+        console.error('Error fetching device labels:', err);
+      }
       
       // Create initial feed document
       const initialFeedData = {
@@ -618,7 +651,8 @@ const TrackingSequence: React.FC = () => {
         feedTypeId: feedType.id,
         imageFilename: imageFilename || undefined,
         feedStartedTime: feedStartTime?.toISOString(),
-        rawWeights: rawWeights
+        rawWeights: rawWeights,
+        binWeight: binWeight
       };
       
       // Update summary data for display
@@ -646,11 +680,11 @@ const TrackingSequence: React.FC = () => {
         setIsPostSequence(false);
         
         // Log the user out before navigating back to home
-          logout();
+        logout();
         
         // Navigate back to home
-          navigate('/');
-        }, 5000);
+        navigate('/');
+      }, 5000);
       
     } catch (err) {
       console.error('Error in feed type selection:', err);
@@ -1034,9 +1068,6 @@ const TrackingSequence: React.FC = () => {
             <Typography variant="h6" gutterBottom>
               {t('summary')}
             </Typography>
-            <Typography>
-              {t('summaryDescription')}
-            </Typography>
             {loading ? (
               <Box sx={{ textAlign: 'center', my: 2 }}>
                 <CircularProgress />
@@ -1047,26 +1078,45 @@ const TrackingSequence: React.FC = () => {
                   {/* Feed details */}
                   <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 3, height: '100%' }}>
-                      <Typography variant="subtitle1" gutterBottom fontWeight="bold">
+                      <Typography variant="h6" gutterBottom>
                         Feed Details
                       </Typography>
-                      <Box sx={{ my: 2 }}>
-                        <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Weight:</strong> {feedSummaryData?.weight ? `${feedSummaryData.weight.toFixed(2)} lbs` : 'Not available'}
-                        </Typography>
-                        <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Organization:</strong> {feedSummaryData?.organization || 'Not selected'}
-                        </Typography>
-                        <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Department:</strong> {feedSummaryData?.department || 'Not selected'}
-                        </Typography>
-                        <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>Feed Type:</strong> {feedSummaryData?.typeDisplayName || 'Not selected'}
-                        </Typography>
-                        <Typography variant="body1" sx={{ mb: 1 }}>
-                          <strong>User:</strong> {feedSummaryData?.userId || 'Not available'}
-                        </Typography>
-                      </Box>
+                      {/* Calculate net weight for display */}
+                      {(() => {
+                        let netWeight = 'Not available';
+                        if (
+                          feedSummaryData?.totalWeight !== undefined &&
+                          feedSummaryData?.binWeight !== undefined &&
+                          feedSummaryData?.totalWeight !== null &&
+                          feedSummaryData?.binWeight !== null &&
+                          !isNaN(Number(feedSummaryData.totalWeight)) &&
+                          !isNaN(Number(feedSummaryData.binWeight))
+                        ) {
+                          netWeight = (Number(feedSummaryData.totalWeight) - Number(feedSummaryData.binWeight)).toFixed(2);
+                        } else if (feedSummaryData?.weight !== undefined && feedSummaryData?.weight !== null && !isNaN(Number(feedSummaryData.weight))) {
+                          netWeight = Number(feedSummaryData.weight).toFixed(2);
+                        }
+                        return (
+                          <Typography variant="body1" gutterBottom>
+                            <strong>Weight:</strong> {netWeight} lbs
+                          </Typography>
+                        );
+                      })()}
+                      <Typography variant="body1" gutterBottom>
+                        <strong>Bin Weight:</strong> {feedSummaryData?.binWeight !== undefined && feedSummaryData?.binWeight !== null ? `${Number(feedSummaryData.binWeight).toFixed(2)} lbs` : 'Not available'}
+                      </Typography>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>Organization:</strong> {feedSummaryData?.organization || 'Not selected'}
+                      </Typography>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>Department:</strong> {feedSummaryData?.department || 'Not selected'}
+                      </Typography>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>Feed Type:</strong> {feedSummaryData?.typeDisplayName || 'Not selected'}
+                      </Typography>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>User:</strong> {feedSummaryData?.userId || 'Not available'}
+                      </Typography>
                     </Paper>
                   </Grid>
                   
