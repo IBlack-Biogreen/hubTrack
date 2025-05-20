@@ -1206,6 +1206,8 @@ function defineRoutes() {
                 weight: String(weight - (deviceLabelDoc.settings?.binWeight || 0)), // Subtract bin weight
                 totalWeight: String(weight), // Store total weight
                 binWeight: String(deviceLabelDoc.settings?.binWeight || 0), // Store bin weight
+                tareVoltage: String(deviceLabelDoc.settings?.tareVoltage || 0), // Store tare voltage
+                scaleFactor: String(deviceLabelDoc.settings?.scaleFactor || 1), // Store scale factor
                 user: userId,
                 organization,
                 department,

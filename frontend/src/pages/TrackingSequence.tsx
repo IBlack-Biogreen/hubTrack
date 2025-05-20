@@ -612,6 +612,7 @@ const TrackingSequence: React.FC = () => {
       // Fetch the device label string from the backend
       let binWeight = null;
       let deviceLabelString = null;
+      let deviceSettings = null;
       try {
         const response = await fetch('http://localhost:5000/api/device-labels');
         if (response.ok) {
@@ -619,16 +620,17 @@ const TrackingSequence: React.FC = () => {
           if (Array.isArray(deviceLabels) && deviceLabels.length > 0) {
             deviceLabelString = deviceLabels[0].deviceLabel;
             try {
-              const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabelString}/settings`);
+              // Fetch settings from Carts collection instead of device-labels
+              const settingsResponse = await fetch(`http://localhost:5000/api/carts/${deviceLabelString}`);
               if (settingsResponse.ok) {
-                const settings = await settingsResponse.json();
-                console.log('Fetched device label settings:', settings);
-                binWeight = settings.binWeight !== undefined ? settings.binWeight : null;
+                deviceSettings = await settingsResponse.json();
+                console.log('Fetched cart settings:', deviceSettings);
+                binWeight = deviceSettings.binWeight !== undefined ? deviceSettings.binWeight : null;
               } else {
-                console.error('Failed to fetch device label settings:', settingsResponse.status, settingsResponse.statusText);
+                console.error('Failed to fetch cart settings:', settingsResponse.status, settingsResponse.statusText);
               }
             } catch (err) {
-              console.error('Error fetching device label settings:', err);
+              console.error('Error fetching cart settings:', err);
             }
           } else {
             console.error('No device labels found in local collection.');
@@ -642,7 +644,8 @@ const TrackingSequence: React.FC = () => {
       
       // Create initial feed document
       const initialFeedData = {
-        weight: weightValue,
+        weight: parseFloat((weightValue - (binWeight || 0)).toFixed(2)), // Calculate net weight and round to 2 decimals
+        totalWeight: parseFloat(weightValue.toFixed(2)), // Round total weight to 2 decimals
         userId: currentUser?.name,
         organization: selectedOrganization?.name,
         department: selectedDepartment?.name,
@@ -652,7 +655,9 @@ const TrackingSequence: React.FC = () => {
         imageFilename: imageFilename || undefined,
         feedStartedTime: feedStartTime?.toISOString(),
         rawWeights: rawWeights,
-        binWeight: binWeight
+        binWeight: parseFloat((binWeight || 0).toFixed(2)), // Round bin weight to 2 decimals
+        tareVoltage: deviceSettings?.tareVoltage || 0,
+        scaleFactor: deviceSettings?.scaleFactor || 1
       };
       
       // Update summary data for display
@@ -1084,16 +1089,7 @@ const TrackingSequence: React.FC = () => {
                       {/* Calculate net weight for display */}
                       {(() => {
                         let netWeight = 'Not available';
-                        if (
-                          feedSummaryData?.totalWeight !== undefined &&
-                          feedSummaryData?.binWeight !== undefined &&
-                          feedSummaryData?.totalWeight !== null &&
-                          feedSummaryData?.binWeight !== null &&
-                          !isNaN(Number(feedSummaryData.totalWeight)) &&
-                          !isNaN(Number(feedSummaryData.binWeight))
-                        ) {
-                          netWeight = (Number(feedSummaryData.totalWeight) - Number(feedSummaryData.binWeight)).toFixed(2);
-                        } else if (feedSummaryData?.weight !== undefined && feedSummaryData?.weight !== null && !isNaN(Number(feedSummaryData.weight))) {
+                        if (feedSummaryData?.weight !== undefined && feedSummaryData?.weight !== null && !isNaN(Number(feedSummaryData.weight))) {
                           netWeight = Number(feedSummaryData.weight).toFixed(2);
                         }
                         return (
