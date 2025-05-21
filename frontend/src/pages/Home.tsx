@@ -265,10 +265,10 @@ const Home: React.FC = () => {
                 fullWidth
                 value={pin}
                 type="password"
-                placeholder="Enter 4-digit PIN"
+                placeholder="Enter PIN to Start Feed"
                 InputProps={{
                   readOnly: true,
-                  sx: { fontSize: '1.5rem', letterSpacing: '0.5rem', textAlign: 'center' }
+                  sx: { fontSize: '1.25rem', letterSpacing: '0.25rem', textAlign: 'center' }
                 }}
                 variant="outlined"
                 sx={{ mb: 2 }}

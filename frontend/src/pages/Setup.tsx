@@ -58,6 +58,9 @@ export default function Setup() {
   const [tempScaleFactor, setTempScaleFactor] = useState('');
   const [binWeightDialogOpen, setBinWeightDialogOpen] = useState(false);
   const [tempBinWeight, setTempBinWeight] = useState('');
+  const [calibrationDialogOpen, setCalibrationDialogOpen] = useState(false);
+  const [knownWeight, setKnownWeight] = useState('25');
+  const [currentVoltage, setCurrentVoltage] = useState<number | null>(null);
 
   // Load saved cart on component mount
   useEffect(() => {
@@ -571,6 +574,80 @@ export default function Setup() {
     setBinWeightDialogOpen(false);
   };
 
+  const handleCalibrateScale = async () => {
+    try {
+      // Get current voltage reading using the existing ain1 endpoint
+      const response = await fetch('http://localhost:5001/api/labjack/ain1');
+      if (!response.ok) {
+        throw new Error('Failed to get voltage reading');
+      }
+      const data = await response.json();
+      setCurrentVoltage(data.voltage);
+      setCalibrationDialogOpen(true);
+    } catch (err) {
+      console.error('Calibration error:', err);
+      setError(err instanceof Error ? err.message : 'Failed to start calibration');
+    }
+  };
+
+  const handleCalibrationNumberPadKeyPress = (key: string) => {
+    setKnownWeight(prev => prev + key);
+  };
+
+  const handleCalibrationNumberPadBackspace = () => {
+    setKnownWeight(prev => prev.slice(0, -1));
+  };
+
+  const handleCalibrationNumberPadClear = () => {
+    setKnownWeight('25');
+  };
+
+  const handleCalibrationNumberPadEnter = async () => {
+    if (!currentVoltage) return;
+    
+    const knownWeightValue = parseFloat(knownWeight);
+    if (isNaN(knownWeightValue)) return;
+
+    // Calculate new scale factor
+    const newScaleFactor = knownWeightValue / (currentVoltage - tareVoltage);
+    
+    try {
+      // Update scale factor in LabJack server
+      const response = await fetch('http://localhost:5001/api/labjack/scale', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ scale: newScaleFactor }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to update scale factor');
+      }
+      
+      setScaleFactor(newScaleFactor);
+      
+      // Save the scale factor to the cart document
+      if (selectedCart) {
+        await fetch(`http://localhost:5000/api/carts/${selectedCart}/update-scale-config`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            tareVoltage: tareVoltage,
+            scaleFactor: newScaleFactor
+          }),
+        });
+      }
+      
+      setCalibrationDialogOpen(false);
+    } catch (err) {
+      console.error('Error updating scale factor:', err);
+      setError('Failed to update scale factor. Please try again.');
+    }
+  };
+
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
@@ -678,7 +755,6 @@ export default function Setup() {
                 label="Scale Factor (lbs/volt)"
                 type="number"
                 value={scaleFactor}
-                onClick={handleScaleFactorClick}
                 InputProps={{
                   readOnly: true,
                 }}
@@ -686,7 +762,7 @@ export default function Setup() {
               <Button
                 fullWidth
                 variant="outlined"
-                onClick={handleScaleFactorClick}
+                onClick={handleCalibrateScale}
                 sx={{ mt: 1 }}
               >
                 Calibrate Scale
@@ -943,6 +1019,60 @@ export default function Setup() {
               </Grid2>
             </Box>
           </DialogContent>
+        </Dialog>
+
+        <Paper
+          elevation={3}
+          sx={{
+            p: 3,
+            mt: 4,
+          }}
+        >
+          <Typography variant="h6" gutterBottom>
+            Calibration
+          </Typography>
+          <Button
+            fullWidth
+            variant="contained"
+            onClick={handleCalibrateScale}
+            disabled={loading}
+          >
+            Calibrate Scale
+          </Button>
+        </Paper>
+
+        {/* Calibration Dialog */}
+        <Dialog
+          open={calibrationDialogOpen}
+          onClose={() => setCalibrationDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle>Enter Known Weight</DialogTitle>
+          <DialogContent>
+            <Box sx={{ mb: 2 }}>
+              <TextField
+                fullWidth
+                value={knownWeight}
+                variant="outlined"
+                InputProps={{
+                  readOnly: true,
+                  sx: { fontSize: '1.25rem' }
+                }}
+              />
+            </Box>
+            <NumberPad
+              onKeyPress={handleCalibrationNumberPadKeyPress}
+              onBackspace={handleCalibrationNumberPadBackspace}
+              onClear={handleCalibrationNumberPadClear}
+              showDecimal={true}
+              currentValue={knownWeight}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCalibrationDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleCalibrationNumberPadEnter} variant="contained">Enter</Button>
+          </DialogActions>
         </Dialog>
       </Box>
     </Container>
