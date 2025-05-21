@@ -443,6 +443,9 @@ function defineRoutes() {
     // Get collection names based on connection type
     const collections = getCollectionNames();
     
+    // Register feed types routes
+    app.use('/api/feed-types', require('./src/routes/feedTypes'));
+
     // Proxy labjack-related requests to the Python server
     app.use('/api/labjack', async (req, res) => {
         try {

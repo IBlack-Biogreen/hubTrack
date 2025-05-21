@@ -15,3 +15,5 @@ never generate code that will delete or remove documents from the atlas database
 never hardcode a URI, the .env files exist they are just hidden from the agent
 
 never user the browser dialogue box for messages, always have popups and messages rely on material ui
+
+when you have completed making any changes in the code, please do not try to restart the frontend or backend, I will do that
