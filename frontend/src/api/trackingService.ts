@@ -47,6 +47,9 @@ export interface CreateFeedRequest {
   imageFilename?: string;
   feedStartedTime?: string;
   rawWeights?: Record<string, {timestamp: string, value: string}>;
+  binWeight?: number;
+  tareVoltage?: number;
+  scaleFactor?: number;
 }
 
 export interface CreateFeedResponse {

@@ -85,6 +85,28 @@ export default function Setup() {
               console.log('Setting scale factor from cart:', cartData.scaleFactor);
               setScaleFactor(cartData.scaleFactor);
             }
+
+            // Fetch bin weight from device labels
+            try {
+              const deviceLabelsResponse = await fetch('http://localhost:5000/api/device-labels');
+              if (deviceLabelsResponse.ok) {
+                const deviceLabels = await deviceLabelsResponse.json();
+                if (Array.isArray(deviceLabels) && deviceLabels.length > 0) {
+                  const deviceLabel = deviceLabels[0].deviceLabel;
+                  const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/settings`);
+                  if (settingsResponse.ok) {
+                    const settings = await settingsResponse.json();
+                    if (settings.binWeight !== undefined) {
+                      console.log('Setting bin weight from device settings:', settings.binWeight);
+                      setBinWeight(settings.binWeight);
+                    }
+                  }
+                }
+              }
+            } catch (err) {
+              console.error('Error fetching device settings:', err);
+            }
+
             setCartConfigLoaded(true);
           } else {
             console.error('Failed to fetch cart config:', response.status, response.statusText);

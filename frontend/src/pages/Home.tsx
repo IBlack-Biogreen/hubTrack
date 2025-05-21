@@ -333,7 +333,7 @@ const Home: React.FC = () => {
           <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 2 }}>
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
-                {weight !== null ? weight.toFixed(2) : '--'} lbs
+                {weight !== null ? (Math.abs(weight) <= 0.25 ? '0.00' : weight.toFixed(2)) : '--'} lbs
               </Typography>
             </Box>
           </Paper>

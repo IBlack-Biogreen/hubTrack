@@ -81,6 +81,7 @@ const TrackingSequence: React.FC = () => {
   const [isPostSequence, setIsPostSequence] = useState<boolean>(false);
   const postSequenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [feedSummaryData, setFeedSummaryData] = useState<any>(null);
+  const [cartSettings, setCartSettings] = useState<any>(null);
   
   const { currentUser, isAuthenticated, logout } = useUser();
   const navigate = useNavigate();
@@ -613,6 +614,7 @@ const TrackingSequence: React.FC = () => {
       let binWeight = null;
       let deviceLabelString = null;
       let deviceSettings = null;
+      let cartSettings = null;
       try {
         const response = await fetch('http://localhost:5000/api/device-labels');
         if (response.ok) {
@@ -620,17 +622,82 @@ const TrackingSequence: React.FC = () => {
           if (Array.isArray(deviceLabels) && deviceLabels.length > 0) {
             deviceLabelString = deviceLabels[0].deviceLabel;
             try {
-              // Fetch settings from Carts collection instead of device-labels
-              const settingsResponse = await fetch(`http://localhost:5000/api/carts/${deviceLabelString}`);
+              // Fetch settings from device-labels collection
+              const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabelString}/settings`);
               if (settingsResponse.ok) {
                 deviceSettings = await settingsResponse.json();
-                console.log('Fetched cart settings:', deviceSettings);
+                console.log('Fetched device settings:', deviceSettings);
                 binWeight = deviceSettings.binWeight !== undefined ? deviceSettings.binWeight : null;
               } else {
-                console.error('Failed to fetch cart settings:', settingsResponse.status, settingsResponse.statusText);
+                console.error('Failed to fetch device settings:', settingsResponse.status, settingsResponse.statusText);
+              }
+
+              // Fetch cart settings
+              const savedCartSerial = localStorage.getItem('selectedCart');
+              if (!savedCartSerial) {
+                console.error('No cart selected');
+                return;
+              }
+              const cartResponse = await fetch(`http://localhost:5000/api/carts/${savedCartSerial}`);
+              if (cartResponse.ok) {
+                const settings = await cartResponse.json();
+                console.log('Raw cart settings from API:', settings);
+                
+                // Create initial feed document
+                const initialFeedData = {
+                  weight: parseFloat(weightValue.toFixed(2)),
+                  totalWeight: parseFloat(weightValue.toFixed(2)),
+                  userId: currentUser?.name,
+                  organization: selectedOrganization?.name,
+                  department: selectedDepartment?.name,
+                  type: feedType.type,
+                  typeDisplayName: feedType.displayName,
+                  feedTypeId: feedType.id,
+                  imageFilename: imageFilename || undefined,
+                  feedStartedTime: feedStartTime?.toISOString(),
+                  rawWeights: rawWeights,
+                  binWeight: parseFloat((binWeight || 0).toFixed(2)),
+                  tareVoltage: settings.tareVoltage,
+                  scaleFactor: settings.scaleFactor
+                };
+                
+                console.log('Final feed data being sent:', initialFeedData);
+                
+                // Update summary data for display
+                setFeedSummaryData(initialFeedData);
+                
+                // Move to summary step
+                setActiveStep(4);
+                
+                // Start background weight collection
+                const feedId = await startBackgroundWeightCollection(feedType, weightValue, binWeight, settings);
+                
+                // Wait 5 seconds before resetting and navigating
+                setTimeout(() => {
+                  // Reset the form
+                  setActiveStep(0);
+                  setSelectedOrganization(null);
+                  setSelectedDepartment(null);
+                  setSelectedFeedType(null);
+                  setWeight(null);
+                  setCapturedImage(null);
+                  setImageFilename(null);
+                  setRawWeights({});
+                  setPostSequenceWeights({});
+                  setFeedStartTime(null);
+                  setIsPostSequence(false);
+                  
+                  // Log the user out before navigating back to home
+                  logout();
+                  
+                  // Navigate back to home
+                  navigate('/');
+                }, 5000);
+              } else {
+                console.error('Failed to fetch cart settings:', cartResponse.status, cartResponse.statusText);
               }
             } catch (err) {
-              console.error('Error fetching cart settings:', err);
+              console.error('Error fetching settings:', err);
             }
           } else {
             console.error('No device labels found in local collection.');
@@ -642,55 +709,6 @@ const TrackingSequence: React.FC = () => {
         console.error('Error fetching device labels:', err);
       }
       
-      // Create initial feed document
-      const initialFeedData = {
-        weight: parseFloat((weightValue - (binWeight || 0)).toFixed(2)), // Calculate net weight and round to 2 decimals
-        totalWeight: parseFloat(weightValue.toFixed(2)), // Round total weight to 2 decimals
-        userId: currentUser?.name,
-        organization: selectedOrganization?.name,
-        department: selectedDepartment?.name,
-        type: feedType.type,
-        typeDisplayName: feedType.displayName,
-        feedTypeId: feedType.id,
-        imageFilename: imageFilename || undefined,
-        feedStartedTime: feedStartTime?.toISOString(),
-        rawWeights: rawWeights,
-        binWeight: parseFloat((binWeight || 0).toFixed(2)), // Round bin weight to 2 decimals
-        tareVoltage: deviceSettings?.tareVoltage || 0,
-        scaleFactor: deviceSettings?.scaleFactor || 1
-      };
-      
-      // Update summary data for display
-      setFeedSummaryData(initialFeedData);
-      
-      // Move to summary step
-      setActiveStep(4);
-      
-      // Start background weight collection
-      const feedId = await startBackgroundWeightCollection(feedType, weightValue);
-      
-      // Wait 5 seconds before resetting and navigating
-      setTimeout(() => {
-        // Reset the form
-        setActiveStep(0);
-        setSelectedOrganization(null);
-        setSelectedDepartment(null);
-        setSelectedFeedType(null);
-        setWeight(null);
-        setCapturedImage(null);
-        setImageFilename(null);
-        setRawWeights({});
-        setPostSequenceWeights({});
-        setFeedStartTime(null);
-        setIsPostSequence(false);
-        
-        // Log the user out before navigating back to home
-        logout();
-        
-        // Navigate back to home
-        navigate('/');
-      }, 5000);
-      
     } catch (err) {
       console.error('Error in feed type selection:', err);
       setError('Failed to process feed. Please try again.');
@@ -701,10 +719,20 @@ const TrackingSequence: React.FC = () => {
   };
   
   // Function to handle background weight collection
-  const startBackgroundWeightCollection = async (feedType: FeedType, initialWeight: number) => {
+  const startBackgroundWeightCollection = async (
+    feedType: FeedType, 
+    initialWeight: number,
+    binWeight: number | null,
+    cartSettings: any
+  ) => {
+    console.log('Background collection - cart settings:', cartSettings);
+    console.log('Background collection - tareVoltage:', cartSettings.tareVoltage);
+    console.log('Background collection - scaleFactor:', cartSettings.scaleFactor);
+    
     // Create initial feed document
     const initialFeedData = {
-      weight: initialWeight,
+      weight: parseFloat(initialWeight.toFixed(2)),
+      totalWeight: parseFloat(initialWeight.toFixed(2)),
       userId: currentUser?.name,
       organization: selectedOrganization?.name,
       department: selectedDepartment?.name,
@@ -713,8 +741,13 @@ const TrackingSequence: React.FC = () => {
       feedTypeId: feedType.id,
       imageFilename: imageFilename || undefined,
       feedStartedTime: feedStartTime?.toISOString(),
-      rawWeights: rawWeights
+      rawWeights: rawWeights,
+      binWeight: parseFloat((binWeight || 0).toFixed(2)),
+      tareVoltage: cartSettings.tareVoltage,
+      scaleFactor: cartSettings.scaleFactor
     };
+    
+    console.log('Background collection - final feed data:', initialFeedData);
     
     // Create the feed and get its ID
     const createResponse = await createFeed(initialFeedData);
