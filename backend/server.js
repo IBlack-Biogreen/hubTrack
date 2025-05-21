@@ -1273,8 +1273,17 @@ function defineRoutes() {
             const collections = await db.listCollections().toArray();
             console.log('Available collections:', collections.map(c => c.name));
             
+            // Add support for date filtering
+            const { start, end } = req.query;
+            let query = {};
+            if (start || end) {
+                query.timestamp = {};
+                if (start) query.timestamp.$gte = new Date(start);
+                if (end) query.timestamp.$lte = new Date(end);
+            }
+
             const feeds = await db.collection('localFeeds')
-                .find({})
+                .find(query)
                 .sort({ timestamp: -1 })
                 .toArray();
             
