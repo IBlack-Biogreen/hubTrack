@@ -34,6 +34,7 @@ interface FeedType {
   explanation: string;
   status: string;
   lastUpdated: string;
+  dateDeactivated: string | null;
 }
 
 const API_URL = window.electron ? 'http://localhost:5000/api' : '/api';
@@ -62,7 +63,7 @@ function Audits() {
       try {
         setLoading(true);
         setError(null);
-        const response = await axios.get(`${API_URL}/feed-types`);
+        const response = await axios.get(`${API_URL}/feed-types/all`);
         setFeedTypes(response.data);
       } catch (err) {
         console.error('Error fetching feed types:', err);
@@ -120,9 +121,13 @@ function Audits() {
   const handleToggleStatus = async (feedTypeId: string, currentStatus: string) => {
     try {
       const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-      await axios.patch(`${API_URL}/feed-types/${feedTypeId}`, { status: newStatus });
+      const dateDeactivated = newStatus === 'inactive' ? new Date().toISOString() : null;
+      await axios.patch(`${API_URL}/feed-types/${feedTypeId}`, { 
+        status: newStatus,
+        dateDeactivated 
+      });
       setFeedTypes(feedTypes.map(ft => 
-        ft._id === feedTypeId ? { ...ft, status: newStatus } : ft
+        ft._id === feedTypeId ? { ...ft, status: newStatus, dateDeactivated } : ft
       ));
     } catch (err) {
       console.error('Error updating feed type status:', err);
@@ -173,13 +178,22 @@ function Audits() {
       </Box>
 
       <Grid container spacing={3}>
-        {feedTypes.map((feedType) => (
+        {feedTypes
+          .sort((a, b) => {
+            // Sort active feed types first
+            const aIsActive = !a.dateDeactivated || a.dateDeactivated === "null";
+            const bIsActive = !b.dateDeactivated || b.dateDeactivated === "null";
+            if (aIsActive && !bIsActive) return -1;
+            if (!aIsActive && bIsActive) return 1;
+            return 0;
+          })
+          .map((feedType) => (
           <Grid item xs={12} sm={6} md={4} key={feedType._id}>
             <Card sx={{ 
               bgcolor: `#${feedType.buttonColor || '000000'}`, 
               color: '#fff',
               height: '100%',
-              opacity: feedType.status === 'inactive' ? 0.6 : 1
+              opacity: (!feedType.dateDeactivated || feedType.dateDeactivated === "null") ? 1 : 0.6
             }}>
               <CardContent>
                 <Typography variant="h6" gutterBottom>
@@ -196,17 +210,25 @@ function Audits() {
                     <strong>Description:</strong> {feedType.explanation}
                   </Typography>
                 )}
-                <Typography variant="body2" sx={{ mb: 2 }}>
-                  <strong>Status:</strong> {feedType.status || 'Active'}
-                </Typography>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={() => handleToggleStatus(feedType._id, feedType.status)}
-                  sx={{ color: '#fff', borderColor: '#fff' }}
-                >
-                  {feedType.status === 'active' ? 'Deactivate' : 'Activate'}
-                </Button>
+                {feedType.dateDeactivated && feedType.dateDeactivated !== "null" ? (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handleToggleStatus(feedType._id, feedType.status)}
+                    sx={{ color: '#fff', borderColor: '#fff' }}
+                  >
+                    Activate
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={() => handleToggleStatus(feedType._id, feedType.status)}
+                    sx={{ color: '#fff', borderColor: '#fff' }}
+                  >
+                    Deactivate
+                  </Button>
+                )}
               </CardContent>
             </Card>
           </Grid>

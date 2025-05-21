@@ -33,32 +33,17 @@ async function migrateFeedTypes() {
             console.log('   localFeedTypes collection dropped.');
         }
         
-        // Get all feedOrgIDs from the HubTrack settings in cartDeviceLabels collection
-        console.log('2. Collecting feedOrgIDs from local device labels...');
-        const deviceLabels = await db.collection('cartDeviceLabels').find({}).toArray();
+        // Get the current cart's device label
+        console.log('2. Getting current cart device label...');
+        const cart = await db.collection('Carts').findOne({});
         
-        if (!deviceLabels || deviceLabels.length === 0) {
-            console.error('   No device labels found in cartDeviceLabels collection.');
+        if (!cart || !cart.currentDeviceLabel) {
+            console.error('   No cart found or cart has no currentDeviceLabel.');
             return;
         }
         
-        // Extract all feedOrgIDs from the device labels
-        let relevantOrgIDs = [];
-        deviceLabels.forEach(label => {
-            if (label.feedOrgID && Array.isArray(label.feedOrgID)) {
-                relevantOrgIDs = [...relevantOrgIDs, ...label.feedOrgID];
-            }
-        });
-        
-        // Remove duplicates
-        relevantOrgIDs = [...new Set(relevantOrgIDs)];
-        
-        console.log(`   Found ${relevantOrgIDs.length} unique orgIDs in device labels: ${relevantOrgIDs.join(', ')}`);
-        
-        if (relevantOrgIDs.length === 0) {
-            console.log('   No orgIDs found in device labels. Skipping feed types migration.');
-            return;
-        }
+        const deviceLabel = cart.currentDeviceLabel;
+        console.log(`   Found device label: ${deviceLabel}`);
         
         // Connect to MongoDB Atlas to get matching feed type data
         console.log('3. Connecting to MongoDB Atlas to fetch matching feed types...');
@@ -76,12 +61,12 @@ async function migrateFeedTypes() {
             await atlasClient.connect();
             console.log('   Connected to MongoDB Atlas');
             
-            // Fetch feed types whose orgID matches any of the relevant IDs
+            // Fetch feed types that match the device label
             const atlasDb = atlasClient.db('globalDbs');
             
-            console.log(`   Querying globalFeedTypes for orgID in [${relevantOrgIDs.join(', ')}]`);
+            console.log(`   Querying globalFeedTypes for deviceLabel: ${deviceLabel}`);
             const globalFeedTypes = await atlasDb.collection('globalFeedTypes')
-                .find({ orgID: { $in: relevantOrgIDs } })
+                .find({ deviceLabel: deviceLabel })
                 .toArray();
                 
             console.log(`   Found ${globalFeedTypes.length} matching feed types in Atlas`);
@@ -99,7 +84,7 @@ async function migrateFeedTypes() {
                 console.log(`   - Type Display Name: ${sampleFeedType.typeDispName || 'N/A'}`);
                 console.log(`   - Organization: ${sampleFeedType.organization || 'N/A'}`);
                 console.log(`   - Organization Display Name: ${sampleFeedType.orgDispName || 'N/A'}`);
-                console.log(`   - orgID: ${sampleFeedType.orgID || 'N/A'}`);
+                console.log(`   - Device Label: ${sampleFeedType.deviceLabel || 'N/A'}`);
                 console.log(`   - Status: ${sampleFeedType.status || 'N/A'}`);
             }
             

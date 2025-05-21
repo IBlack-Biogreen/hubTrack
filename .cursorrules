@@ -4,6 +4,10 @@ only do what i ask of you no more, you can make suggestions but please only add 
 
 always refer to the instructions.md file for compliance when adding/editing code
 
+when making a frontend change that interfaces with the backend, always check that the backend is properly set up to handle that change
+
+do not put in any default values for anything unless i specifically ask for them, I want to know when code is not functioning properly
+
 please do not start the frontend or backend for me
 
 never generate code that will delete or remove documents from the atlas database

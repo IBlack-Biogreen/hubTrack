@@ -1023,14 +1023,91 @@ function defineRoutes() {
         }
     });
 
+    // API endpoint to get all feed types (including deactivated ones)
+    app.get('/api/feed-types/all', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const feedTypes = await db.collection(collections.feedTypes)
+                .find({})
+                .toArray();
+            res.json(feedTypes);
+        } catch (error) {
+            console.error('Error getting all feed types:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     // API endpoint to get feed types
     app.get('/api/feed-types', async (req, res) => {
         try {
             const db = dbManager.getDb();
-            const feedTypes = await db.collection(collections.feedTypes).find().toArray();
+            const feedTypes = await db.collection(collections.feedTypes)
+                .find({
+                    $or: [
+                        { dateDeactivated: { $exists: false } },
+                        { dateDeactivated: null },
+                        { dateDeactivated: "null" }
+                    ]
+                })
+                .toArray();
             res.json(feedTypes);
         } catch (error) {
             console.error('Error getting feed types:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
+    // API endpoint to update feed type status
+    app.patch('/api/feed-types/:id', async (req, res) => {
+        try {
+            const { id } = req.params;
+            const { status, dateDeactivated } = req.body;
+            const db = dbManager.getDb();
+
+            const updateData = {
+                status,
+                dateDeactivated,
+                lastUpdated: new Date()
+            };
+
+            const result = await db.collection(collections.feedTypes).updateOne(
+                { _id: new ObjectId(id) },
+                { $set: updateData }
+            );
+
+            if (result.matchedCount === 0) {
+                return res.status(404).json({ error: 'Feed type not found' });
+            }
+
+            // Try to sync with Atlas
+            try {
+                const atlasUri = process.env.MONGODB_ATLAS_URI;
+                if (atlasUri) {
+                    const atlasClient = new MongoClient(atlasUri);
+                    await atlasClient.connect();
+                    const atlasDb = atlasClient.db('globalDbs');
+                    
+                    await atlasDb.collection('globalFeedTypes').updateOne(
+                        { _id: new ObjectId(id) },
+                        { $set: updateData }
+                    );
+                    
+                    await atlasClient.close();
+                }
+            } catch (error) {
+                console.error('Error syncing with Atlas:', error);
+                // Queue the change for later sync
+                await queueChange(
+                    'globalFeedTypes',
+                    new ObjectId(id),
+                    'update',
+                    updateData
+                );
+            }
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Error updating feed type:', error);
             res.status(500).json({ error: error.message });
         }
     });
@@ -1041,7 +1118,14 @@ function defineRoutes() {
             const { orgID } = req.params;
             const db = dbManager.getDb();
             const feedTypes = await db.collection(collections.feedTypes)
-                .find({ orgID: orgID })
+                .find({ 
+                    orgID: orgID,
+                    $or: [
+                        { dateDeactivated: { $exists: false } },
+                        { dateDeactivated: null },
+                        { dateDeactivated: "null" }
+                    ]
+                })
                 .toArray();
             res.json(feedTypes);
         } catch (error) {
@@ -1055,15 +1139,31 @@ function defineRoutes() {
         try {
             const db = dbManager.getDb();
             
-            // Get the device label from the device labels collection
-            const deviceLabel = await db.collection(collections.deviceLabels).findOne({});
+            // Get the device label from the cartDeviceLabels collection
+            const deviceLabel = await db.collection('cartDeviceLabels').findOne({
+                deviceType: 'trackingCart'
+            });
+            
+            console.log('Found device label:', deviceLabel);
             
             if (!deviceLabel) {
+                console.log('No device label found');
                 return res.status(404).json({ error: 'No device label found' });
             }
             
-            // Get all feed types for this device
-            const feedTypes = await db.collection(collections.feedTypes).find().toArray();
+            // Get all active feed types for this device
+            const feedTypes = await db.collection(collections.feedTypes)
+                .find({
+                    deviceLabel: deviceLabel.deviceLabel,
+                    $or: [
+                        { dateDeactivated: { $exists: false } },
+                        { dateDeactivated: null },
+                        { dateDeactivated: "null" }
+                    ]
+                })
+                .toArray();
+            
+            console.log('Found feed types:', feedTypes.length);
             
             // Extract unique organizations
             const uniqueOrganizations = [...new Set(feedTypes.map(feedType => feedType.organization))]
@@ -1072,6 +1172,8 @@ function defineRoutes() {
                     name: org,
                     displayName: feedTypes.find(ft => ft.organization === org)?.orgDispName || org
                 }));
+            
+            console.log('Unique organizations:', uniqueOrganizations);
             
             res.json({
                 organizations: uniqueOrganizations,
@@ -1089,9 +1191,16 @@ function defineRoutes() {
             const { organization } = req.params;
             const db = dbManager.getDb();
             
-            // Get all feed types for this organization
+            // Get all active feed types for this organization
             const feedTypes = await db.collection(collections.feedTypes)
-                .find({ organization: organization })
+                .find({ 
+                    organization: organization,
+                    $or: [
+                        { dateDeactivated: { $exists: false } },
+                        { dateDeactivated: null },
+                        { dateDeactivated: "null" }
+                    ]
+                })
                 .toArray();
             
             if (feedTypes.length === 0) {
@@ -1122,11 +1231,16 @@ function defineRoutes() {
             const { organization, department } = req.params;
             const db = dbManager.getDb();
             
-            // Get all feed types for this organization and department
+            // Get all active feed types for this organization and department
             const feedTypes = await db.collection(collections.feedTypes)
                 .find({ 
                     organization: organization,
-                    department: department
+                    department: department,
+                    $or: [
+                        { dateDeactivated: { $exists: false } },
+                        { dateDeactivated: null },
+                        { dateDeactivated: "null" }
+                    ]
                 })
                 .toArray();
             

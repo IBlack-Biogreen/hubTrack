@@ -95,6 +95,16 @@ const TrackingSequence: React.FC = () => {
   const cameraCheckIntervalRef = useRef<number | null>(null);
   const cameraTimeoutRef = useRef<number | null>(null);
   const sequenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const backgroundCollectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isCreatingFeedRef = useRef<boolean>(false);
+  const lastFeedCreationTimeRef = useRef<number>(0);
+  
+  // Add new state for auto-selection
+  const [pendingAutoSelect, setPendingAutoSelect] = useState<{
+    organization?: Organization;
+    department?: Department;
+    feedType?: FeedType;
+  }>({});
   
   // Check if user is authenticated
   useEffect(() => {
@@ -280,10 +290,14 @@ const TrackingSequence: React.FC = () => {
         // Double-check we still don't have an image before creating fallback
         if (!capturedImage) {
           createFallbackImage();
+          // Proceed to next step after creating fallback image
+          fetchOrganizations();
         }
       }, 1000);
     } else {
       console.log('Camera error occurred but keeping existing captured image');
+      // Proceed to next step if we already have an image
+      fetchOrganizations();
     }
   };
   
@@ -324,6 +338,9 @@ const TrackingSequence: React.FC = () => {
               console.log('Generated filename:', filename);
               setImageFilename(filename);
               saveImageLocally(imageSrc, filename);
+              
+              // Proceed to next step after successful capture
+              fetchOrganizations();
             } else {
               console.error('Capture returned null image');
               createFallbackImage();
@@ -352,6 +369,8 @@ const TrackingSequence: React.FC = () => {
         if (activeStep === 0 && !capturedImage && !webcamRef.current) {
           console.error('Camera not ready after 5 seconds');
           createFallbackImage();
+          // Proceed to next step after creating fallback image
+          fetchOrganizations();
         }
         
         // Clear the ref
@@ -477,80 +496,136 @@ const TrackingSequence: React.FC = () => {
     }
   };
   
+  // Effect to handle organization auto-selection
+  useEffect(() => {
+    if (pendingAutoSelect.organization) {
+      const org = pendingAutoSelect.organization;
+      setSelectedOrganization(org);
+      setActiveStep(1); // Move to organization step
+      fetchDepartments(org.name);
+      setPendingAutoSelect(prev => ({ ...prev, organization: undefined }));
+    }
+  }, [pendingAutoSelect.organization]);
+
+  // Effect to handle department auto-selection
+  useEffect(() => {
+    if (pendingAutoSelect.department && selectedOrganization) {
+      const dept = pendingAutoSelect.department;
+      setSelectedDepartment(dept);
+      setActiveStep(2); // Move to department step
+      fetchFeedTypes(selectedOrganization.name, dept.name);
+      setPendingAutoSelect(prev => ({ ...prev, department: undefined }));
+    }
+  }, [pendingAutoSelect.department, selectedOrganization]);
+
+  // Effect to handle feed type auto-selection
+  useEffect(() => {
+    if (pendingAutoSelect.feedType && selectedOrganization && selectedDepartment) {
+      const feedType = pendingAutoSelect.feedType;
+      setSelectedFeedType(feedType);
+      setActiveStep(3); // Move to feed type step
+      // Use setTimeout to ensure state updates are complete
+      setTimeout(() => {
+        handleSelectFeedType(feedType, true);
+      }, 100);
+      setPendingAutoSelect(prev => ({ ...prev, feedType: undefined }));
+    }
+  }, [pendingAutoSelect.feedType, selectedOrganization, selectedDepartment]);
+
   // Fetch organizations for the tracking sequence
   const fetchOrganizations = async () => {
+    console.log('Starting fetchOrganizations...');
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      
+      console.log('Calling getOrganizations API...');
       const response = await getOrganizations();
-      setOrganizations(response.organizations);
+      console.log('getOrganizations response:', response);
       
-      // If we should auto-select, do so
-      if (response.autoSelect) {
-        setSelectedOrganization(response.autoSelect);
-        // Move to the next step automatically if auto-selected
-        await fetchDepartments(response.autoSelect.name);
-      } else {
-        setActiveStep(1); // Move to select organization step
+      if (!response || !response.organizations) {
+        console.error('Invalid response from getOrganizations:', response);
+        throw new Error('Invalid response from server');
       }
       
-    } catch (err) {
-      console.error('Error fetching organizations:', err);
-      setError('Failed to load organizations. Please try again.');
+      console.log('Setting organizations:', response.organizations);
+      setOrganizations(response.organizations);
+      
+      if (response.autoSelect) {
+        console.log('Auto-selecting organization:', response.autoSelect);
+        setPendingAutoSelect(prev => ({ ...prev, organization: response.autoSelect }));
+      } else {
+        console.log('No auto-select organization, moving to step 1');
+        setActiveStep(1);
+      }
+    } catch (error) {
+      console.error('Error in fetchOrganizations:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch organizations');
     } finally {
+      console.log('fetchOrganizations complete, setting loading to false');
       setLoading(false);
     }
   };
   
   // Fetch departments for the selected organization
   const fetchDepartments = async (organizationName: string) => {
+    console.log('Starting fetchDepartments for organization:', organizationName);
     try {
       setLoading(true);
       setError(null);
       
+      console.log('Calling getDepartments API...');
       const response = await getDepartments(organizationName);
+      console.log('getDepartments response:', response);
+      
       setDepartments(response.departments);
+      console.log('Departments set:', response.departments);
       
       // If we should auto-select, do so
       if (response.autoSelect) {
-        setSelectedDepartment(response.autoSelect);
-        // Move to the next step automatically if auto-selected
-        await fetchFeedTypes(organizationName, response.autoSelect.name);
+        console.log('Auto-selecting department:', response.autoSelect);
+        setPendingAutoSelect(prev => ({ ...prev, department: response.autoSelect }));
       } else {
+        console.log('No auto-select department, moving to step 2');
         setActiveStep(2); // Move to select department step
       }
       
     } catch (err) {
-      console.error('Error fetching departments:', err);
+      console.error('Error in fetchDepartments:', err);
       setError('Failed to load departments. Please try again.');
     } finally {
+      console.log('fetchDepartments complete, setting loading to false');
       setLoading(false);
     }
   };
   
   // Fetch feed types for the selected organization and department
   const fetchFeedTypes = async (organizationName: string, departmentName: string) => {
+    console.log('Starting fetchFeedTypes for org:', organizationName, 'dept:', departmentName);
     try {
       setLoading(true);
       setError(null);
       
+      console.log('Calling getFeedTypes API...');
       const response = await getFeedTypes(organizationName, departmentName);
+      console.log('getFeedTypes response:', response);
+      
       setFeedTypes(response.feedTypes);
+      console.log('Feed types set:', response.feedTypes);
       
       // If we should auto-select, do so
       if (response.autoSelect) {
-        setSelectedFeedType(response.autoSelect);
-        // Move to the next step automatically if auto-selected
-        await fetchWeight();
+        console.log('Auto-selecting feed type:', response.autoSelect);
+        setPendingAutoSelect(prev => ({ ...prev, feedType: response.autoSelect }));
       } else {
+        console.log('No auto-select feed type, moving to step 3');
         setActiveStep(3); // Move to select feed type step
       }
       
     } catch (err) {
-      console.error('Error fetching feed types:', err);
+      console.error('Error in fetchFeedTypes:', err);
       setError('Failed to load feed types. Please try again.');
     } finally {
+      console.log('fetchFeedTypes complete, setting loading to false');
       setLoading(false);
     }
   };
@@ -574,8 +649,15 @@ const TrackingSequence: React.FC = () => {
   
   // Handle organization selection
   const handleSelectOrganization = async (organization: Organization) => {
+    console.log('handleSelectOrganization called with:', organization);
     setSelectedOrganization(organization);
-    await fetchDepartments(organization.name);
+    console.log('Selected organization set, calling fetchDepartments...');
+    try {
+      await fetchDepartments(organization.name);
+      console.log('fetchDepartments completed');
+    } catch (error) {
+      console.error('Error in handleSelectOrganization:', error);
+    }
   };
   
   // Handle department selection
@@ -587,13 +669,134 @@ const TrackingSequence: React.FC = () => {
     await fetchFeedTypes(selectedOrganization.name, department.name);
   };
   
+  // Function to handle background weight collection
+  const startBackgroundWeightCollection = async (
+    feedType: FeedType, 
+    initialWeight: number,
+    binWeight: number | null,
+    cartSettings: any
+  ) => {
+    // Check if we're already creating a feed
+    if (isCreatingFeedRef.current) {
+      console.log('Feed creation already in progress, skipping');
+      return null;
+    }
+
+    // Check if we've created a feed too recently (within last 2 seconds)
+    const now = Date.now();
+    if (now - lastFeedCreationTimeRef.current < 2000) {
+      console.log('Feed creation too soon after last feed, skipping');
+      return null;
+    }
+
+    try {
+      isCreatingFeedRef.current = true;
+      lastFeedCreationTimeRef.current = now;
+      
+      console.log('Background collection - cart settings:', cartSettings);
+      console.log('Background collection - tareVoltage:', cartSettings.tareVoltage);
+      console.log('Background collection - scaleFactor:', cartSettings.scaleFactor);
+      
+      // Clear any existing background collection
+      if (backgroundCollectionIntervalRef.current) {
+        console.log('Clearing existing background collection interval');
+        clearInterval(backgroundCollectionIntervalRef.current);
+        backgroundCollectionIntervalRef.current = null;
+      }
+      
+      // Create initial feed document
+      const initialFeedData = {
+        weight: parseFloat(initialWeight.toFixed(2)),
+        totalWeight: parseFloat(initialWeight.toFixed(2)),
+        userId: currentUser?.name,
+        organization: selectedOrganization?.name,
+        department: selectedDepartment?.name,
+        type: feedType.type,
+        typeDisplayName: feedType.displayName,
+        feedTypeId: feedType.id,
+        imageFilename: imageFilename || undefined,
+        feedStartedTime: feedStartTime?.toISOString(),
+        rawWeights: rawWeights,
+        binWeight: parseFloat((binWeight || 0).toFixed(2)),
+        tareVoltage: cartSettings.tareVoltage,
+        scaleFactor: cartSettings.scaleFactor
+      };
+      
+      console.log('Background collection - final feed data:', initialFeedData);
+      
+      // Create the feed and get its ID
+      const createResponse = await createFeed(initialFeedData);
+      const feedId = createResponse.feedId;
+      
+      // Start background collection
+      const collectionInterval = setInterval(async () => {
+        try {
+          const response = await fetch('http://localhost:5001/api/labjack/ain1');
+          if (response.ok) {
+            const data = await response.json();
+            const newWeight = {
+              timestamp: data.timestamp,
+              value: data.voltage.toString()
+            };
+            
+            // Update the feed document with new weight using the service function
+            await updateFeedWeights(feedId, newWeight);
+          }
+        } catch (error) {
+          console.error('Error in background weight collection:', error);
+        }
+      }, 1000);
+      
+      // Store the interval reference
+      backgroundCollectionIntervalRef.current = collectionInterval;
+      
+      // Stop collection after 30 seconds
+      setTimeout(() => {
+        if (backgroundCollectionIntervalRef.current === collectionInterval) {
+          console.log('Stopping background weight collection after 30 seconds');
+          clearInterval(collectionInterval);
+          backgroundCollectionIntervalRef.current = null;
+        }
+      }, 30000);
+      
+      return feedId;
+    } finally {
+      isCreatingFeedRef.current = false;
+    }
+  };
+  
   // Handle feed type selection
-  const handleSelectFeedType = async (feedType: FeedType) => {
+  const handleSelectFeedType = async (feedType: FeedType, isAutoSelect: boolean = false) => {
     console.log('Feed type selected:', feedType);
     console.log('Current active step:', activeStep);
+    console.log('Is auto-select:', isAutoSelect);
     
-    if (activeStep !== 3 || isSubmitting) {
+    // Only check step and submitting state if this is not an auto-selection
+    if (!isAutoSelect && (activeStep !== 3 || isSubmitting)) {
       console.log('Not on feed type selection step or already submitting, ignoring selection');
+      return;
+    }
+
+    // Check if we're already creating a feed
+    if (isCreatingFeedRef.current) {
+      console.log('Feed creation already in progress, ignoring selection');
+      return;
+    }
+
+    // Check if we've created a feed too recently (within last 2 seconds)
+    const now = Date.now();
+    if (now - lastFeedCreationTimeRef.current < 2000) {
+      console.log('Feed creation too soon after last feed, ignoring selection');
+      return;
+    }
+
+    // Ensure we have all required data
+    if (!selectedOrganization || !selectedDepartment) {
+      console.error('Missing required data:', {
+        organization: selectedOrganization,
+        department: selectedDepartment
+      });
+      setError('Missing required data. Please try again.');
       return;
     }
     
@@ -605,10 +808,24 @@ const TrackingSequence: React.FC = () => {
       // Set the selected feed type first
       setSelectedFeedType(feedType);
       
-      // Get the current weight
+      // Get the current weight and ensure it's a valid number
       const weightValue = await getWeight();
       console.log('Got weight value:', weightValue);
+      
+      if (weightValue === null || isNaN(weightValue)) {
+        throw new Error('Invalid weight value received from scale');
+      }
+      
+      // Set the weight state
       setWeight(weightValue);
+      
+      // Create weight data object - allow zero values
+      const weightData = {
+        weight: parseFloat(weightValue.toFixed(2)),
+        totalWeight: parseFloat(weightValue.toFixed(2))
+      };
+      
+      console.log('Weight data prepared:', weightData);
 
       // Fetch the device label string from the backend
       let binWeight = null;
@@ -617,167 +834,125 @@ const TrackingSequence: React.FC = () => {
       let cartSettings = null;
       try {
         const response = await fetch('http://localhost:5000/api/device-labels');
-        if (response.ok) {
-          const deviceLabels = await response.json();
-          if (Array.isArray(deviceLabels) && deviceLabels.length > 0) {
-            deviceLabelString = deviceLabels[0].deviceLabel;
-            try {
-              // Fetch settings from device-labels collection
-              const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabelString}/settings`);
-              if (settingsResponse.ok) {
-                deviceSettings = await settingsResponse.json();
-                console.log('Fetched device settings:', deviceSettings);
-                binWeight = deviceSettings.binWeight !== undefined ? deviceSettings.binWeight : null;
-              } else {
-                console.error('Failed to fetch device settings:', settingsResponse.status, settingsResponse.statusText);
-              }
-
-              // Fetch cart settings
-              const savedCartSerial = localStorage.getItem('selectedCart');
-              if (!savedCartSerial) {
-                console.error('No cart selected');
-                return;
-              }
-              const cartResponse = await fetch(`http://localhost:5000/api/carts/${savedCartSerial}`);
-              if (cartResponse.ok) {
-                const settings = await cartResponse.json();
-                console.log('Raw cart settings from API:', settings);
-                
-                // Create initial feed document
-                const initialFeedData = {
-                  weight: parseFloat(weightValue.toFixed(2)),
-                  totalWeight: parseFloat(weightValue.toFixed(2)),
-                  userId: currentUser?.name,
-                  organization: selectedOrganization?.name,
-                  department: selectedDepartment?.name,
-                  type: feedType.type,
-                  typeDisplayName: feedType.displayName,
-                  feedTypeId: feedType.id,
-                  imageFilename: imageFilename || undefined,
-                  feedStartedTime: feedStartTime?.toISOString(),
-                  rawWeights: rawWeights,
-                  binWeight: parseFloat((binWeight || 0).toFixed(2)),
-                  tareVoltage: settings.tareVoltage,
-                  scaleFactor: settings.scaleFactor
-                };
-                
-                console.log('Final feed data being sent:', initialFeedData);
-                
-                // Update summary data for display
-                setFeedSummaryData(initialFeedData);
-                
-                // Move to summary step
-                setActiveStep(4);
-                
-                // Start background weight collection
-                const feedId = await startBackgroundWeightCollection(feedType, weightValue, binWeight, settings);
-                
-                // Wait 5 seconds before resetting and navigating
-                setTimeout(() => {
-                  // Reset the form
-                  setActiveStep(0);
-                  setSelectedOrganization(null);
-                  setSelectedDepartment(null);
-                  setSelectedFeedType(null);
-                  setWeight(null);
-                  setCapturedImage(null);
-                  setImageFilename(null);
-                  setRawWeights({});
-                  setPostSequenceWeights({});
-                  setFeedStartTime(null);
-                  setIsPostSequence(false);
-                  
-                  // Log the user out before navigating back to home
-                  logout();
-                  
-                  // Navigate back to home
-                  navigate('/');
-                }, 5000);
-              } else {
-                console.error('Failed to fetch cart settings:', cartResponse.status, cartResponse.statusText);
-              }
-            } catch (err) {
-              console.error('Error fetching settings:', err);
-            }
-          } else {
-            console.error('No device labels found in local collection.');
-          }
-        } else {
-          console.error('Failed to fetch device labels:', response.status, response.statusText);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch device labels: ${response.status} ${response.statusText}`);
         }
+        const deviceLabels = await response.json();
+        if (!Array.isArray(deviceLabels) || deviceLabels.length === 0) {
+          throw new Error('No device labels found in local collection');
+        }
+        deviceLabelString = deviceLabels[0].deviceLabel;
+        
+        // Fetch settings from device-labels collection
+        const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabelString}/settings`);
+        if (!settingsResponse.ok) {
+          throw new Error(`Failed to fetch device settings: ${settingsResponse.status} ${settingsResponse.statusText}`);
+        }
+        deviceSettings = await settingsResponse.json();
+        console.log('Fetched device settings:', deviceSettings);
+        binWeight = deviceSettings.binWeight;
+
+        // Fetch cart settings
+        const savedCartSerial = localStorage.getItem('selectedCart');
+        if (!savedCartSerial) {
+          throw new Error('No cart selected');
+        }
+        const cartResponse = await fetch(`http://localhost:5000/api/carts/${savedCartSerial}`);
+        if (!cartResponse.ok) {
+          throw new Error(`Failed to fetch cart settings: ${cartResponse.status} ${cartResponse.statusText}`);
+        }
+        cartSettings = await cartResponse.json();
+        console.log('Raw cart settings from API:', cartSettings);
+
+        // Validate required cart settings
+        if (!cartSettings.tareVoltage || !cartSettings.scaleFactor) {
+          throw new Error('Missing required cart settings: tareVoltage or scaleFactor');
+        }
+        
+        // Create initial feed document with validated weight data
+        const initialFeedData = {
+          ...weightData, // Spread the validated weight data
+          userId: currentUser?.name,
+          organization: selectedOrganization.name,
+          department: selectedDepartment.name,
+          type: feedType.type,
+          typeDisplayName: feedType.displayName,
+          feedTypeId: feedType.id,
+          imageFilename: imageFilename || undefined,
+          feedStartedTime: feedStartTime?.toISOString(),
+          rawWeights: rawWeights,
+          binWeight: parseFloat((binWeight || 0).toFixed(2)),
+          tareVoltage: cartSettings.tareVoltage,
+          scaleFactor: cartSettings.scaleFactor
+        };
+
+        // Validate all required fields - allow zero values for weight fields
+        const requiredFields = [
+          'userId', 'organization', 'department',
+          'type', 'typeDisplayName', 'feedTypeId', 'feedStartedTime',
+          'tareVoltage', 'scaleFactor'
+        ];
+
+        const missingFields = requiredFields.filter(field => !initialFeedData[field]);
+        if (missingFields.length > 0) {
+          throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
+        }
+        
+        // Validate weight fields separately to allow zero values
+        if (initialFeedData.weight === undefined || initialFeedData.weight === null) {
+          throw new Error('Weight value is missing');
+        }
+        if (initialFeedData.totalWeight === undefined || initialFeedData.totalWeight === null) {
+          throw new Error('Total weight value is missing');
+        }
+        
+        console.log('Final feed data being sent:', initialFeedData);
+        
+        // Update summary data for display
+        setFeedSummaryData(initialFeedData);
+        
+        // Move to summary step
+        setActiveStep(4);
+        
+        // Start background weight collection
+        await startBackgroundWeightCollection(feedType, weightValue, binWeight, cartSettings);
+        
+        // Wait 5 seconds before resetting and navigating
+        setTimeout(() => {
+          // Reset the form
+          setActiveStep(0);
+          setSelectedOrganization(null);
+          setSelectedDepartment(null);
+          setSelectedFeedType(null);
+          setWeight(null);
+          setCapturedImage(null);
+          setImageFilename(null);
+          setRawWeights({});
+          setPostSequenceWeights({});
+          setFeedStartTime(null);
+          setIsPostSequence(false);
+          
+          // Log the user out before navigating back to home
+          logout();
+          
+          // Navigate back to home
+          navigate('/');
+        }, 5000);
       } catch (err) {
-        console.error('Error fetching device labels:', err);
+        console.error('Error in feed creation:', err);
+        setError(err instanceof Error ? err.message : 'Failed to create feed. Please try again.');
+        // Reset to feed type selection step
+        setActiveStep(3);
       }
-      
     } catch (err) {
       console.error('Error in feed type selection:', err);
       setError('Failed to process feed. Please try again.');
+      // Reset to feed type selection step
+      setActiveStep(3);
     } finally {
       setIsSubmitting(false);
       setLoading(false);
     }
-  };
-  
-  // Function to handle background weight collection
-  const startBackgroundWeightCollection = async (
-    feedType: FeedType, 
-    initialWeight: number,
-    binWeight: number | null,
-    cartSettings: any
-  ) => {
-    console.log('Background collection - cart settings:', cartSettings);
-    console.log('Background collection - tareVoltage:', cartSettings.tareVoltage);
-    console.log('Background collection - scaleFactor:', cartSettings.scaleFactor);
-    
-    // Create initial feed document
-    const initialFeedData = {
-      weight: parseFloat(initialWeight.toFixed(2)),
-      totalWeight: parseFloat(initialWeight.toFixed(2)),
-      userId: currentUser?.name,
-      organization: selectedOrganization?.name,
-      department: selectedDepartment?.name,
-      type: feedType.type,
-      typeDisplayName: feedType.displayName,
-      feedTypeId: feedType.id,
-      imageFilename: imageFilename || undefined,
-      feedStartedTime: feedStartTime?.toISOString(),
-      rawWeights: rawWeights,
-      binWeight: parseFloat((binWeight || 0).toFixed(2)),
-      tareVoltage: cartSettings.tareVoltage,
-      scaleFactor: cartSettings.scaleFactor
-    };
-    
-    console.log('Background collection - final feed data:', initialFeedData);
-    
-    // Create the feed and get its ID
-    const createResponse = await createFeed(initialFeedData);
-    const feedId = createResponse.feedId;
-    
-    // Start background collection
-    const collectionInterval = setInterval(async () => {
-      try {
-        const response = await fetch('http://localhost:5001/api/labjack/ain1');
-        if (response.ok) {
-          const data = await response.json();
-          const newWeight = {
-            timestamp: data.timestamp,
-            value: data.voltage.toString()
-          };
-          
-          // Update the feed document with new weight using the service function
-          await updateFeedWeights(feedId, newWeight);
-        }
-      } catch (error) {
-        console.error('Error in background weight collection:', error);
-      }
-    }, 1000);
-    
-    // Stop collection after 30 seconds
-    setTimeout(() => {
-      clearInterval(collectionInterval);
-    }, 30000);
-    
-    return feedId;
   };
   
   // Add useEffect to handle the timeout when we reach the summary step
@@ -1359,6 +1534,13 @@ const TrackingSequence: React.FC = () => {
       if (cameraTimeoutRef.current) {
         clearTimeout(cameraTimeoutRef.current);
         cameraTimeoutRef.current = null;
+      }
+
+      // Clean up background collection
+      if (backgroundCollectionIntervalRef.current) {
+        console.log('Cleaning up background collection interval on unmount');
+        clearInterval(backgroundCollectionIntervalRef.current);
+        backgroundCollectionIntervalRef.current = null;
       }
     };
   }, []);
