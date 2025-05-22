@@ -43,7 +43,12 @@ const Keyboard: React.FC<KeyboardProps> = ({
   const handleKeyPress = (key: string) => {
     if (disabled) return;
     if (currentValue.length < maxLength) {
-      onKeyPress(isCapsLock ? key.toUpperCase() : key.toLowerCase());
+      // Auto-capitalize first character or use caps lock for other characters
+      if (currentValue.length === 0) {
+        onKeyPress(key.toUpperCase());
+      } else {
+        onKeyPress(isCapsLock ? key.toUpperCase() : key.toLowerCase());
+      }
     }
   };
 
@@ -140,7 +145,7 @@ const Keyboard: React.FC<KeyboardProps> = ({
                 sx={KEY_STYLE}
                 disabled={disabled}
               >
-                {isCapsLock ? key.toUpperCase() : key}
+                {isCapsLock ? key.toUpperCase() : key.toLowerCase()}
               </Button>
             );
           })}

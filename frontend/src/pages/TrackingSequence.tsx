@@ -37,7 +37,7 @@ import CheckIcon from '@mui/icons-material/Check';
 
 // Steps in the tracking sequence
 const steps = [
-  'userAuthentication',
+  'Capture Image',
   'selectOrganization',
   'selectDepartment',
   'selectFeedType',
@@ -166,7 +166,7 @@ const TrackingSequence: React.FC = () => {
     
     // Generate a static placeholder image and filename
     const now = new Date();
-    const deviceLabel = localStorage.getItem('selectedDeviceLabel') || 'bgtrack_61';
+    const deviceLabel = localStorage.getItem('selectedDeviceLabel');
     const timestamp = now.toISOString();
     const filename = sanitizeFilename(`${deviceLabel}_${timestamp}_placeholder.jpg`);
     
@@ -250,7 +250,7 @@ const TrackingSequence: React.FC = () => {
         
         // Generate filename matching the MongoDB format
         const now = new Date();
-        const deviceLabel = localStorage.getItem('selectedDeviceLabel') || 'bgtrack_61';
+        const deviceLabel = localStorage.getItem('selectedDeviceLabel');
         
         // Format to match: "bgtrack_61_2025-04-24T200025.178Z.jpg"
         const timestamp = now.toISOString();
@@ -330,7 +330,7 @@ const TrackingSequence: React.FC = () => {
               
               // Generate filename
               const now = new Date();
-              const deviceLabel = localStorage.getItem('selectedDeviceLabel') || 'bgtrack_61';
+              const deviceLabel = localStorage.getItem('selectedDeviceLabel');
               const timestamp = now.toISOString();
               let filename = `${deviceLabel}_${timestamp}.jpg`;
               filename = sanitizeFilename(filename);
@@ -709,8 +709,8 @@ const TrackingSequence: React.FC = () => {
         weight: parseFloat(initialWeight.toFixed(2)),
         totalWeight: parseFloat(initialWeight.toFixed(2)),
         userId: currentUser?.name,
-        organization: selectedOrganization?.name,
-        department: selectedDepartment?.name,
+        organization: selectedOrganization?.displayName,
+        department: selectedDepartment?.displayName,
         type: feedType.type,
         typeDisplayName: feedType.displayName,
         feedTypeId: feedType.id,
@@ -873,8 +873,8 @@ const TrackingSequence: React.FC = () => {
         const initialFeedData = {
           ...weightData, // Spread the validated weight data
           userId: currentUser?.name,
-          organization: selectedOrganization.name,
-          department: selectedDepartment.name,
+          organization: selectedOrganization.displayName,
+          department: selectedDepartment.displayName,
           type: feedType.type,
           typeDisplayName: feedType.displayName,
           feedTypeId: feedType.id,

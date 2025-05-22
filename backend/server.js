@@ -1057,6 +1057,89 @@ function defineRoutes() {
         }
     });
 
+    // API endpoint to create a new feed type
+    app.post('/api/feed-types', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const {
+                type,
+                organization,
+                department,
+                explanation,
+                buttonColor,
+                emoji,
+                orgID
+            } = req.body;
+
+            // Validate required fields
+            if (!type || !organization || !department) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+
+            // Get the device label from cartDeviceLabels collection
+            const deviceLabelDoc = await db.collection('cartDeviceLabels').findOne({
+                deviceType: 'trackingCart'
+            });
+
+            if (!deviceLabelDoc) {
+                return res.status(400).json({ error: 'No device label found in the system' });
+            }
+
+            // Append emoji to type if provided
+            const typeWithEmoji = emoji ? `${type} ${emoji}` : type;
+
+            const newFeedType = {
+                type: typeWithEmoji,
+                typeDispName: typeWithEmoji,
+                organization,
+                orgDispName: organization,
+                department,
+                deptDispName: department,
+                deviceLabel: deviceLabelDoc.deviceLabel,
+                explanation: explanation || '',
+                buttonColor: buttonColor || '000000',
+                status: 'active',
+                lastUpdated: new Date(),
+                dateDeactivated: null,
+                orgID
+            };
+
+            // Insert into local collection
+            const result = await db.collection(collections.feedTypes).insertOne(newFeedType);
+
+            // Try to sync with Atlas
+            try {
+                const atlasUri = process.env.MONGODB_ATLAS_URI;
+                if (atlasUri) {
+                    const atlasClient = new MongoClient(atlasUri);
+                    await atlasClient.connect();
+                    const atlasDb = atlasClient.db('globalDbs');
+                    
+                    await atlasDb.collection('globalFeedTypes').insertOne({
+                        _id: result.insertedId,
+                        ...newFeedType
+                    });
+                    
+                    await atlasClient.close();
+                }
+            } catch (error) {
+                console.error('Error syncing with Atlas:', error);
+                // Queue the change for later sync
+                await queueChange(
+                    'globalFeedTypes',
+                    result.insertedId,
+                    'insert',
+                    newFeedType
+                );
+            }
+
+            res.json({ ...newFeedType, _id: result.insertedId });
+        } catch (error) {
+            console.error('Error creating feed type:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     // API endpoint to update feed type status
     app.patch('/api/feed-types/:id', async (req, res) => {
         try {
@@ -1728,6 +1811,73 @@ function defineRoutes() {
         } catch (error) {
             console.error('Error updating global user:', error);
             res.status(500).json({ error: 'Failed to update global user' });
+        }
+    });
+
+    // Get device label details
+    app.get('/api/device-labels/:deviceLabel', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const collections = getCollectionNames();
+            
+            const deviceLabel = await db.collection(collections.deviceLabels).findOne({ 
+                deviceLabel: req.params.deviceLabel 
+            });
+            
+            if (!deviceLabel) {
+                return res.status(404).json({ message: 'Device label not found' });
+            }
+            
+            res.json(deviceLabel);
+        } catch (error) {
+            console.error('Error:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    });
+
+    // Update storage utilization
+    app.put('/api/device-labels/:deviceLabel/storage-utilization', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const collections = getCollectionNames();
+            const { storageUtilization } = req.body;
+
+            const result = await db.collection(collections.deviceLabels).updateOne(
+                { _id: new ObjectId(req.params.deviceLabel) },
+                { $set: { storageUtilization } }
+            );
+
+            if (result.matchedCount === 0) {
+                return res.status(404).json({ message: 'Device label not found' });
+            }
+
+            res.json({ message: 'Storage utilization updated successfully' });
+        } catch (error) {
+            console.error('Error updating storage utilization:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    });
+
+    // Update storage capacity
+    app.put('/api/device-labels/:deviceLabel/storage-capacity', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const collections = getCollectionNames();
+            const { storageCapacity } = req.body;
+
+            const result = await db.collection(collections.deviceLabels).updateOne(
+                { _id: new ObjectId(req.params.deviceLabel) },
+                { $set: { storageCapacity } }
+            );
+
+            if (result.matchedCount === 0) {
+                return res.status(404).json({ message: 'Device label not found' });
+            }
+
+            res.json({ message: 'Storage capacity updated successfully' });
+        } catch (error) {
+            console.error('Error updating storage capacity:', error);
+            res.status(500).json({ message: 'Internal server error' });
         }
     });
 }

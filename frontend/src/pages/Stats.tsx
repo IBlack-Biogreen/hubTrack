@@ -121,7 +121,6 @@ function Stats() {
   return (
     <Container maxWidth="lg">
       <Box sx={{ mt: 4, mb: 2 }}>
-        <Typography variant="h4" gutterBottom>Statistics & Analytics</Typography>
         <Paper sx={{ p: 2, mb: 3 }}>
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <Grid container spacing={2} alignItems="center">

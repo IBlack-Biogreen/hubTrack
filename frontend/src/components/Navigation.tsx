@@ -65,16 +65,20 @@ function Navigation() {
           throw new Error('Failed to fetch device labels');
         }
         const labels = await response.json();
+        console.log('Device labels response:', labels);
         const currentLabel = labels[0]; // Get the first device label
+        console.log('Current device label:', currentLabel);
         
         // Update pages based on hasStorage property
         if (currentLabel?.hasStorage) {
+          console.log('hasStorage is true, adding Storage tab');
           setPages([
             ...basePages.slice(0, 1),
             { name: 'Storage', path: '/storage' },
             ...basePages.slice(1)
           ]);
         } else {
+          console.log('hasStorage is false or undefined, using base pages');
           setPages(basePages);
         }
       } catch (error) {
