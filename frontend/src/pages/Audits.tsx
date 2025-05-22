@@ -114,8 +114,9 @@ function Audits() {
     const fetchDepartments = async () => {
       if (newFeedType.organization) {
         try {
-          const response = await axios.get(`${API_URL}/feed-types/departments/${newFeedType.organization}`);
-          setDepartments(response.data);
+          const response = await axios.get(`${API_URL}/tracking-sequence/departments/${newFeedType.organization}`);
+          const departmentNames = response.data.departments.map((dept: any) => dept.name);
+          setDepartments(departmentNames);
         } catch (err) {
           console.error('Error fetching departments:', err);
         }
@@ -232,6 +233,32 @@ function Audits() {
     }
   };
 
+  const handleToggleActivation = async (feedType: FeedType) => {
+    try {
+      const isActive = !feedType.dateDeactivated || feedType.dateDeactivated === "null";
+      const response = await axios.patch(`${API_URL}/feed-types/${feedType._id}`, {
+        status: isActive ? 'inactive' : 'active',
+        dateDeactivated: isActive ? new Date().toISOString() : null
+      });
+      
+      if (response.data.success) {
+        // Update the local state
+        setFeedTypes(prevTypes => prevTypes.map(type => 
+          type._id === feedType._id 
+            ? {
+                ...type,
+                status: isActive ? 'inactive' : 'active',
+                dateDeactivated: isActive ? new Date().toISOString() : null
+              }
+            : type
+        ));
+      }
+    } catch (err) {
+      console.error('Error toggling feed type activation:', err);
+      setError('Failed to update feed type status. Please try again.');
+    }
+  };
+
   if (loading) {
     return (
       <Container>
@@ -291,6 +318,22 @@ function Audits() {
                     <strong>Description:</strong> {feedType.explanation}
                   </Typography>
                 )}
+                <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end' }}>
+                  <Button
+                    variant="contained"
+                    color={(!feedType.dateDeactivated || feedType.dateDeactivated === "null") ? "error" : "success"}
+                    onClick={() => handleToggleActivation(feedType)}
+                    sx={{ 
+                      color: '#fff',
+                      backgroundColor: (!feedType.dateDeactivated || feedType.dateDeactivated === "null") ? 'rgba(211, 47, 47, 0.8)' : 'rgba(46, 125, 50, 0.8)',
+                      '&:hover': {
+                        backgroundColor: (!feedType.dateDeactivated || feedType.dateDeactivated === "null") ? 'rgba(211, 47, 47, 1)' : 'rgba(46, 125, 50, 1)'
+                      }
+                    }}
+                  >
+                    {(!feedType.dateDeactivated || feedType.dateDeactivated === "null") ? 'Deactivate' : 'Activate'}
+                  </Button>
+                </Box>
               </CardContent>
             </Card>
           </Grid>

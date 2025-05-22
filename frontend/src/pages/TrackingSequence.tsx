@@ -709,8 +709,8 @@ const TrackingSequence: React.FC = () => {
         weight: parseFloat(initialWeight.toFixed(2)),
         totalWeight: parseFloat(initialWeight.toFixed(2)),
         userId: currentUser?.name,
-        organization: selectedOrganization?.name,
-        department: selectedDepartment?.name,
+        organization: selectedOrganization?.displayName,
+        department: selectedDepartment?.displayName,
         type: feedType.type,
         typeDisplayName: feedType.displayName,
         feedTypeId: feedType.id,
@@ -873,8 +873,8 @@ const TrackingSequence: React.FC = () => {
         const initialFeedData = {
           ...weightData, // Spread the validated weight data
           userId: currentUser?.name,
-          organization: selectedOrganization.name,
-          department: selectedDepartment.name,
+          organization: selectedOrganization.displayName,
+          department: selectedDepartment.displayName,
           type: feedType.type,
           typeDisplayName: feedType.displayName,
           feedTypeId: feedType.id,

@@ -1057,6 +1057,89 @@ function defineRoutes() {
         }
     });
 
+    // API endpoint to create a new feed type
+    app.post('/api/feed-types', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const {
+                type,
+                organization,
+                department,
+                explanation,
+                buttonColor,
+                emoji,
+                orgID
+            } = req.body;
+
+            // Validate required fields
+            if (!type || !organization || !department) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+
+            // Get the device label from cartDeviceLabels collection
+            const deviceLabelDoc = await db.collection('cartDeviceLabels').findOne({
+                deviceType: 'trackingCart'
+            });
+
+            if (!deviceLabelDoc) {
+                return res.status(400).json({ error: 'No device label found in the system' });
+            }
+
+            // Append emoji to type if provided
+            const typeWithEmoji = emoji ? `${type} ${emoji}` : type;
+
+            const newFeedType = {
+                type: typeWithEmoji,
+                typeDispName: typeWithEmoji,
+                organization,
+                orgDispName: organization,
+                department,
+                deptDispName: department,
+                deviceLabel: deviceLabelDoc.deviceLabel,
+                explanation: explanation || '',
+                buttonColor: buttonColor || '000000',
+                status: 'active',
+                lastUpdated: new Date(),
+                dateDeactivated: null,
+                orgID
+            };
+
+            // Insert into local collection
+            const result = await db.collection(collections.feedTypes).insertOne(newFeedType);
+
+            // Try to sync with Atlas
+            try {
+                const atlasUri = process.env.MONGODB_ATLAS_URI;
+                if (atlasUri) {
+                    const atlasClient = new MongoClient(atlasUri);
+                    await atlasClient.connect();
+                    const atlasDb = atlasClient.db('globalDbs');
+                    
+                    await atlasDb.collection('globalFeedTypes').insertOne({
+                        _id: result.insertedId,
+                        ...newFeedType
+                    });
+                    
+                    await atlasClient.close();
+                }
+            } catch (error) {
+                console.error('Error syncing with Atlas:', error);
+                // Queue the change for later sync
+                await queueChange(
+                    'globalFeedTypes',
+                    result.insertedId,
+                    'insert',
+                    newFeedType
+                );
+            }
+
+            res.json({ ...newFeedType, _id: result.insertedId });
+        } catch (error) {
+            console.error('Error creating feed type:', error);
+            res.status(500).json({ error: error.message });
+        }
+    });
+
     // API endpoint to update feed type status
     app.patch('/api/feed-types/:id', async (req, res) => {
         try {
