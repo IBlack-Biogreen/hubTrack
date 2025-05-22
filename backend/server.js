@@ -1730,6 +1730,73 @@ function defineRoutes() {
             res.status(500).json({ error: 'Failed to update global user' });
         }
     });
+
+    // Get device label details
+    app.get('/api/device-labels/:deviceLabel', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const collections = getCollectionNames();
+            
+            const deviceLabel = await db.collection(collections.deviceLabels).findOne({ 
+                deviceLabel: req.params.deviceLabel 
+            });
+            
+            if (!deviceLabel) {
+                return res.status(404).json({ message: 'Device label not found' });
+            }
+            
+            res.json(deviceLabel);
+        } catch (error) {
+            console.error('Error:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    });
+
+    // Update storage utilization
+    app.put('/api/device-labels/:deviceLabel/storage-utilization', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const collections = getCollectionNames();
+            const { storageUtilization } = req.body;
+
+            const result = await db.collection(collections.deviceLabels).updateOne(
+                { _id: new ObjectId(req.params.deviceLabel) },
+                { $set: { storageUtilization } }
+            );
+
+            if (result.matchedCount === 0) {
+                return res.status(404).json({ message: 'Device label not found' });
+            }
+
+            res.json({ message: 'Storage utilization updated successfully' });
+        } catch (error) {
+            console.error('Error updating storage utilization:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    });
+
+    // Update storage capacity
+    app.put('/api/device-labels/:deviceLabel/storage-capacity', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const collections = getCollectionNames();
+            const { storageCapacity } = req.body;
+
+            const result = await db.collection(collections.deviceLabels).updateOne(
+                { _id: new ObjectId(req.params.deviceLabel) },
+                { $set: { storageCapacity } }
+            );
+
+            if (result.matchedCount === 0) {
+                return res.status(404).json({ message: 'Device label not found' });
+            }
+
+            res.json({ message: 'Storage capacity updated successfully' });
+        } catch (error) {
+            console.error('Error updating storage capacity:', error);
+            res.status(500).json({ message: 'Internal server error' });
+        }
+    });
 }
 
 // Clean up on server shutdown

@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  Stack,
 } from '@mui/material';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Chart, registerables } from 'chart.js';
@@ -61,6 +62,12 @@ export default function Setup() {
   const [calibrationDialogOpen, setCalibrationDialogOpen] = useState(false);
   const [knownWeight, setKnownWeight] = useState('25');
   const [currentVoltage, setCurrentVoltage] = useState<number | null>(null);
+  const [storageCapacity, setStorageCapacity] = useState(0.0);
+  const [storageUtilization, setStorageUtilization] = useState(0.0);
+  const [storageCapacityDialogOpen, setStorageCapacityDialogOpen] = useState(false);
+  const [storageUtilizationDialogOpen, setStorageUtilizationDialogOpen] = useState(false);
+  const [tempStorageCapacity, setTempStorageCapacity] = useState('');
+  const [tempStorageUtilization, setTempStorageUtilization] = useState('');
 
   // Load saved cart on component mount
   useEffect(() => {
@@ -89,19 +96,27 @@ export default function Setup() {
               setScaleFactor(cartData.scaleFactor);
             }
 
-            // Fetch bin weight from device labels
+            // Fetch device label settings
             try {
               const deviceLabelsResponse = await fetch('http://localhost:5000/api/device-labels');
               if (deviceLabelsResponse.ok) {
                 const deviceLabels = await deviceLabelsResponse.json();
                 if (Array.isArray(deviceLabels) && deviceLabels.length > 0) {
                   const deviceLabel = deviceLabels[0].deviceLabel;
-                  const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/settings`);
+                  const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}`);
                   if (settingsResponse.ok) {
                     const settings = await settingsResponse.json();
                     if (settings.binWeight !== undefined) {
                       console.log('Setting bin weight from device settings:', settings.binWeight);
                       setBinWeight(settings.binWeight);
+                    }
+                    if (settings.storageCapacity !== undefined) {
+                      console.log('Setting storage capacity from device settings:', settings.storageCapacity);
+                      setStorageCapacity(settings.storageCapacity);
+                    }
+                    if (settings.storageUtilization !== undefined) {
+                      console.log('Setting storage utilization from device settings:', settings.storageUtilization);
+                      setStorageUtilization(settings.storageUtilization);
                     }
                   }
                 }
@@ -113,11 +128,11 @@ export default function Setup() {
             setCartConfigLoaded(true);
           } else {
             console.error('Failed to fetch cart config:', response.status, response.statusText);
-            setCartConfigLoaded(true); // Still mark as loaded even if it failed
+            setCartConfigLoaded(true);
           }
         } catch (err) {
           console.error('Error fetching cart config:', err);
-          setCartConfigLoaded(true); // Still mark as loaded even if it failed
+          setCartConfigLoaded(true);
         }
       };
       
@@ -648,6 +663,112 @@ export default function Setup() {
     }
   };
 
+  const handleStorageCapacityClick = () => {
+    setTempStorageCapacity(storageCapacity.toString());
+    setStorageCapacityDialogOpen(true);
+  };
+
+  const handleStorageCapacityNumberPadKeyPress = (key: string) => {
+    setTempStorageCapacity(prev => prev + key);
+  };
+
+  const handleStorageCapacityNumberPadBackspace = () => {
+    setTempStorageCapacity(prev => prev.slice(0, -1));
+  };
+
+  const handleStorageCapacityNumberPadClear = () => {
+    setTempStorageCapacity('');
+  };
+
+  const handleStorageCapacityNumberPadEnter = async () => {
+    const newStorageCapacity = parseFloat(tempStorageCapacity);
+    if (!isNaN(newStorageCapacity)) {
+      try {
+        const deviceLabelsResponse = await fetch('http://localhost:5000/api/device-labels');
+        if (!deviceLabelsResponse.ok) {
+          throw new Error('Failed to fetch device labels');
+        }
+        const deviceLabels = await deviceLabelsResponse.json();
+        const deviceLabel = deviceLabels[0]?._id;
+
+        if (!deviceLabel) {
+          console.error('No device label found');
+          return;
+        }
+
+        const response = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/storage-capacity`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ storageCapacity: newStorageCapacity }),
+        });
+
+        if (response.ok) {
+          setStorageCapacity(newStorageCapacity);
+          setStorageCapacityDialogOpen(false);
+        } else {
+          console.error('Failed to update storage capacity');
+        }
+      } catch (error) {
+        console.error('Error updating storage capacity:', error);
+      }
+    }
+  };
+
+  const handleStorageUtilizationClick = () => {
+    setTempStorageUtilization(storageUtilization.toString());
+    setStorageUtilizationDialogOpen(true);
+  };
+
+  const handleStorageUtilizationNumberPadKeyPress = (key: string) => {
+    setTempStorageUtilization(prev => prev + key);
+  };
+
+  const handleStorageUtilizationNumberPadBackspace = () => {
+    setTempStorageUtilization(prev => prev.slice(0, -1));
+  };
+
+  const handleStorageUtilizationNumberPadClear = () => {
+    setTempStorageUtilization('');
+  };
+
+  const handleStorageUtilizationNumberPadEnter = async () => {
+    const newStorageUtilization = parseFloat(tempStorageUtilization);
+    if (!isNaN(newStorageUtilization)) {
+      try {
+        const deviceLabelsResponse = await fetch('http://localhost:5000/api/device-labels');
+        if (!deviceLabelsResponse.ok) {
+          throw new Error('Failed to fetch device labels');
+        }
+        const deviceLabels = await deviceLabelsResponse.json();
+        const deviceLabel = deviceLabels[0]?._id;
+
+        if (!deviceLabel) {
+          console.error('No device label found');
+          return;
+        }
+
+        const response = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/storage-utilization`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ storageUtilization: newStorageUtilization }),
+        });
+
+        if (response.ok) {
+          setStorageUtilization(newStorageUtilization);
+          setStorageUtilizationDialogOpen(false);
+        } else {
+          console.error('Failed to update storage utilization');
+        }
+      } catch (error) {
+        console.error('Error updating storage utilization:', error);
+      }
+    }
+  };
+
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
@@ -938,7 +1059,7 @@ export default function Setup() {
           }}
         >
           <Typography variant="h6" gutterBottom>
-            Bin Weight
+            Storage
           </Typography>
           <Grid2 container spacing={2}>
             <Grid2 item xs={12} sm={6}>
@@ -948,16 +1069,74 @@ export default function Setup() {
                 type="number"
                 value={binWeight.toFixed(2)}
                 onChange={(e) => setBinWeight(parseFloat(e.target.value))}
+                sx={{
+                  '& input[type=number]::-webkit-inner-spin-button, & input[type=number]::-webkit-outer-spin-button': {
+                    '-webkit-appearance': 'none',
+                    margin: 0,
+                  },
+                  '& input[type=number]': {
+                    '-moz-appearance': 'textfield',
+                  },
+                }}
+              />
+            </Grid2>
+            <Grid2 item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Storage Capacity"
+                type="number"
+                value={storageCapacity.toFixed(0)}
+                onChange={(e) => setStorageCapacity(parseFloat(e.target.value))}
+                sx={{
+                  '& input[type=number]::-webkit-inner-spin-button, & input[type=number]::-webkit-outer-spin-button': {
+                    '-webkit-appearance': 'none',
+                    margin: 0,
+                  },
+                  '& input[type=number]': {
+                    '-moz-appearance': 'textfield',
+                  },
+                }}
+              />
+            </Grid2>
+            <Grid2 item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                label="Storage Utilization"
+                type="number"
+                value={storageUtilization.toFixed(0)}
+                onChange={(e) => setStorageUtilization(parseFloat(e.target.value))}
+                sx={{
+                  '& input[type=number]::-webkit-inner-spin-button, & input[type=number]::-webkit-outer-spin-button': {
+                    '-webkit-appearance': 'none',
+                    margin: 0,
+                  },
+                  '& input[type=number]': {
+                    '-moz-appearance': 'textfield',
+                  },
+                }}
               />
             </Grid2>
           </Grid2>
-          <Button
-            variant="outlined"
-            onClick={handleBinWeightClick}
-            sx={{ mt: 2 }}
-          >
-            Set Bin Weight
-          </Button>
+          <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
+            <Button
+              variant="outlined"
+              onClick={handleBinWeightClick}
+            >
+              Set Bin Weight
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={handleStorageCapacityClick}
+            >
+              Set Storage Capacity
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={handleStorageUtilizationClick}
+            >
+              Set Storage Utilization
+            </Button>
+          </Stack>
         </Paper>
 
         {/* Bin Weight Dialog */}
@@ -1021,58 +1200,126 @@ export default function Setup() {
           </DialogContent>
         </Dialog>
 
-        <Paper
-          elevation={3}
-          sx={{
-            p: 3,
-            mt: 4,
-          }}
-        >
-          <Typography variant="h6" gutterBottom>
-            Calibration
-          </Typography>
-          <Button
-            fullWidth
-            variant="contained"
-            onClick={handleCalibrateScale}
-            disabled={loading}
-          >
-            Calibrate Scale
-          </Button>
-        </Paper>
-
-        {/* Calibration Dialog */}
-        <Dialog
-          open={calibrationDialogOpen}
-          onClose={() => setCalibrationDialogOpen(false)}
+        {/* Storage Capacity Dialog */}
+        <Dialog 
+          open={storageCapacityDialogOpen} 
+          onClose={() => setStorageCapacityDialogOpen(false)}
           maxWidth="sm"
           fullWidth
+          PaperProps={{
+            sx: {
+              maxHeight: '80vh',
+              overflow: 'hidden'
+            }
+          }}
         >
-          <DialogTitle>Enter Known Weight</DialogTitle>
+          <DialogTitle>Set Storage Capacity</DialogTitle>
           <DialogContent>
-            <Box sx={{ mb: 2 }}>
-              <TextField
-                fullWidth
-                value={knownWeight}
-                variant="outlined"
-                InputProps={{
-                  readOnly: true,
-                  sx: { fontSize: '1.25rem' }
-                }}
-              />
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="h6" align="center" gutterBottom>
+                {tempStorageCapacity || '0'}
+              </Typography>
+              <Grid2 container spacing={1}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, '.', 0, 'C'].map((key) => (
+                  <Grid2 item xs={4} key={key}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      onClick={() => {
+                        if (key === 'C') {
+                          handleStorageCapacityNumberPadClear();
+                        } else {
+                          handleStorageCapacityNumberPadKeyPress(key.toString());
+                        }
+                      }}
+                    >
+                      {key}
+                    </Button>
+                  </Grid2>
+                ))}
+                <Grid2 item xs={4}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={handleStorageCapacityNumberPadBackspace}
+                  >
+                    ←
+                  </Button>
+                </Grid2>
+                <Grid2 item xs={4}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="primary"
+                    onClick={handleStorageCapacityNumberPadEnter}
+                  >
+                    Enter
+                  </Button>
+                </Grid2>
+              </Grid2>
             </Box>
-            <NumberPad
-              onKeyPress={handleCalibrationNumberPadKeyPress}
-              onBackspace={handleCalibrationNumberPadBackspace}
-              onClear={handleCalibrationNumberPadClear}
-              showDecimal={true}
-              currentValue={knownWeight}
-            />
           </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setCalibrationDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleCalibrationNumberPadEnter} variant="contained">Enter</Button>
-          </DialogActions>
+        </Dialog>
+
+        {/* Storage Utilization Dialog */}
+        <Dialog 
+          open={storageUtilizationDialogOpen} 
+          onClose={() => setStorageUtilizationDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{
+            sx: {
+              maxHeight: '80vh',
+              overflow: 'hidden'
+            }
+          }}
+        >
+          <DialogTitle>Set Storage Utilization</DialogTitle>
+          <DialogContent>
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="h6" align="center" gutterBottom>
+                {tempStorageUtilization || '0'}
+              </Typography>
+              <Grid2 container spacing={1}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, '.', 0, 'C'].map((key) => (
+                  <Grid2 item xs={4} key={key}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      onClick={() => {
+                        if (key === 'C') {
+                          handleStorageUtilizationNumberPadClear();
+                        } else {
+                          handleStorageUtilizationNumberPadKeyPress(key.toString());
+                        }
+                      }}
+                    >
+                      {key}
+                    </Button>
+                  </Grid2>
+                ))}
+                <Grid2 item xs={4}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={handleStorageUtilizationNumberPadBackspace}
+                  >
+                    ←
+                  </Button>
+                </Grid2>
+                <Grid2 item xs={4}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="primary"
+                    onClick={handleStorageUtilizationNumberPadEnter}
+                  >
+                    Enter
+                  </Button>
+                </Grid2>
+              </Grid2>
+            </Box>
+          </DialogContent>
         </Dialog>
       </Box>
     </Container>
