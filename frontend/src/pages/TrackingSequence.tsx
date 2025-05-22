@@ -818,14 +818,6 @@ const TrackingSequence: React.FC = () => {
       
       // Set the weight state
       setWeight(weightValue);
-      
-      // Create weight data object - allow zero values
-      const weightData = {
-        weight: parseFloat(weightValue.toFixed(2)),
-        totalWeight: parseFloat(weightValue.toFixed(2))
-      };
-      
-      console.log('Weight data prepared:', weightData);
 
       // Fetch the device label string from the backend
       let binWeight = null;
@@ -851,6 +843,8 @@ const TrackingSequence: React.FC = () => {
         deviceSettings = await settingsResponse.json();
         console.log('Fetched device settings:', deviceSettings);
         binWeight = deviceSettings.binWeight;
+        console.log('Extracted bin weight:', binWeight);
+        console.log('Current weight value:', weightValue);
 
         // Fetch cart settings
         const savedCartSerial = localStorage.getItem('selectedCart');
@@ -868,10 +862,15 @@ const TrackingSequence: React.FC = () => {
         if (!cartSettings.tareVoltage || !cartSettings.scaleFactor) {
           throw new Error('Missing required cart settings: tareVoltage or scaleFactor');
         }
-        
+
+        // Ensure binWeight is a number
+        const numericBinWeight = Number(binWeight || 0);
+        console.log('Numeric bin weight:', numericBinWeight);
+
         // Create initial feed document with validated weight data
         const initialFeedData = {
-          ...weightData, // Spread the validated weight data
+          weight: (weightValue - numericBinWeight).toFixed(2),  // Net weight as string
+          totalWeight: weightValue.toFixed(2),                  // Total weight as string
           userId: currentUser?.name,
           organization: selectedOrganization.displayName,
           department: selectedDepartment.displayName,
@@ -881,31 +880,11 @@ const TrackingSequence: React.FC = () => {
           imageFilename: imageFilename || undefined,
           feedStartedTime: feedStartTime?.toISOString(),
           rawWeights: rawWeights,
-          binWeight: parseFloat((binWeight || 0).toFixed(2)),
+          binWeight: numericBinWeight.toFixed(2),              // Bin weight as string
           tareVoltage: cartSettings.tareVoltage,
           scaleFactor: cartSettings.scaleFactor
         };
 
-        // Validate all required fields - allow zero values for weight fields
-        const requiredFields = [
-          'userId', 'organization', 'department',
-          'type', 'typeDisplayName', 'feedTypeId', 'feedStartedTime',
-          'tareVoltage', 'scaleFactor'
-        ];
-
-        const missingFields = requiredFields.filter(field => !initialFeedData[field]);
-        if (missingFields.length > 0) {
-          throw new Error(`Missing required fields: ${missingFields.join(', ')}`);
-        }
-        
-        // Validate weight fields separately to allow zero values
-        if (initialFeedData.weight === undefined || initialFeedData.weight === null) {
-          throw new Error('Weight value is missing');
-        }
-        if (initialFeedData.totalWeight === undefined || initialFeedData.totalWeight === null) {
-          throw new Error('Total weight value is missing');
-        }
-        
         console.log('Final feed data being sent:', initialFeedData);
         
         // Update summary data for display
@@ -1202,20 +1181,14 @@ const TrackingSequence: React.FC = () => {
                       <Typography variant="h6" gutterBottom>
                         {t('feedDetails')}
                       </Typography>
-                      {/* Calculate net weight for display */}
-                      {(() => {
-                        let netWeight = t('notAvailable');
-                        if (feedSummaryData?.weight !== undefined && feedSummaryData?.weight !== null && !isNaN(Number(feedSummaryData.weight))) {
-                          netWeight = Number(feedSummaryData.weight).toFixed(2);
-                        }
-                        return (
-                          <Typography variant="body1" gutterBottom>
-                            <strong>{t('weight')}:</strong> {netWeight} lbs
-                          </Typography>
-                        );
-                      })()}
                       <Typography variant="body1" gutterBottom>
-                        <strong>{t('binWeight')}:</strong> {feedSummaryData?.binWeight !== undefined && feedSummaryData?.binWeight !== null ? `${Number(feedSummaryData.binWeight).toFixed(2)} lbs` : t('notAvailable')}
+                        <strong>{t('totalWeight')}:</strong> {feedSummaryData?.totalWeight} lbs
+                      </Typography>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>{t('netWeight')}:</strong> {feedSummaryData?.weight} lbs
+                      </Typography>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>{t('binWeight')}:</strong> {feedSummaryData?.binWeight} lbs
                       </Typography>
                       <Typography variant="body1" gutterBottom>
                         <strong>{t('organization')}:</strong> {feedSummaryData?.organization || t('notSelected')}

@@ -1384,7 +1384,7 @@ function defineRoutes() {
                 console.log('- Raw Weights sample:', JSON.stringify(rawWeights[Object.keys(rawWeights)[0]]));
             }
             
-            if (!weight || !userId || !organization || !department || !type) {
+            if (weight === undefined || weight === null || !userId || !organization || !department || !type) {
                 return res.status(400).json({ error: 'Missing required fields' });
             }
             
