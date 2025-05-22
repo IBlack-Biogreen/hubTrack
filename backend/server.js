@@ -508,17 +508,18 @@ function defineRoutes() {
             );
             
             // Create a sanitized user object for the client (omit password)
-            const userResponse = {
+            const sanitizedUser = {
                 _id: user._id,
                 name: user.userName || `${user.FIRST || ''} ${user.LAST || ''}`.trim(),
                 email: user.email,
                 isAdmin: user.DEVICES && user.DEVICES.includes('admin'),
                 role: user.DEVICES && user.DEVICES.includes('admin') ? 'admin' : 'user',
-                lastSignIn: new Date()
+                lastSignIn: new Date(),
+                LANGUAGE: user.LANGUAGE || 'en'
             };
             
             res.json({
-                user: userResponse,
+                user: sanitizedUser,
                 token: 'jwt-token-would-go-here' // In a real app, generate a JWT token
             });
         } catch (error) {
@@ -1007,7 +1008,8 @@ function defineRoutes() {
                 _id: user._id,
                 name: user.userName || `${user.FIRST || ''} ${user.LAST || ''}`.trim(),
                 role: user.DEVICES && user.DEVICES.includes('admin') ? 'admin' : 'user',
-                DEVICES: user.DEVICES || []
+                DEVICES: user.DEVICES || [],
+                LANGUAGE: user.LANGUAGE || 'en'
             };
             
             return res.json({

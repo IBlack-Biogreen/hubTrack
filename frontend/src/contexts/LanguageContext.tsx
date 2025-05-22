@@ -145,6 +145,7 @@ interface LanguageContextType {
   enabledLanguages: Language[];
   addEnabledLanguage: (language: Language) => void;
   removeEnabledLanguage: (languageCode: string) => void;
+  availableLanguages: Language[];
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
@@ -184,6 +185,7 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
       enabledLanguages,
       addEnabledLanguage,
       removeEnabledLanguage,
+      availableLanguages,
     }}>
       {children}
     </LanguageContext.Provider>

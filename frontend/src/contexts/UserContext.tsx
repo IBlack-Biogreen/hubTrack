@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode } from 'react';
 import { verifyUserPin } from '../api/trackingService';
+import { useLanguage } from './LanguageContext';
 
 // Define the User type
 export interface User {
@@ -7,6 +8,7 @@ export interface User {
   name: string;
   role: string;
   DEVICES?: string[];
+  LANGUAGE?: string;
 }
 
 // Define the context state type
@@ -34,6 +36,7 @@ interface UserProviderProps {
 export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const { setLanguage, availableLanguages } = useLanguage();
 
   // Login function using PIN
   const login = async (pin: string): Promise<boolean> => {
@@ -43,6 +46,19 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       if (response.success) {
         setCurrentUser(response.user);
         setIsAuthenticated(true);
+        
+        // Set the language based on user's preference
+        if (response.user.LANGUAGE) {
+          console.log('User language from response:', response.user.LANGUAGE);
+          console.log('Available languages:', availableLanguages);
+          const userLanguage = availableLanguages.find(lang => lang.code.toLowerCase() === response.user.LANGUAGE.toLowerCase());
+          console.log('Found matching language:', userLanguage);
+          if (userLanguage) {
+            console.log('Setting language to:', userLanguage);
+            setLanguage(userLanguage);
+          }
+        }
+        
         return true;
       } else {
         return false;
