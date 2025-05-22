@@ -43,6 +43,7 @@ import KeyboardIcon from '@mui/icons-material/Keyboard';
 import { User } from '../hooks/useUsers';
 import { Keyboard } from './keyboard';
 import { NumberPad } from './keyboard';
+import { useLanguage } from '../contexts/LanguageContext';
 
 type Order = 'asc' | 'desc';
 type AddUserTab = 'activate' | 'create';
@@ -54,6 +55,7 @@ interface UsersTableProps {
 }
 
 const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: propLoading = false, onRefetch }) => {
+  const { t } = useLanguage();
   const [order, setOrder] = useState<Order>('asc');
   const [orderBy, setOrderBy] = useState<keyof User>('name');
   const [revealedCodes, setRevealedCodes] = useState<Set<string>>(new Set());
@@ -621,68 +623,67 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
       </Fab>
 
       {/* Add User Modal */}
-      <Dialog 
+      <Dialog
         open={showAddUser} 
         onClose={handleCloseAddUser}
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Add User</DialogTitle>
+        <DialogTitle>{t('addUser')}</DialogTitle>
         <DialogContent>
           <Tabs value={addUserTab} onChange={handleTabChange} sx={{ mb: 2 }}>
-            <Tab label="Create New User" value="create" />
-            <Tab label="Activate User" value="activate" />
+            <Tab label={t('createNewUser')} value="create" />
+            <Tab label={t('activateUser')} value="activate" />
           </Tabs>
 
           {addUserTab === 'create' ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
               <TextField
-              label="First Name"
-              value={newUserForm.FIRST}
-              onChange={handleNewUserInputChange('FIRST')}
+                label={t('firstName')}
+                value={newUserForm.FIRST}
+                onChange={handleNewUserInputChange('FIRST')}
                 fullWidth
                 required
-              inputProps={{ 
-                inputMode: 'text',
-                type: 'text',
-                readOnly: true
-              }}
-              onClick={() => handleOpenKeyboard('FIRST')}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={() => handleOpenKeyboard('FIRST')}>
-                      <KeyboardIcon />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
+                inputProps={{ 
+                  inputMode: 'text',
+                  type: 'text',
+                  readOnly: true
+                }}
+                onClick={() => handleOpenKeyboard('FIRST')}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={() => handleOpenKeyboard('FIRST')}>
+                        <KeyboardIcon />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
               <TextField
-              label="Last Initial"
-              value={newUserForm.LAST}
-              onChange={handleNewUserInputChange('LAST')}
-              fullWidth
-              required
-              inputProps={{ 
-                inputMode: 'text',
-                maxLength: 1,
-                readOnly: true
-              }}
-              onClick={() => handleOpenKeyboard('LAST')}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={() => handleOpenKeyboard('LAST')}>
-                      <KeyboardIcon />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-            <FormControl fullWidth>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Avatar</Typography>
-              <Box sx={{ position: 'relative' }}>
+                label={t('lastInitial')}
+                value={newUserForm.LAST}
+                onChange={handleNewUserInputChange('LAST')}
+                fullWidth
+                required
+                inputProps={{ 
+                  inputMode: 'text',
+                  maxLength: 1,
+                  readOnly: true
+                }}
+                onClick={() => handleOpenKeyboard('LAST')}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={() => handleOpenKeyboard('LAST')}>
+                        <KeyboardIcon />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <FormControl fullWidth>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{t('avatar')}</Typography>
                 <Button
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                   sx={{
@@ -703,115 +704,68 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <span style={{ fontSize: '24px' }}>{newUserForm.AVATAR}</span>
-                    <Typography>Select Avatar</Typography>
+                    <Typography>{t('selectAvatar')}</Typography>
                   </Box>
                   <span style={{ fontSize: '20px' }}>{showEmojiPicker ? '▲' : '▼'}</span>
                 </Button>
-                {showEmojiPicker && (
-                  <Paper
-                    sx={{
-                      position: 'absolute',
-                      top: '100%',
-                      left: 0,
-                      right: 0,
-                      zIndex: 1000,
-                      mt: 1,
-                      p: 2,
-                      maxHeight: '300px',
-                      overflow: 'auto'
-                    }}
-                  >
-                    <Tabs
-                      value={selectedCategory}
-                      onChange={(_, newValue) => setSelectedCategory(newValue)}
-                      variant="scrollable"
-                      scrollButtons="auto"
-                      sx={{ mb: 2 }}
-                    >
-                      {Object.keys(emojiCategories).map((category) => (
-                        <Tab key={category} label={category} value={category} />
-                      ))}
-                    </Tabs>
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 1 }}>
-                      {emojiCategories[selectedCategory as keyof typeof emojiCategories].map((emoji) => (
-                        <Button
-                          key={emoji}
-                          onClick={() => handleEmojiSelect(emoji)}
-                          sx={{
-                            minWidth: '40px',
-                            height: '40px',
-                            fontSize: '20px',
-                            padding: 0,
-                            '&:hover': {
-                              backgroundColor: 'rgba(0, 0, 0, 0.04)',
-                            }
-                          }}
-                        >
-                          {emoji}
-                        </Button>
-                      ))}
-                    </Box>
-                  </Paper>
-                )}
-              </Box>
-            </FormControl>
-            <FormControl fullWidth required>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Language</Typography>
-              <Select
-                value={newUserForm.LANGUAGE}
-                onChange={(e) => handleNewUserInputChange('LANGUAGE')(e as any)}
-              >
-                <MenuItem value="en">English</MenuItem>
-                <MenuItem value="es">Spanish</MenuItem>
-                <MenuItem value="fr">French</MenuItem>
-                <MenuItem value="de">German</MenuItem>
-                <MenuItem value="it">Italian</MenuItem>
-                <MenuItem value="pt">Portuguese</MenuItem>
-              </Select>
-            </FormControl>
+              </FormControl>
+              <FormControl fullWidth required>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{t('language')}</Typography>
+                <Select
+                  value={newUserForm.LANGUAGE}
+                  onChange={(e) => handleNewUserInputChange('LANGUAGE')(e as any)}
+                >
+                  <MenuItem value="en">English</MenuItem>
+                  <MenuItem value="es">Spanish</MenuItem>
+                  <MenuItem value="fr">French</MenuItem>
+                  <MenuItem value="de">German</MenuItem>
+                  <MenuItem value="it">Italian</MenuItem>
+                  <MenuItem value="pt">Portuguese</MenuItem>
+                </Select>
+              </FormControl>
               <TextField
-                label="Code"
+                label={t('code')}
                 value={newUserForm.CODE}
                 onChange={handleNewUserInputChange('CODE')}
                 fullWidth
                 required
-              error={!!codeError}
-              helperText={codeError}
-              inputProps={{ 
-                inputMode: 'numeric',
-                maxLength: 4,
-                pattern: '[0-9]*',
-                readOnly: true
-              }}
-              onClick={() => setNumberPadDialogOpen(true)}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton onClick={() => setNumberPadDialogOpen(true)}>
-                      <KeyboardIcon />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
-            />
-            <FormControl fullWidth>
-              <InputLabel>Organization</InputLabel>
-              <Select
-                value={newUserForm.organization}
-                onChange={(e) => handleNewUserInputChange('organization')(e as any)}
-                label="Organization"
-              >
-                {organizations.map((org) => (
-                  <MenuItem key={org._id} value={org.org}>
-                    {org.org}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+                error={!!codeError}
+                helperText={codeError}
+                inputProps={{ 
+                  inputMode: 'numeric',
+                  maxLength: 4,
+                  pattern: '[0-9]*',
+                  readOnly: true
+                }}
+                onClick={() => setNumberPadDialogOpen(true)}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton onClick={() => setNumberPadDialogOpen(true)}>
+                        <KeyboardIcon />
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+              <FormControl fullWidth required>
+                <InputLabel>{t('organization')}</InputLabel>
+                <Select
+                  value={newUserForm.organization}
+                  onChange={(e) => handleNewUserInputChange('organization')(e as any)}
+                  label={t('organization')}
+                >
+                  {organizations.map((org) => (
+                    <MenuItem key={org._id} value={org.org}>
+                      {org.org}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Box>
           ) : (
             <Box sx={{ pt: 2 }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>Inactive Users</Typography>
+              <Typography variant="h6" sx={{ mb: 2 }}>{t('inactiveUsers')}</Typography>
               <List>
                 {inactiveUsers.map((user) => (
                   <React.Fragment key={user._id}>
@@ -827,7 +781,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
                       </ListItemAvatar>
                       <ListItemText
                         primary={user.name}
-                        secondary={`Code: ${user.CODE} | Organization: ${user.organization}`}
+                        secondary={`${t('code')}: ${user.CODE} | ${t('organization')}: ${user.organization}`}
                       />
                     </ListItem>
                     <Divider />
@@ -835,7 +789,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
                 ))}
                 {inactiveUsers.length === 0 && (
                   <ListItem>
-                    <ListItemText primary="No inactive users found" />
+                    <ListItemText primary={t('noInactiveUsers')} />
                   </ListItem>
                 )}
               </List>
@@ -843,7 +797,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCloseAddUser}>Cancel</Button>
+          <Button onClick={handleCloseAddUser}>{t('cancel')}</Button>
           <Button 
             onClick={addUserTab === 'create' ? handleCreateUser : () => {}} 
             variant="contained" 
@@ -858,7 +812,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
               )
             }
           >
-            {addUserTab === 'create' ? 'Create User' : 'Activate User'}
+            {addUserTab === 'create' ? t('create') : t('activate')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -870,7 +824,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Enter Code</DialogTitle>
+        <DialogTitle>{t('enterCode')}</DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <TextField
@@ -892,19 +846,19 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setNumberPadDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleNumberPadEnter} variant="contained">Enter</Button>
+          <Button onClick={() => setNumberPadDialogOpen(false)}>{t('cancel')}</Button>
+          <Button onClick={handleNumberPadEnter} variant="contained">{t('enter')}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Keyboard Dialog */}
-      <Dialog 
+      <Dialog
         open={keyboardDialogOpen} 
         onClose={() => setKeyboardDialogOpen(false)}
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>On-screen Keyboard</DialogTitle>
+        <DialogTitle>{t('onScreenKeyboard')}</DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <TextField
@@ -926,22 +880,22 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setKeyboardDialogOpen(false)}>Close</Button>
+          <Button onClick={() => setKeyboardDialogOpen(false)}>{t('close')}</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Existing Edit User Modal */}
-      <Dialog 
+      {/* Edit User Modal */}
+      <Dialog
         open={!!editingUser} 
         onClose={handleCloseEdit}
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Edit User</DialogTitle>
+        <DialogTitle>{t('editUser')}</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
             <TextField
-              label="First Name"
+              label={t('firstName')}
               value={editForm.FIRST}
               onChange={handleInputChange('FIRST')}
               fullWidth
@@ -963,7 +917,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
               }}
             />
             <TextField
-              label="Last Initial"
+              label={t('lastInitial')}
               value={editForm.LAST}
               onChange={handleInputChange('LAST')}
               fullWidth
@@ -984,8 +938,8 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
                 ),
               }}
             />
-            <FormControl fullWidth required>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>Language</Typography>
+            <FormControl fullWidth>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{t('language')}</Typography>
               <Select
                 value={editForm.LANGUAGE}
                 onChange={(e) => handleInputChange('LANGUAGE')(e as any)}
@@ -999,7 +953,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
               </Select>
             </FormControl>
             <TextField
-              label="Code"
+              label={t('code')}
               value={editForm.CODE}
               onChange={handleInputChange('CODE')}
               fullWidth
@@ -1024,11 +978,11 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
               }}
             />
             <FormControl fullWidth>
-              <InputLabel>Organization</InputLabel>
+              <InputLabel>{t('organization')}</InputLabel>
               <Select
                 value={editForm.organization}
                 onChange={(e) => handleInputChange('organization')(e as any)}
-                label="Organization"
+                label={t('organization')}
               >
                 {organizations.map((org) => (
                   <MenuItem key={org._id} value={org.org}>
@@ -1038,7 +992,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
               </Select>
             </FormControl>
             <TextField
-              label="Title"
+              label={t('title')}
               value={editForm.title}
               onChange={handleInputChange('title')}
               fullWidth
@@ -1066,12 +1020,12 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
             color="error"
             variant="outlined"
           >
-            Deactivate User
+            {t('deactivate')}
           </Button>
           <Box>
-            <Button onClick={handleCloseEdit}>Cancel</Button>
+            <Button onClick={handleCloseEdit}>{t('cancel')}</Button>
             <Button onClick={handleSaveEdit} variant="contained" color="primary" sx={{ ml: 1 }}>
-              Save Changes
+              {t('saveChanges')}
             </Button>
           </Box>
         </DialogActions>
@@ -1084,14 +1038,14 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle>Confirm Activation</DialogTitle>
+        <DialogTitle>{t('confirmActivation')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to reactivate {userToActivate?.name}?
+            {t('reactivateUserConfirm', { name: userToActivate?.name })}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setConfirmDialogOpen(false)}>{t('cancel')}</Button>
           <Button 
             onClick={() => {
               if (userToActivate) {
@@ -1102,7 +1056,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
             variant="contained" 
             color="primary"
           >
-            Activate
+            {t('activate')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1114,20 +1068,20 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle>Confirm Deactivation</DialogTitle>
+        <DialogTitle>{t('confirmDeactivation')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to deactivate {editingUser?.name}? This will set their status to inactive and reset their code to 0.
+            {t('deactivateUserConfirm', { name: editingUser?.name })}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeactivateConfirmOpen(false)}>Cancel</Button>
+          <Button onClick={() => setDeactivateConfirmOpen(false)}>{t('cancel')}</Button>
           <Button 
             onClick={handleDeactivateUser} 
             variant="contained" 
             color="error"
           >
-            Deactivate
+            {t('deactivate')}
           </Button>
         </DialogActions>
       </Dialog>

@@ -27,6 +27,7 @@ import KeyboardIcon from '@mui/icons-material/Keyboard';
 import axios from 'axios';
 import { Keyboard } from '../components/keyboard';
 import { ChromePicker } from 'react-color';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface FeedType {
   _id: string;
@@ -57,6 +58,7 @@ const FOOD_EMOJIS = [
 ];
 
 function Audits() {
+  const { t } = useLanguage();
   const [feedTypes, setFeedTypes] = useState<FeedType[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -283,14 +285,14 @@ function Audits() {
     <Container>
       <Box sx={{ mt: 4, mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Typography variant="h5">
-          Feed Types
+          {t('feedTypes')}
         </Typography>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
           onClick={() => setOpenDialog(true)}
         >
-          Add Feed Type
+          {t('addFeedType')}
         </Button>
       </Box>
 
@@ -347,17 +349,17 @@ function Audits() {
         maxWidth="xl"
         fullWidth
       >
-        <DialogTitle>Add New Feed Type</DialogTitle>
+        <DialogTitle>{t('addNewFeedType')}</DialogTitle>
         <DialogContent>
           <Box sx={{ mt: 2, display: 'flex', gap: 4, minHeight: 400 }}>
             {/* Left column: dropdowns and description */}
             <Box sx={{ flex: 1.2, display: 'flex', flexDirection: 'column', gap: 2 }}>
               <FormControl fullWidth required>
-                <InputLabel>Organization</InputLabel>
+                <InputLabel>{t('organization')}</InputLabel>
                 <Select
                   value={newFeedType.organization}
                   onChange={(e) => setNewFeedType(prev => ({ ...prev, organization: e.target.value }))}
-                  label="Organization"
+                  label={t('organization')}
                 >
                   {organizations.map((org) => (
                     <MenuItem key={org._id} value={org.org}>
@@ -368,39 +370,39 @@ function Audits() {
               </FormControl>
 
               <FormControl fullWidth required>
-                <InputLabel>Department</InputLabel>
+                <InputLabel>{t('department')}</InputLabel>
                 <Select
                   value={newFeedType.department}
                   onChange={handleDepartmentChange}
-                  label="Department"
+                  label={t('department')}
                 >
                   {departments.map((dept) => (
                     <MenuItem key={dept} value={dept}>
                       {dept}
                     </MenuItem>
                   ))}
-                  <MenuItem value="custom">Add Custom Department...</MenuItem>
+                  <MenuItem value="custom">{t('enterCustomDepartment')}</MenuItem>
                 </Select>
               </FormControl>
 
               <FormControl fullWidth required>
-                <InputLabel>Type</InputLabel>
+                <InputLabel>{t('feedType')}</InputLabel>
                 <Select
                   value={newFeedType.type}
                   onChange={handleTypeChange}
-                  label="Type"
+                  label={t('feedType')}
                 >
                   {FEED_TYPES.map((type) => (
                     <MenuItem key={type} value={type}>
                       {type}
                     </MenuItem>
                   ))}
-                  <MenuItem value="custom">Add Custom Type...</MenuItem>
+                  <MenuItem value="custom">{t('enterCustomType')}</MenuItem>
                 </Select>
               </FormControl>
 
               <TextField
-                label="Description"
+                label={t('description')}
                 value={newFeedType.explanation}
                 onChange={(e) => setNewFeedType(prev => ({ ...prev, explanation: e.target.value }))}
                 fullWidth
@@ -523,7 +525,7 @@ function Audits() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowConfirmDialog(true)}>Cancel</Button>
+          <Button onClick={() => setShowConfirmDialog(true)}>{t('cancel')}</Button>
           <Button 
             onClick={handleCreateFeedType} 
             variant="contained"
@@ -533,7 +535,7 @@ function Audits() {
               !newFeedType.department
             }
           >
-            Create
+            {t('create')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -545,7 +547,7 @@ function Audits() {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Enter Custom Type</DialogTitle>
+        <DialogTitle>{t('enterCustomType')}</DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <TextField
@@ -567,8 +569,8 @@ function Audits() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCustomTypeDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleCustomTypeEnter} variant="contained">Enter</Button>
+          <Button onClick={() => setCustomTypeDialogOpen(false)}>{t('cancel')}</Button>
+          <Button onClick={handleCustomTypeEnter} variant="contained">{t('create')}</Button>
         </DialogActions>
       </Dialog>
 
@@ -579,7 +581,7 @@ function Audits() {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>Enter Custom Department</DialogTitle>
+        <DialogTitle>{t('enterCustomDepartment')}</DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <TextField
@@ -601,26 +603,26 @@ function Audits() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCustomDepartmentDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleCustomDepartmentEnter} variant="contained">Enter</Button>
+          <Button onClick={() => setCustomDepartmentDialogOpen(false)}>{t('cancel')}</Button>
+          <Button onClick={handleCustomDepartmentEnter} variant="contained">{t('create')}</Button>
         </DialogActions>
       </Dialog>
 
       {/* Confirmation Dialog */}
-      <Dialog
+      <Dialog 
         open={showConfirmDialog}
         onClose={() => setShowConfirmDialog(false)}
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle>Confirm</DialogTitle>
+        <DialogTitle>{t('confirm')}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to close? Any unsaved changes will be lost.
+            {t('confirmClose')}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowConfirmDialog(false)}>No, Stay</Button>
+          <Button onClick={() => setShowConfirmDialog(false)}>{t('noStay')}</Button>
           <Button 
             onClick={() => {
               setShowConfirmDialog(false);
@@ -639,7 +641,7 @@ function Audits() {
             variant="contained" 
             color="error"
           >
-            Yes, Close
+            {t('yesClose')}
           </Button>
         </DialogActions>
       </Dialog>
@@ -651,7 +653,7 @@ function Audits() {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>On-screen Keyboard</DialogTitle>
+        <DialogTitle>{t('onScreenKeyboard')}</DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <TextField
@@ -673,7 +675,7 @@ function Audits() {
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setKeyboardDialogOpen(false)}>Close</Button>
+          <Button onClick={() => setKeyboardDialogOpen(false)}>{t('close')}</Button>
         </DialogActions>
       </Dialog>
     </Container>

@@ -36,13 +36,13 @@ interface DeviceLabel {
 }
 
 const basePages = [
-  { name: 'Home', path: '/' },
-  { name: 'History', path: '/feed-viewer' },
-  { name: 'Covers', path: '/covers' },
-  { name: 'Events', path: '/events' },
-  { name: 'Audits', path: '/audits' },
-  { name: 'Stats', path: '/stats' },
-  { name: 'Users', path: '/users' }
+  { name: 'home', path: '/' },
+  { name: 'history', path: '/feed-viewer' },
+  { name: 'covers', path: '/covers' },
+  { name: 'events', path: '/events' },
+  { name: 'audits', path: '/audits' },
+  { name: 'stats', path: '/stats' },
+  { name: 'users', path: '/users' }
 ];
 
 function Navigation() {
@@ -206,7 +206,7 @@ function Navigation() {
                     selected={location.pathname === page.path}
                   >
                     <Typography textAlign="center">
-                      {t(page.name.toLowerCase().replace(' ', '')) || page.name}
+                      {t(page.name)}
                     </Typography>
                   </MenuItem>
                 ))}
@@ -240,20 +240,12 @@ function Navigation() {
               {pages.map((page) => (
                 <Button
                   key={page.name}
+                  onClick={handleCloseNavMenu}
+                  sx={{ my: 2, color: 'white', display: 'block' }}
                   component={RouterLink}
                   to={page.path}
-                  onClick={handleCloseNavMenu}
-                  sx={{ 
-                    my: 2, 
-                    color: 'white', 
-                    display: 'block',
-                    backgroundColor: location.pathname === page.path ? '#ebb134' : 'transparent',
-                    '&:hover': {
-                      backgroundColor: location.pathname === page.path ? '#d4a02e' : 'rgba(255, 255, 255, 0.1)',
-                    },
-                  }}
                 >
-                  {t(page.name.toLowerCase().replace(' ', '')) || page.name}
+                  {t(page.name)}
                 </Button>
               ))}
             </Box>
@@ -312,41 +304,37 @@ function Navigation() {
               <SettingsIcon />
             </IconButton>
 
-            <IconButton
-              size="large"
-              aria-label="language"
-              aria-controls="language-menu"
-              aria-haspopup="true"
-              onClick={handleOpenLangMenu}
-              color="inherit"
-            >
-              <LanguageIcon />
-            </IconButton>
-            <Menu
-              id="language-menu"
-              anchorEl={anchorElLang}
-              anchorOrigin={{
-                vertical: 'bottom',
-                horizontal: 'right',
-              }}
-              keepMounted
-              transformOrigin={{
-                vertical: 'top',
-                horizontal: 'right',
-              }}
-              open={Boolean(anchorElLang)}
-              onClose={handleCloseLangMenu}
-            >
-              {enabledLanguages.map((language) => (
-                <MenuItem
-                  key={language.code}
-                  onClick={() => handleLanguageChange(language)}
-                  selected={currentLanguage.code === language.code}
-                >
-                  {language.nativeName}
-                </MenuItem>
-              ))}
-            </Menu>
+            <Box sx={{ flexGrow: 0 }}>
+              <Tooltip title={t('language')}>
+                <IconButton onClick={handleOpenLangMenu} sx={{ p: 0 }}>
+                  <Typography sx={{ color: 'white', mr: 1 }}>
+                    {currentLanguage.nativeName}
+                  </Typography>
+                </IconButton>
+              </Tooltip>
+              <Menu
+                sx={{ mt: '45px' }}
+                id="menu-appbar"
+                anchorEl={anchorElLang}
+                anchorOrigin={{
+                  vertical: 'top',
+                  horizontal: 'right',
+                }}
+                keepMounted
+                transformOrigin={{
+                  vertical: 'top',
+                  horizontal: 'right',
+                }}
+                open={Boolean(anchorElLang)}
+                onClose={handleCloseLangMenu}
+              >
+                {enabledLanguages.map((language) => (
+                  <MenuItem key={language.code} onClick={() => handleLanguageChange(language)}>
+                    <Typography textAlign="center">{language.nativeName}</Typography>
+                  </MenuItem>
+                ))}
+              </Menu>
+            </Box>
           </Box>
         </Toolbar>
       </Container>

@@ -26,11 +26,11 @@ export default function Covers() {
           }}
         >
           <Typography variant="h6" gutterBottom>
-            Occupancy
+            {t('occupancy')}
           </Typography>
           <Box sx={{ mt: 2 }}>
             <Typography color="text.secondary">
-              Occupancy monitoring section coming soon...
+              {t('occupancyMonitoring')}
             </Typography>
           </Box>
         </Paper>
@@ -43,11 +43,11 @@ export default function Covers() {
           }}
         >
           <Typography variant="h6" gutterBottom>
-            Covers
+            {t('covers')}
           </Typography>
           <Box sx={{ mt: 2 }}>
             <Typography color="text.secondary">
-              Covers management section coming soon...
+              {t('coversManagement')}
             </Typography>
           </Box>
         </Paper>

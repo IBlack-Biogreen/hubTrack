@@ -14,6 +14,7 @@ import { useUser } from '../contexts/UserContext';
 import BackspaceIcon from '@mui/icons-material/Backspace';
 import axios from 'axios';
 import Webcam from 'react-webcam';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const API_URL = window.electron ? 'http://localhost:5000/api' : '/api';
 
@@ -35,6 +36,7 @@ const Home: React.FC = () => {
     allTime: 0
   });
   const [weight, setWeight] = useState<number | null>(null);
+  const { t } = useLanguage();
 
   // Fetch stats on component mount
   useEffect(() => {
@@ -122,7 +124,7 @@ const Home: React.FC = () => {
   // Handle login with PIN
   const handleLogin = async (pinToCheck: string) => {
     if (pinToCheck.length !== 4) {
-      setError('Please enter a 4-digit PIN');
+      setError(t('pleaseEnterPin'));
       return;
     }
 
@@ -135,23 +137,23 @@ const Home: React.FC = () => {
         if (response.success) {
           const success = await login(pinToCheck);
           if (!success) {
-            setError('Invalid PIN. Please try again.');
+            setError(t('invalidPin'));
             setPin('');
           }
         } else {
-          setError('Invalid PIN. Please try again.');
+          setError(t('invalidPin'));
           setPin('');
         }
       } else {
         const success = await login(pinToCheck);
         if (!success) {
-          setError('Invalid PIN. Please try again.');
+          setError(t('invalidPin'));
           setPin('');
         }
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError('Something went wrong. Please try again.');
+      setError(t('somethingWentWrong'));
       setPin('');
     } finally {
       setLoading(false);
@@ -171,10 +173,10 @@ const Home: React.FC = () => {
       <Container maxWidth="sm">
         <Paper elevation={3} sx={{ p: 4, borderRadius: 2, mt: 8 }}>
           <Typography variant="h5" component="h2" align="center" gutterBottom>
-            No Feed Types Available
+            {t('noFeedTypes')}
           </Typography>
           <Typography variant="body1" align="center" sx={{ mb: 4 }}>
-            Please add feed types in the Audits page to start tracking.
+            {t('addFeedTypes')}
           </Typography>
           <Box sx={{ display: 'flex', justifyContent: 'center' }}>
             <Button
@@ -183,7 +185,7 @@ const Home: React.FC = () => {
               size="large"
               onClick={() => navigate('/audits')}
             >
-              Go to Audits
+              {t('goToAudits')}
             </Button>
           </Box>
         </Paper>
@@ -215,42 +217,42 @@ const Home: React.FC = () => {
         <Grid item xs={12} md={4}>
           <Paper elevation={3} sx={{ p: 3, height: 'calc(100vh - 128px)', borderRadius: 2, overflow: 'auto' }}>
             <Typography variant="h6" gutterBottom>
-              Tracking Statistics
+              {t('trackingStatistics')}
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <Paper sx={{ 
                 p: 1.5, 
                 bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1e3a5f' : '#e3f2fd'
               }}>
-                <Typography variant="body2">Today</Typography>
+                <Typography variant="body2">{t('today')}</Typography>
                 <Typography variant="h5">{stats.today.toFixed(2)} lbs</Typography>
               </Paper>
               <Paper sx={{ 
                 p: 1.5, 
                 bgcolor: (theme) => theme.palette.mode === 'dark' ? '#1b4332' : '#e8f5e9'
               }}>
-                <Typography variant="body2">This Week</Typography>
+                <Typography variant="body2">{t('thisWeek')}</Typography>
                 <Typography variant="h5">{stats.thisWeek.toFixed(2)} lbs</Typography>
               </Paper>
               <Paper sx={{ 
                 p: 1.5, 
                 bgcolor: (theme) => theme.palette.mode === 'dark' ? '#5c4033' : '#fff3e0'
               }}>
-                <Typography variant="body2">This Month</Typography>
+                <Typography variant="body2">{t('thisMonth')}</Typography>
                 <Typography variant="h5">{stats.thisMonth.toFixed(2)} lbs</Typography>
               </Paper>
               <Paper sx={{ 
                 p: 1.5, 
                 bgcolor: (theme) => theme.palette.mode === 'dark' ? '#4a1c40' : '#fce4ec'
               }}>
-                <Typography variant="body2">This Year</Typography>
+                <Typography variant="body2">{t('thisYear')}</Typography>
                 <Typography variant="h5">{stats.thisYear.toFixed(2)} lbs</Typography>
               </Paper>
               <Paper sx={{ 
                 p: 1.5, 
                 bgcolor: (theme) => theme.palette.mode === 'dark' ? '#3c2a4a' : '#f3e5f5'
               }}>
-                <Typography variant="body2">All Time</Typography>
+                <Typography variant="body2">{t('allTime')}</Typography>
                 <Typography variant="h5">{stats.allTime.toFixed(2)} lbs</Typography>
               </Paper>
             </Box>
@@ -265,7 +267,8 @@ const Home: React.FC = () => {
                 fullWidth
                 value={pin}
                 type="password"
-                placeholder="Enter PIN to Start Feed"
+                placeholder={error || t('enterPinToStart')}
+                error={!!error}
                 InputProps={{
                   readOnly: true,
                   sx: { fontSize: '1.25rem', letterSpacing: '0.25rem', textAlign: 'center' }
@@ -273,12 +276,6 @@ const Home: React.FC = () => {
                 variant="outlined"
                 sx={{ mb: 2 }}
               />
-
-              {error && (
-                <Typography color="error" align="center" sx={{ mb: 2 }}>
-                  {error}
-                </Typography>
-              )}
             </Box>
 
             <Grid container spacing={2}>
@@ -344,7 +341,7 @@ const Home: React.FC = () => {
                 ref={webcamRef}
                 onUserMediaError={(error) => {
                   console.error('Camera error:', error);
-                  setCameraError('Failed to access camera. Please check your camera permissions and connection.');
+                  setCameraError(t('cameraError'));
                   setCameraReady(false);
                 }}
                 onUserMedia={() => {

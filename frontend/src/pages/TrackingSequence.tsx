@@ -37,7 +37,7 @@ import CheckIcon from '@mui/icons-material/Check';
 
 // Steps in the tracking sequence
 const steps = [
-  'Capture Image',
+  'captureImage',
   'selectOrganization',
   'selectDepartment',
   'selectFeedType',
@@ -1028,143 +1028,51 @@ const TrackingSequence: React.FC = () => {
                 }} 
               />
               <Typography variant="body2">
-                Camera Status: {cameraReady ? 'Ready' : cameraError ? 'Error' : 'Initializing'}
+                {t('cameraStatus')}: {cameraReady ? t('ready') : cameraError ? t('error') : t('initializing')}
               </Typography>
             </Box>
             
             {/* Camera component */}
-            <Paper elevation={3} sx={{ p: 2, mb: 3, maxWidth: '640px', margin: '0 auto' }}>
-              <Typography variant="subtitle1" gutterBottom align="center" fontWeight="bold">
-                Camera Feed
-              </Typography>
-              <Box sx={{ position: 'relative', width: '100%', height: 'auto' }}>
-                {activeStep === 0 ? (
-                  <Webcam
-                    key={key}
-                    ref={webcamRef}
-                    onUserMediaError={handleCameraError}
-                    onUserMedia={handleCameraLoad}
-                    screenshotFormat="image/jpeg"
-                    width={640}
-                    height={480}
-                    audio={false}
-                    imageSmoothing={true}
-                    mirrored={false}
-                    videoConstraints={{
-                      width: 640,
-                      height: 480,
-                      facingMode: cameraFacingMode
-                    }}
-                    style={{ width: '100%', borderRadius: '4px' }}
-                  />
-                ) : (
-                  /* Placeholder div to maintain layout when webcam is hidden */
-                  <div 
-                    style={{ 
-                      width: '100%', 
-                      height: '480px', 
-                      backgroundColor: '#eee',
-                      borderRadius: '4px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}
-                  >
-                    <Typography color="textSecondary">Camera inactive in this step</Typography>
-                  </div>
-                )}
-                <Button
-                  variant="contained"
-                  color="primary"
-                  onClick={captureImage}
-                  disabled={!cameraReady || activeStep !== 0}
-                  sx={{
-                    position: 'absolute',
-                    bottom: 8,
-                    right: 8,
+            <Typography variant="subtitle1" gutterBottom align="center" fontWeight="bold">
+              {t('cameraFeed')}
+            </Typography>
+            <Box sx={{ position: 'relative', width: '100%', height: 'auto' }}>
+              {activeStep === 0 ? (
+                <Webcam
+                  key={key}
+                  ref={webcamRef}
+                  onUserMediaError={handleCameraError}
+                  onUserMedia={handleCameraLoad}
+                  screenshotFormat="image/jpeg"
+                  width={640}
+                  height={480}
+                  audio={false}
+                  imageSmoothing={true}
+                  mirrored={false}
+                  videoConstraints={{
+                    width: 640,
+                    height: 480,
+                    facingMode: cameraFacingMode
+                  }}
+                  style={{ width: '100%', borderRadius: '4px' }}
+                />
+              ) : (
+                /* Placeholder div to maintain layout when webcam is hidden */
+                <div 
+                  style={{ 
+                    width: '100%', 
+                    height: '480px', 
+                    backgroundColor: '#eee',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                   }}
                 >
-                  Capture
-                </Button>
-              </Box>
-              {cameraError && (
-                <Typography color="error" sx={{ mt: 2 }}>
-                  {cameraError}
-                </Typography>
+                  <Typography color="textSecondary">{t('cameraInactive')}</Typography>
+                </div>
               )}
-              
-              {/* Camera control buttons */}
-              <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center', gap: 2 }}>
-                <Button 
-                  variant="outlined"
-                  color="primary"
-                  onClick={retryCamera}
-                  startIcon={<span>🔄</span>}
-                >
-                  Retry Camera
-                </Button>
-                
-                <Button 
-                  variant="outlined"
-                  color="info"
-                  onClick={toggleCameraFacing}
-                  startIcon={<span>{cameraFacingMode === "environment" ? "📱" : "🤳"}</span>}
-                >
-                  {cameraFacingMode === "environment" ? "Switch to Front" : "Switch to Back"}
-                </Button>
-                
-                <Button 
-                  variant="contained" 
-                  color="primary"
-                  onClick={captureImage}
-                  disabled={!cameraReady}
-                  startIcon={<span>📸</span>}
-                >
-                  Take Photo
-                </Button>
-                
-                <Button 
-                  variant="outlined" 
-                  color="warning"
-                  onClick={createFallbackImage}
-                >
-                  Use Placeholder
-                </Button>
-              </Box>
-            </Paper>
-            
-            {/* Show captured image if available */}
-            {capturedImage && (
-              <Paper elevation={3} sx={{ p: 2, mb: 3, maxWidth: '640px', margin: '0 auto' }}>
-                <Typography variant="subtitle1" gutterBottom align="center" fontWeight="bold">
-                  {isPlaceholderImage ? 'Placeholder Image' : 'Captured Image'}
-                </Typography>
-                {isPlaceholderImage && (
-                  <Typography color="warning.main" sx={{ mb: 2, fontStyle: 'italic', textAlign: 'center' }}>
-                    Using a placeholder image because the camera is not available
-                  </Typography>
-                )}
-                <Box sx={{ textAlign: 'center' }}>
-                  <img 
-                    src={capturedImage} 
-                    alt={isPlaceholderImage ? "Placeholder" : "Captured"}
-                    style={{ 
-                      maxWidth: '100%', 
-                      maxHeight: '300px',
-                      border: `1px solid ${isPlaceholderImage ? '#f57c00' : '#ccc'}`,
-                      borderRadius: '4px'
-                    }} 
-                  />
-                  {imageFilename && (
-                    <Typography variant="body2" sx={{ mt: 1 }}>
-                      Filename: {imageFilename}
-                    </Typography>
-                  )}
-                </Box>
-              </Paper>
-            )}
-            
-            <CircularProgress sx={{ mt: 2 }} />
+            </Box>
           </Box>
         );
       case 1:
@@ -1292,34 +1200,31 @@ const TrackingSequence: React.FC = () => {
                   <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 3, height: '100%' }}>
                       <Typography variant="h6" gutterBottom>
-                        Feed Details
+                        {t('feedDetails')}
                       </Typography>
                       {/* Calculate net weight for display */}
                       {(() => {
-                        let netWeight = 'Not available';
+                        let netWeight = t('notAvailable');
                         if (feedSummaryData?.weight !== undefined && feedSummaryData?.weight !== null && !isNaN(Number(feedSummaryData.weight))) {
                           netWeight = Number(feedSummaryData.weight).toFixed(2);
                         }
                         return (
                           <Typography variant="body1" gutterBottom>
-                            <strong>Weight:</strong> {netWeight} lbs
+                            <strong>{t('weight')}:</strong> {netWeight} lbs
                           </Typography>
                         );
                       })()}
                       <Typography variant="body1" gutterBottom>
-                        <strong>Bin Weight:</strong> {feedSummaryData?.binWeight !== undefined && feedSummaryData?.binWeight !== null ? `${Number(feedSummaryData.binWeight).toFixed(2)} lbs` : 'Not available'}
+                        <strong>{t('binWeight')}:</strong> {feedSummaryData?.binWeight !== undefined && feedSummaryData?.binWeight !== null ? `${Number(feedSummaryData.binWeight).toFixed(2)} lbs` : t('notAvailable')}
                       </Typography>
                       <Typography variant="body1" gutterBottom>
-                        <strong>Organization:</strong> {feedSummaryData?.organization || 'Not selected'}
+                        <strong>{t('organization')}:</strong> {feedSummaryData?.organization || t('notSelected')}
                       </Typography>
                       <Typography variant="body1" gutterBottom>
-                        <strong>Department:</strong> {feedSummaryData?.department || 'Not selected'}
+                        <strong>{t('department')}:</strong> {feedSummaryData?.department || t('notSelected')}
                       </Typography>
                       <Typography variant="body1" gutterBottom>
-                        <strong>Feed Type:</strong> {feedSummaryData?.typeDisplayName || 'Not selected'}
-                      </Typography>
-                      <Typography variant="body1" gutterBottom>
-                        <strong>User:</strong> {feedSummaryData?.userId || 'Not available'}
+                        <strong>{t('feedType')}:</strong> {feedSummaryData?.typeDisplayName || t('notSelected')}
                       </Typography>
                     </Paper>
                   </Grid>
@@ -1607,7 +1512,7 @@ const TrackingSequence: React.FC = () => {
               color="error"
               onClick={handleExit}
             >
-              Cancel
+              {t('cancel')}
             </Button>
           </Box>
         </Paper>
