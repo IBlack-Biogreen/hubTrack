@@ -152,22 +152,22 @@ function FeedViewer() {
         </Paper>
 
         {/* Feed Details */}
-        <Box sx={{ flex: 1, overflow: 'auto' }}>
+        <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
           {loading ? (
             <Typography>Loading feed history...</Typography>
           ) : error ? (
             <Typography color="error">{error}</Typography>
-          ) : feeds.length === 0 ? (
-            <Typography>No feed history available</Typography>
+          ) : recentFeeds.length === 0 ? (
+            <Typography>No feed history available for the last 7 days</Typography>
           ) : (
             <Box sx={{ position: 'relative', maxWidth: '800px', margin: '0 auto' }}>
               <Card>
-                {feeds[currentIndex].imageFilename && (
+                {recentFeeds[currentIndex].imageFilename && (
                   <Box sx={{ position: 'relative' }}>
                     <CardMedia
                       component="img"
                       height="400"
-                      image={`http://localhost:5000/images/${feeds[currentIndex].imageFilename}`}
+                      image={`http://localhost:5000/images/${recentFeeds[currentIndex].imageFilename}`}
                       alt="Feed image"
                       sx={{ objectFit: 'contain' }}
                     />
@@ -201,36 +201,36 @@ function FeedViewer() {
                 )}
                 <CardContent>
                   <Typography variant="h6" gutterBottom>
-                    {feeds[currentIndex].type}
+                    {recentFeeds[currentIndex].type}
                   </Typography>
                   <Typography variant="body1" gutterBottom>
-                    <strong>Type:</strong> {feeds[currentIndex].type}
+                    <strong>Type:</strong> {recentFeeds[currentIndex].type}
                   </Typography>
                   <Typography variant="body1" gutterBottom>
-                    <strong>Department:</strong> {feeds[currentIndex].department}
+                    <strong>Department:</strong> {recentFeeds[currentIndex].department}
                   </Typography>
                   <Typography variant="body1" gutterBottom>
-                    <strong>Weight:</strong> {Number(feeds[currentIndex].weight).toFixed(2)} lbs
+                    <strong>Weight:</strong> {Number(recentFeeds[currentIndex].weight).toFixed(2)} lbs
                   </Typography>
                   <Typography variant="body1" gutterBottom>
-                    <strong>Bin Weight:</strong> {Number(feeds[currentIndex].binWeight).toFixed(2)} lbs
+                    <strong>Bin Weight:</strong> {Number(recentFeeds[currentIndex].binWeight).toFixed(2)} lbs
                   </Typography>
                   <Typography variant="body1" gutterBottom>
-                    <strong>Total Weight:</strong> {Number(feeds[currentIndex].totalWeight).toFixed(2)} lbs
+                    <strong>Total Weight:</strong> {Number(recentFeeds[currentIndex].totalWeight).toFixed(2)} lbs
                   </Typography>
                   <Typography variant="body1" gutterBottom>
-                    <strong>Organization:</strong> {feeds[currentIndex].organization}
+                    <strong>Organization:</strong> {recentFeeds[currentIndex].organization}
                   </Typography>
                   <Typography variant="body1" gutterBottom>
-                    <strong>User:</strong> {feeds[currentIndex].user}
+                    <strong>User:</strong> {recentFeeds[currentIndex].user}
                   </Typography>
                   <Typography variant="body2" color="text.secondary">
-                    <strong>Time:</strong> {formatDate(feeds[currentIndex].timestamp)}
+                    <strong>Time:</strong> {formatDate(recentFeeds[currentIndex].timestamp)}
                   </Typography>
                 </CardContent>
               </Card>
               <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1 }}>
-                {currentIndex + 1} of {feeds.length}
+                {currentIndex + 1} of {recentFeeds.length}
               </Typography>
             </Box>
           )}
