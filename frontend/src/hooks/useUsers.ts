@@ -13,6 +13,9 @@ export interface User {
   status: 'active' | 'inactive';
   lastSignIn?: string;
   avatar: string;
+  FIRST?: string;
+  LAST?: string;
+  AVATAR?: string;
 }
 
 export const useUsers = () => {

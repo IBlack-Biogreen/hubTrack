@@ -70,7 +70,8 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
     organization: '',
     title: '',
     siteChampion: false,
-    numberFeeds: 0
+    numberFeeds: 0,
+    AVATAR: '👤'
   });
   const [newUserForm, setNewUserForm] = useState({
     FIRST: '',
@@ -92,6 +93,9 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [userToActivate, setUserToActivate] = useState<User | null>(null);
   const [deactivateConfirmOpen, setDeactivateConfirmOpen] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState('People');
+  const [isEditMode, setIsEditMode] = useState(false);
 
   const emojiCategories = {
     'People': ['👤', '👨', '👩', '👨‍💻', '👩‍💻', '👨‍🔬', '👩‍🔬', '👨‍🏫', '👩‍🏫', '👨‍⚕️', '👩‍⚕️', '👨‍🌾', '👩‍🌾', '👨‍🍳', '👩‍🍳', '👨‍🏭', '👩‍🏭', '👨‍💼', '👩‍💼', '👨‍🔧', '👩‍🔧'],
@@ -102,14 +106,18 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
     'Objects': ['💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '🕹️', '🗜️', '💽', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️']
   };
 
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('People');
-
   const handleEmojiSelect = (emoji: string) => {
-    setNewUserForm(prev => ({
-      ...prev,
-      AVATAR: emoji
-    }));
+    if (isEditMode) {
+      setEditForm(prev => ({
+        ...prev,
+        AVATAR: emoji
+      }));
+    } else {
+      setNewUserForm(prev => ({
+        ...prev,
+        AVATAR: emoji
+      }));
+    }
     setShowEmojiPicker(false);
   };
 
@@ -141,6 +149,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
   };
 
   const handleEditClick = (user: User) => {
+    setIsEditMode(true);
     setEditingUser(user);
     setEditForm({
       FIRST: user.FIRST || '',
@@ -150,11 +159,13 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
       organization: user.organization || '',
       title: user.title || '',
       siteChampion: user.siteChampion || false,
-      numberFeeds: user.numberFeeds || 0
+      numberFeeds: user.numberFeeds || 0,
+      AVATAR: user.AVATAR || '👤'
     });
   };
 
   const handleCloseEdit = () => {
+    setIsEditMode(false);
     setEditingUser(null);
   };
 
@@ -266,6 +277,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
   }, [activeUsers, order, orderBy]);
 
   const handleAddUserClick = () => {
+    setIsEditMode(false);
     setShowAddUser(true);
   };
 
@@ -1012,6 +1024,33 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
                 ),
               }}
             />
+            <FormControl fullWidth>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>{t('avatar')}</Typography>
+              <Button
+                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                sx={{
+                  width: '100%',
+                  height: '56px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  border: '1px solid rgba(0, 0, 0, 0.23)',
+                  borderRadius: '4px',
+                  padding: '0 14px',
+                  backgroundColor: 'white',
+                  '&:hover': {
+                    border: '1px solid rgba(0, 0, 0, 0.87)',
+                    backgroundColor: 'white',
+                  }
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <span style={{ fontSize: '24px' }}>{editForm.AVATAR}</span>
+                  <Typography>{t('selectAvatar')}</Typography>
+                </Box>
+                <span style={{ fontSize: '20px' }}>{showEmojiPicker ? '▲' : '▼'}</span>
+              </Button>
+            </FormControl>
           </Box>
         </DialogContent>
         <DialogActions sx={{ justifyContent: 'space-between', px: 3, pb: 2 }}>
@@ -1083,6 +1122,58 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
           >
             {t('deactivate')}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Emoji Picker Dialog */}
+      <Dialog
+        open={showEmojiPicker}
+        onClose={() => setShowEmojiPicker(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>{t('selectAvatar')}</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2 }}>
+            <Tabs
+              value={selectedCategory}
+              onChange={(_, newValue) => setSelectedCategory(newValue)}
+              variant="scrollable"
+              scrollButtons="auto"
+            >
+              {Object.keys(emojiCategories).map((category) => (
+                <Tab key={category} label={category} value={category} />
+              ))}
+            </Tabs>
+          </Box>
+          <Box sx={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fill, minmax(40px, 1fr))',
+            gap: 1,
+            maxHeight: '300px',
+            overflowY: 'auto'
+          }}>
+            {emojiCategories[selectedCategory as keyof typeof emojiCategories].map((emoji) => (
+              <Button
+                key={emoji}
+                onClick={() => handleEmojiSelect(emoji)}
+                sx={{
+                  minWidth: '40px',
+                  height: '40px',
+                  fontSize: '1.5rem',
+                  padding: 0,
+                  '&:hover': {
+                    backgroundColor: 'rgba(0, 0, 0, 0.04)'
+                  }
+                }}
+              >
+                {emoji}
+              </Button>
+            ))}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowEmojiPicker(false)}>{t('close')}</Button>
         </DialogActions>
       </Dialog>
     </Box>
