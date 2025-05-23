@@ -14,12 +14,14 @@ import {
   Paper,
   Divider,
   useTheme,
-  useMediaQuery
+  useMediaQuery,
+  Grid
 } from '@mui/material';
 import { useLocation } from 'react-router-dom';
 import axios from 'axios';
 import NavigateBeforeIcon from '@mui/icons-material/NavigateBefore';
 import NavigateNextIcon from '@mui/icons-material/NavigateNext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 interface Feed {
   id: string;
@@ -42,6 +44,7 @@ function FeedViewer() {
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const { t } = useLanguage();
 
   useEffect(() => {
     const fetchFeeds = async () => {
@@ -199,34 +202,45 @@ function FeedViewer() {
                     </IconButton>
                   </Box>
                 )}
-                <CardContent>
-                  <Typography variant="h6" gutterBottom>
-                    {recentFeeds[currentIndex].type}
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    <strong>Type:</strong> {recentFeeds[currentIndex].type}
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    <strong>Department:</strong> {recentFeeds[currentIndex].department}
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    <strong>Weight:</strong> {Number(recentFeeds[currentIndex].weight).toFixed(2)} lbs
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    <strong>Bin Weight:</strong> {Number(recentFeeds[currentIndex].binWeight).toFixed(2)} lbs
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    <strong>Total Weight:</strong> {Number(recentFeeds[currentIndex].totalWeight).toFixed(2)} lbs
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    <strong>Organization:</strong> {recentFeeds[currentIndex].organization}
-                  </Typography>
-                  <Typography variant="body1" gutterBottom>
-                    <strong>User:</strong> {recentFeeds[currentIndex].user}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    <strong>Time:</strong> {formatDate(recentFeeds[currentIndex].timestamp)}
-                  </Typography>
+                <CardContent sx={{ 
+                  border: '1px solid #e0e0e0', 
+                  borderRadius: 2,
+                  mx: 2,
+                  my: 2,
+                  backgroundColor: 'background.paper'
+                }}>
+                  <Grid container spacing={2} sx={{ justifyContent: 'center' }}>
+                    {/* Left column: Metadata */}
+                    <Grid item xs={6} sx={{ textAlign: 'center' }}>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>{t('type')}:</strong> {recentFeeds[currentIndex].type}
+                      </Typography>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>{t('department')}:</strong> {recentFeeds[currentIndex].department}
+                      </Typography>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>{t('organization')}:</strong> {recentFeeds[currentIndex].organization}
+                      </Typography>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>{t('user')}:</strong> {recentFeeds[currentIndex].user}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        <strong>{t('time')}:</strong> {formatDate(recentFeeds[currentIndex].timestamp)}
+                      </Typography>
+                    </Grid>
+                    {/* Right column: Weights */}
+                    <Grid item xs={6} sx={{ textAlign: 'center' }}>
+                      <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold' }}>
+                        <strong>{t('weight')}:</strong> {Number(recentFeeds[currentIndex].weight).toFixed(2)} lbs
+                      </Typography>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>{t('binWeight')}:</strong> {Number(recentFeeds[currentIndex].binWeight).toFixed(2)} lbs
+                      </Typography>
+                      <Typography variant="body1" gutterBottom>
+                        <strong>{t('totalWeight')}:</strong> {Number(recentFeeds[currentIndex].totalWeight).toFixed(2)} lbs
+                      </Typography>
+                    </Grid>
+                  </Grid>
                 </CardContent>
               </Card>
               <Typography variant="body2" color="text.secondary" align="center" sx={{ mt: 1 }}>

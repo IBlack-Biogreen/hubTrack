@@ -68,9 +68,6 @@ const TrackingSequence: React.FC = () => {
   const [cameraReady, setCameraReady] = useState<boolean>(false);
   const [isPlaceholderImage, setIsPlaceholderImage] = useState<boolean>(false);
   
-  // Add camera facing mode state
-  const [cameraFacingMode, setCameraFacingMode] = useState<"environment" | "user">("environment");
-  
   // Add weightIntervalRef
   const weightIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -92,8 +89,8 @@ const TrackingSequence: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   
   // Add refs to track timeouts
-  const cameraCheckIntervalRef = useRef<number | null>(null);
-  const cameraTimeoutRef = useRef<number | null>(null);
+  const cameraCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const cameraTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const sequenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const backgroundCollectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isCreatingFeedRef = useRef<boolean>(false);
@@ -105,6 +102,10 @@ const TrackingSequence: React.FC = () => {
     department?: Department;
     feedType?: FeedType;
   }>({});
+  
+  // Add refs to track steps
+  const isCameraStepRef = useRef<boolean>(false);
+  const isSummaryStepRef = useRef<boolean>(false);
   
   // Check if user is authenticated
   useEffect(() => {
@@ -152,17 +153,31 @@ const TrackingSequence: React.FC = () => {
     };
   }, [isAuthenticated, navigate, setIsInTrackingSequence, setSequenceStartTime]);
   
+  // Helper function to sanitize filenames
+  const sanitizeFilename = (filename: string): string => {
+    // Replace colons with hyphens, and other unsafe characters
+    return filename
+      .replace(/:/g, '-')
+      .replace(/\//g, '_')
+      .replace(/\\/g, '_')
+      .replace(/\?/g, '')
+      .replace(/\*/g, '')
+      .replace(/"/g, '')
+      .replace(/</g, '')
+      .replace(/>/g, '')
+      .replace(/\|/g, '')
+      .replace(/\s+/g, '_');
+  };
+  
   // Create a fallback image if the webcam fails
   const createFallbackImage = useCallback(() => {
-    console.log('Creating fallback image... CALL STACK:', new Error().stack);
-    console.log('Current capturedImage:', capturedImage ? 'exists' : 'null');
-    console.log('Current activeStep:', activeStep);
-    
-    // Don't create a fallback image if we're on the summary step
-    if (activeStep === 4) {
+    // Don't do anything if we're on the summary step
+    if (isSummaryStepRef.current) {
       console.log('Skipping fallback image creation on summary step');
       return;
     }
+
+    console.log('Creating fallback image...');
     
     // Generate a static placeholder image and filename
     const now = new Date();
@@ -186,136 +201,56 @@ const TrackingSequence: React.FC = () => {
     }
     
     const placeholderImage = canvas.toDataURL('image/jpeg');
-    console.log('Setting capturedImage to placeholder');
     setCapturedImage(placeholderImage);
     setImageFilename(filename);
-    
-    // Set placeholder flag
     setIsPlaceholderImage(true);
     
     // Save the placeholder image
     saveImageLocally(placeholderImage, filename);
-  }, [activeStep, capturedImage]);
-  
-  // Helper function to sanitize filenames
-  const sanitizeFilename = (filename: string): string => {
-    // Replace colons with hyphens, and other unsafe characters
-    return filename
-      .replace(/:/g, '-')
-      .replace(/\//g, '_')
-      .replace(/\\/g, '_')
-      .replace(/\?/g, '')
-      .replace(/\*/g, '')
-      .replace(/"/g, '')
-      .replace(/</g, '')
-      .replace(/>/g, '')
-      .replace(/\|/g, '')
-      .replace(/\s+/g, '_');
-  };
-  
-  // Capture image from webcam
-  const captureImage = useCallback(() => {
-    console.log('captureImage called, webcamRef:', webcamRef.current ? 'available' : 'not available', 'cameraReady:', cameraReady);
     
-    if (!webcamRef.current) {
-      console.error('Webcam reference not available');
-      setCameraError('Webcam not available for capture');
-      
-      // Generate a fallback image
-      createFallbackImage();
-      return;
+    // Only proceed to next step if we're not on the summary step
+    if (!isSummaryStepRef.current) {
+      fetchOrganizations();
     }
-    
-    if (!cameraReady) {
-      console.error('Camera not ready yet');
-      setCameraError('Camera not ready yet. Please wait a moment and try again.');
-      return;
-    }
-    
-    console.log('Capturing image from webcam...');
-    
-    try {
-      // Set proper webcam options
-      const imageSrc = webcamRef.current.getScreenshot({
-        width: 640,
-        height: 480
-      });
-      
-      if (imageSrc) {
-        console.log('Image captured successfully');
-        setCapturedImage(imageSrc);
-        
-        // Reset placeholder flag - this is a real image
-        setIsPlaceholderImage(false);
-        
-        // Generate filename matching the MongoDB format
-        const now = new Date();
-        const deviceLabel = localStorage.getItem('selectedDeviceLabel');
-        
-        // Format to match: "bgtrack_61_2025-04-24T200025.178Z.jpg"
-        const timestamp = now.toISOString();
-        let filename = `${deviceLabel}_${timestamp}.jpg`;
-        
-        // Sanitize the filename to ensure it's compatible with all file systems
-        filename = sanitizeFilename(filename);
-        console.log('Generated filename:', filename);
-        
-        setImageFilename(filename);
-        
-        // Save image locally
-        saveImageLocally(imageSrc, filename);
-      } else {
-        console.error('Failed to capture image from webcam');
-        setCameraError('Failed to capture image from webcam');
-        createFallbackImage();
-      }
-    } catch (error) {
-      console.error('Error in captureImage:', error);
-      setCameraError('Error capturing image: ' + (error instanceof Error ? error.message : String(error)));
-      createFallbackImage();
-    }
-  }, [webcamRef, cameraReady, createFallbackImage]);
+  }, []);
   
   // Webcam error handler
   const handleCameraError = (error: string | DOMException) => {
+    // Don't do anything if we're not on step 0
+    if (!isCameraStepRef.current) {
+      console.log('Skipping camera error handling - not on step 0');
+      return;
+    }
+
     console.error('Camera error:', error);
-    setCameraError('Failed to access camera. Please check your camera permissions and connection.');
+    setCameraError('Failed to access camera');
     setCameraReady(false);
     
-    // If we get a camera error, create a fallback image after a short delay
-    // But only if we don't already have a captured image
+    // Create fallback image if we don't have one
     if (!capturedImage) {
-      console.log('No existing image, creating fallback after delay');
-      setTimeout(() => {
-        // Double-check we still don't have an image before creating fallback
-        if (!capturedImage) {
-          createFallbackImage();
-          // Proceed to next step after creating fallback image
-          fetchOrganizations();
-        }
-      }, 1000);
-    } else {
-      console.log('Camera error occurred but keeping existing captured image');
-      // Proceed to next step if we already have an image
-      fetchOrganizations();
+      createFallbackImage();
     }
   };
   
   // Webcam loaded handler
   const handleCameraLoad = () => {
+    // Don't do anything if we're not on step 0
+    if (!isCameraStepRef.current) {
+      console.log('Skipping camera operations - not on step 0');
+      return;
+    }
+
     console.log('Camera loaded successfully');
     setCameraError(null);
     setCameraReady(true);
     
-    // Only attempt capture if we don't already have an image and we're on step 0
-    if (!capturedImage && activeStep === 0) {
+    // Only attempt capture if we don't already have an image
+    if (!capturedImage) {
       // Wait for camera to be fully initialized
-      const checkCameraReady = setInterval(() => {
+      cameraCheckIntervalRef.current = setInterval(() => {
         if (webcamRef.current) {
           console.log('Webcam ref is now available, attempting capture...');
-          clearInterval(checkCameraReady);
-          // Clear the ref
-          cameraCheckIntervalRef.current = null;
+          cleanupCameraOperations();
           
           try {
             const imageSrc = webcamRef.current.getScreenshot({
@@ -335,11 +270,10 @@ const TrackingSequence: React.FC = () => {
               let filename = `${deviceLabel}_${timestamp}.jpg`;
               filename = sanitizeFilename(filename);
               
-              console.log('Generated filename:', filename);
               setImageFilename(filename);
               saveImageLocally(imageSrc, filename);
               
-              // Proceed to next step after successful capture
+              // Proceed to next step
               fetchOrganizations();
             } else {
               console.error('Capture returned null image');
@@ -349,48 +283,28 @@ const TrackingSequence: React.FC = () => {
             console.error('Error during capture:', error);
             createFallbackImage();
           }
-        } else {
-          console.log('Waiting for webcam ref to be available...');
         }
-      }, 100); // Check every 100ms
-      
-      // Store the interval ID in the ref
-      cameraCheckIntervalRef.current = checkCameraReady as unknown as number;
+      }, 100);
       
       // Clear interval after 5 seconds if camera isn't ready
-      const timeoutId = setTimeout(() => {
-        console.log('Checking if camera ready after 5 seconds, active step:', activeStep);
-        if (cameraCheckIntervalRef.current) {
-          clearInterval(cameraCheckIntervalRef.current);
-          cameraCheckIntervalRef.current = null;
-        }
-        
-        // Only create fallback if still on step 0
-        if (activeStep === 0 && !capturedImage && !webcamRef.current) {
+      cameraTimeoutRef.current = setTimeout(() => {
+        cleanupCameraOperations();
+        if (!webcamRef.current && !capturedImage) {
           console.error('Camera not ready after 5 seconds');
           createFallbackImage();
-          // Proceed to next step after creating fallback image
-          fetchOrganizations();
         }
-        
-        // Clear the ref
-        cameraTimeoutRef.current = null;
       }, 5000);
-      
-      // Store the timeout ID in the ref
-      cameraTimeoutRef.current = timeoutId as unknown as number;
     }
   };
   
-  // Effect to observe camera ready state - no longer trying to auto-capture here
-  useEffect(() => {
-    if (cameraReady) {
-      console.log('Camera is ready - manual capture available');
-    }
-  }, [cameraReady]);
-  
   // Save image to local storage
   const saveImageLocally = async (imageSrc: string, filename: string) => {
+    // Don't do anything if we're on the summary step
+    if (isSummaryStepRef.current) {
+      console.log('Skipping image save on summary step');
+      return;
+    }
+
     console.log('Attempting to save image locally...');
     console.log('Image source type:', typeof imageSrc);
     console.log('Image source length:', imageSrc.length);
@@ -446,6 +360,10 @@ const TrackingSequence: React.FC = () => {
         
         if (response.data.success) {
           console.log('Image saved successfully via backend');
+          // Only fetch organizations if we're not on the summary step
+          if (!isSummaryStepRef.current) {
+            fetchOrganizations();
+          }
           return;
         } else {
           throw new Error('Backend returned unsuccessful response');
@@ -896,21 +814,8 @@ const TrackingSequence: React.FC = () => {
         // Start background weight collection
         await startBackgroundWeightCollection(feedType, weightValue, binWeight, cartSettings);
         
-        // Wait 5 seconds before resetting and navigating
+        // Wait 5 seconds before navigating
         setTimeout(() => {
-          // Reset the form
-          setActiveStep(0);
-          setSelectedOrganization(null);
-          setSelectedDepartment(null);
-          setSelectedFeedType(null);
-          setWeight(null);
-          setCapturedImage(null);
-          setImageFilename(null);
-          setRawWeights({});
-          setPostSequenceWeights({});
-          setFeedStartTime(null);
-          setIsPostSequence(false);
-          
           // Log the user out before navigating back to home
           logout();
           
@@ -990,53 +895,11 @@ const TrackingSequence: React.FC = () => {
     console.log('Rendering step content for step:', step);
     switch (step) {
       case 0:
-        return (
-          <Box sx={{ textAlign: 'center', my: 4 }}>
-            <Typography variant="h6" sx={{ mt: 2, mb: 4 }}>
-              {t('userAuthentication')}
-            </Typography>
-            
-            {/* Camera status indicator */}
-            <Box sx={{ mb: 2, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 1 }}>
-              <Box 
-                sx={{ 
-                  width: 12, 
-                  height: 12, 
-                  borderRadius: '50%',
-                  bgcolor: cameraReady ? 'success.main' : cameraError ? 'error.main' : 'warning.main'
-                }} 
-              />
-              <Typography variant="body2">
-                {t('cameraStatus')}: {cameraReady ? t('ready') : cameraError ? t('error') : t('initializing')}
-              </Typography>
-            </Box>
-            
-            {/* Camera component */}
-            <Typography variant="subtitle1" gutterBottom align="center" fontWeight="bold">
-              {t('cameraFeed')}
-            </Typography>
-            <Box sx={{ position: 'relative', width: '100%', height: 'auto' }}>
-              {activeStep === 0 ? (
-                <Webcam
-                  key={key}
-                  ref={webcamRef}
-                  onUserMediaError={handleCameraError}
-                  onUserMedia={handleCameraLoad}
-                  screenshotFormat="image/jpeg"
-                  width={640}
-                  height={480}
-                  audio={false}
-                  imageSmoothing={true}
-                  mirrored={false}
-                  videoConstraints={{
-                    width: 640,
-                    height: 480,
-                    facingMode: cameraFacingMode
-                  }}
-                  style={{ width: '100%', borderRadius: '4px' }}
-                />
-              ) : (
-                /* Placeholder div to maintain layout when webcam is hidden */
+        // Only render Webcam if we're on step 0
+        if (!isCameraStepRef.current) {
+          return (
+            <Box sx={{ my: 4 }}>
+              <Box sx={{ position: 'relative', width: '100%', height: 'auto' }}>
                 <div 
                   style={{ 
                     width: '100%', 
@@ -1050,7 +913,31 @@ const TrackingSequence: React.FC = () => {
                 >
                   <Typography color="textSecondary">{t('cameraInactive')}</Typography>
                 </div>
-              )}
+              </Box>
+            </Box>
+          );
+        }
+        return (
+          <Box sx={{ my: 4 }}>
+            <Box sx={{ position: 'relative', width: '100%', height: 'auto' }}>
+              <Webcam
+                key={key}
+                ref={webcamRef}
+                onUserMediaError={handleCameraError}
+                onUserMedia={handleCameraLoad}
+                screenshotFormat="image/jpeg"
+                width={640}
+                height={480}
+                audio={false}
+                imageSmoothing={true}
+                mirrored={false}
+                videoConstraints={{
+                  width: 640,
+                  height: 480,
+                  facingMode: "environment"
+                }}
+                style={{ width: '100%', borderRadius: '4px' }}
+              />
             </Box>
           </Box>
         );
@@ -1206,7 +1093,7 @@ const TrackingSequence: React.FC = () => {
                   <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
                       <Typography variant="subtitle1" gutterBottom fontWeight="bold">
-                        Image Preview
+                        {t('imagePreview')}
                       </Typography>
                       {capturedImage ? (
                         <Box sx={{ 
@@ -1218,7 +1105,7 @@ const TrackingSequence: React.FC = () => {
                         }}>
                           <img 
                             src={capturedImage}
-                            alt="Feed"
+                            alt={t('feed')}
                             style={{ 
                               maxWidth: '100%', 
                               maxHeight: '300px',
@@ -1237,7 +1124,7 @@ const TrackingSequence: React.FC = () => {
                           borderRadius: 1
                         }}>
                           <Typography color="text.secondary">
-                            No image captured
+                            {t('noImageCaptured')}
                           </Typography>
                         </Box>
                       )}
@@ -1247,7 +1134,7 @@ const TrackingSequence: React.FC = () => {
                 
                 <Box sx={{ mt: 3, textAlign: 'center' }}>
                   <Typography variant="body1" color="success.main" sx={{ mb: 2 }}>
-                    Feed entry successfully created! Returning to home screen...
+                    {t('feedEntrySuccess')}
                   </Typography>
                 </Box>
               </>
@@ -1277,30 +1164,6 @@ const TrackingSequence: React.FC = () => {
     // Return true if color is light
     return brightness > 128;
   };
-  
-  // Function to toggle camera facing mode
-  const toggleCameraFacing = useCallback(() => {
-    setCameraFacingMode(prev => prev === "environment" ? "user" : "environment");
-    setKey(prevKey => prevKey + 1); // Force webcam re-render
-    setCameraReady(false);
-    setCameraError(null);
-  }, []);
-  
-  // Function to retry camera initialization
-  const retryCamera = useCallback(() => {
-    console.log('Retrying camera initialization...');
-    setCameraError(null);
-    setCameraReady(false);
-    
-    // If we've already tried the environment camera and it failed, try the user-facing camera
-    if (cameraFacingMode === "environment" && cameraError) {
-      console.log('Switching to user-facing camera...');
-      setCameraFacingMode("user");
-    }
-    
-    // Force a re-render of the Webcam component
-    setKey(prevKey => prevKey + 1);
-  }, [cameraError, cameraFacingMode]);
   
   // Add a key state to force webcam re-render
   const [key, setKey] = useState<number>(0);
@@ -1388,10 +1251,30 @@ const TrackingSequence: React.FC = () => {
     }
   };
   
-  // Clean up timeouts and intervals on unmount
+  // Add a function to clean up camera operations
+  const cleanupCameraOperations = useCallback(() => {
+    if (cameraCheckIntervalRef.current) {
+      clearInterval(cameraCheckIntervalRef.current);
+      cameraCheckIntervalRef.current = null;
+    }
+    if (cameraTimeoutRef.current) {
+      clearTimeout(cameraTimeoutRef.current);
+      cameraTimeoutRef.current = null;
+    }
+  }, []);
+  
+  // Add useEffect to clean up camera operations when step changes
+  useEffect(() => {
+    if (!isCameraStepRef.current) {
+      cleanupCameraOperations();
+    }
+  }, [activeStep, cleanupCameraOperations]);
+  
+  // Modify cleanup in component unmount
   useEffect(() => {
     return () => {
       console.log('Component unmounting - cleaning up all timeouts and intervals');
+      cleanupCameraOperations();
       
       if (weightIntervalRef.current !== null) {
         clearInterval(weightIntervalRef.current);
@@ -1402,17 +1285,6 @@ const TrackingSequence: React.FC = () => {
         clearTimeout(postSequenceTimeoutRef.current);
         postSequenceTimeoutRef.current = null;
       }
-      
-      // Clean up camera timeouts
-      if (cameraCheckIntervalRef.current) {
-        clearInterval(cameraCheckIntervalRef.current);
-        cameraCheckIntervalRef.current = null;
-      }
-      
-      if (cameraTimeoutRef.current) {
-        clearTimeout(cameraTimeoutRef.current);
-        cameraTimeoutRef.current = null;
-      }
 
       // Clean up background collection
       if (backgroundCollectionIntervalRef.current) {
@@ -1421,7 +1293,7 @@ const TrackingSequence: React.FC = () => {
         backgroundCollectionIntervalRef.current = null;
       }
     };
-  }, []);
+  }, [cleanupCameraOperations]);
   
   // Add useEffect to track step changes for debugging
   useEffect(() => {
@@ -1430,15 +1302,7 @@ const TrackingSequence: React.FC = () => {
     // Clean up camera timeouts when the step changes
     if (activeStep !== 0) {
       console.log('Cleaning up camera timeouts on step change');
-      if (cameraCheckIntervalRef.current) {
-        clearInterval(cameraCheckIntervalRef.current);
-        cameraCheckIntervalRef.current = null;
-      }
-      
-      if (cameraTimeoutRef.current) {
-        clearTimeout(cameraTimeoutRef.current);
-        cameraTimeoutRef.current = null;
-      }
+      cleanupCameraOperations();
     }
     
     // We handle step 4 in a dedicated useEffect, so don't duplicate tracking
@@ -1455,6 +1319,16 @@ const TrackingSequence: React.FC = () => {
   useEffect(() => {
     console.log('capturedImage changed:', capturedImage ? 'exists' : 'null', 'placeholder:', isPlaceholderImage);
   }, [capturedImage, isPlaceholderImage]);
+  
+  // Add useEffect to track summary step
+  useEffect(() => {
+    isSummaryStepRef.current = activeStep === 4;
+  }, [activeStep]);
+  
+  // Add useEffect to track camera step
+  useEffect(() => {
+    isCameraStepRef.current = activeStep === 0;
+  }, [activeStep]);
   
   return (
     <Container maxWidth="md" sx={{ height: '100vh', display: 'flex', flexDirection: 'column', py: 2 }}>

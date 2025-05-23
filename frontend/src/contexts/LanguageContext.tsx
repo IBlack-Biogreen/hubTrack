@@ -364,13 +364,21 @@ const translations: Translations = {
     it: 'Peso del Contenitore',
     pt: 'Peso do Recipiente'
   },
-  organization: {
-    en: 'Organization',
-    es: 'Organización',
-    fr: 'Organisation',
-    de: 'Organisation',
-    it: 'Organizzazione',
-    pt: 'Organização'
+  totalWeight: {
+    en: 'Total Weight',
+    es: 'Peso Total',
+    fr: 'Poids Total',
+    de: 'Gesamtgewicht',
+    it: 'Peso Totale',
+    pt: 'Peso Total'
+  },
+  type: {
+    en: 'Type',
+    es: 'Tipo',
+    fr: 'Type',
+    de: 'Typ',
+    it: 'Tipo',
+    pt: 'Tipo'
   },
   department: {
     en: 'Department',
@@ -379,6 +387,30 @@ const translations: Translations = {
     de: 'Abteilung',
     it: 'Dipartimento',
     pt: 'Departamento'
+  },
+  organization: {
+    en: 'Organization',
+    es: 'Organización',
+    fr: 'Organisation',
+    de: 'Organisation',
+    it: 'Organizzazione',
+    pt: 'Organização'
+  },
+  user: {
+    en: 'User',
+    es: 'Usuario',
+    fr: 'Utilisateur',
+    de: 'Benutzer',
+    it: 'Utente',
+    pt: 'Usuário'
+  },
+  time: {
+    en: 'Time',
+    es: 'Hora',
+    fr: 'Heure',
+    de: 'Zeit',
+    it: 'Ora',
+    pt: 'Hora'
   },
   feedType: {
     en: 'Feed Type',
@@ -582,11 +614,35 @@ const translations: Translations = {
   },
   imagePreview: {
     en: 'Image Preview',
-    es: 'Vista Previa de la Imagen',
+    es: 'Vista Previa de Imagen',
     fr: 'Aperçu de l\'Image',
     de: 'Bildvorschau',
     it: 'Anteprima Immagine',
-    pt: 'Visualização da Imagem'
+    pt: 'Prévia da Imagem'
+  },
+  feed: {
+    en: 'Feed',
+    es: 'Alimento',
+    fr: 'Alimentation',
+    de: 'Fütterung',
+    it: 'Alimentazione',
+    pt: 'Alimentação'
+  },
+  noImageCaptured: {
+    en: 'No image captured',
+    es: 'No se capturó ninguna imagen',
+    fr: 'Aucune image capturée',
+    de: 'Kein Bild aufgenommen',
+    it: 'Nessuna immagine catturata',
+    pt: 'Nenhuma imagem capturada'
+  },
+  feedEntrySuccess: {
+    en: 'Feed entry successfully created! Returning to home screen...',
+    es: '¡Entrada de alimento creada con éxito! Volviendo a la pantalla principal...',
+    fr: 'Entrée d\'alimentation créée avec succès ! Retour à l\'écran d\'accueil...',
+    de: 'Fütterungseintrag erfolgreich erstellt! Zurück zum Startbildschirm...',
+    it: 'Voce di alimentazione creata con successo! Ritorno alla schermata iniziale...',
+    pt: 'Entrada de alimentação criada com sucesso! Retornando à tela inicial...'
   },
   occupancy: {
     en: 'Occupancy',
