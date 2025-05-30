@@ -64,12 +64,13 @@ function Audits() {
   const [error, setError] = useState<string | null>(null);
   const [openDialog, setOpenDialog] = useState(false);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [departments, setDepartments] = useState<string[]>([]);
+  const [departments, setDepartments] = useState<{ name: string; emoji: string; color: string }[]>([]);
   const [keyboardDialogOpen, setKeyboardDialogOpen] = useState(false);
   const [keyboardInput, setKeyboardInput] = useState('');
   const [activeField, setActiveField] = useState<string | null>(null);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [newFeedType, setNewFeedType] = useState({
     type: '',
     organization: '',
@@ -116,11 +117,18 @@ function Audits() {
     const fetchDepartments = async () => {
       if (newFeedType.organization) {
         try {
-          const response = await axios.get(`${API_URL}/tracking-sequence/departments/${newFeedType.organization}`);
-          const departmentNames = response.data.departments.map((dept: any) => dept.name);
+          const response = await axios.get(`${API_URL}/outlets/${newFeedType.organization}`);
+          // Filter only active outlets and map to department names
+          const departmentNames = response.data
+            .filter((outlet: any) => outlet.status === 'active')
+            .map((outlet: any) => ({
+              name: outlet.outlet,
+              emoji: outlet.emoji,
+              color: outlet.buttonColor
+            }));
           setDepartments(departmentNames);
         } catch (err) {
-          console.error('Error fetching departments:', err);
+          console.error('Error fetching outlets for departments:', err);
         }
       }
     };
@@ -159,6 +167,7 @@ function Audits() {
 
   const handleCreateFeedType = async () => {
     try {
+      setIsCreating(true);
       const selectedOrg = organizations.find(org => org.org === newFeedType.organization);
       const response = await axios.post(`${API_URL}/feed-types`, {
         ...newFeedType,
@@ -179,6 +188,8 @@ function Audits() {
     } catch (err) {
       console.error('Error creating feed type:', err);
       setError('Failed to create feed type. Please try again.');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -370,18 +381,37 @@ function Audits() {
               </FormControl>
 
               <FormControl fullWidth required>
-                <InputLabel>{t('department')}</InputLabel>
+                <InputLabel>{t('outlet/department')}</InputLabel>
                 <Select
                   value={newFeedType.department}
                   onChange={handleDepartmentChange}
-                  label={t('department')}
+                  label={t('outlet/department')}
                 >
                   {departments.map((dept) => (
-                    <MenuItem key={dept} value={dept}>
-                      {dept}
+                    <MenuItem 
+                      key={dept.name} 
+                      value={dept.name}
+                      sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        '&::before': {
+                          content: '""',
+                          display: 'inline-block',
+                          width: '16px',
+                          height: '16px',
+                          backgroundColor: `#${dept.color}`,
+                          borderRadius: '4px',
+                          marginRight: '8px'
+                        }
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography sx={{ fontSize: '1.2rem' }}>{dept.emoji}</Typography>
+                        <Typography>{dept.name}</Typography>
+                      </Box>
                     </MenuItem>
                   ))}
-                  <MenuItem value="custom">{t('enterCustomDepartment')}</MenuItem>
                 </Select>
               </FormControl>
 
@@ -525,17 +555,20 @@ function Audits() {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setShowConfirmDialog(true)}>{t('cancel')}</Button>
+          <Button onClick={() => setShowConfirmDialog(true)} disabled={isCreating}>
+            {t('cancel')}
+          </Button>
           <Button 
             onClick={handleCreateFeedType} 
             variant="contained"
             disabled={
               !newFeedType.type ||
               !newFeedType.organization ||
-              !newFeedType.department
+              !newFeedType.department ||
+              isCreating
             }
           >
-            {t('create')}
+            {isCreating ? t('Creating...') : t('create')}
           </Button>
         </DialogActions>
       </Dialog>

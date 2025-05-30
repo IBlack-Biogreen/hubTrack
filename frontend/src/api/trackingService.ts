@@ -11,6 +11,8 @@ export interface Organization {
 export interface Department {
   name: string;
   displayName: string;
+  color: string;
+  emoji: string;
 }
 
 export interface FeedType {

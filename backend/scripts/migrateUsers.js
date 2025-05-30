@@ -47,7 +47,6 @@ async function migrateUsers() {
         
         if (relevantFeedOrgIDs.length === 0) {
             console.log('   No feedOrgIDs found in device labels. Creating a default admin user only.');
-            await createDefaultAdmin(db);
             return;
         }
         
@@ -56,7 +55,6 @@ async function migrateUsers() {
         const atlasUri = process.env.MONGODB_ATLAS_URI;
         if (!atlasUri) {
             console.error('MongoDB Atlas URI not found. Creating a default admin instead.');
-            await createDefaultAdmin(db);
             return;
         }
         
@@ -80,7 +78,6 @@ async function migrateUsers() {
             
             if (globalUsers.length === 0) {
                 console.log('   No matching users found in Atlas. Creating a default admin instead.');
-                await createDefaultAdmin(db);
                 return;
             }
             
@@ -98,16 +95,6 @@ async function migrateUsers() {
             const result = await db.collection('Users').insertMany(globalUsers);
             console.log(`   Successfully imported ${result.insertedCount} users to local database`);
             
-            // Add a default admin if needed
-            const adminUser = await db.collection('Users').findOne({ 
-                DEVICES: { $in: ["admin"] }
-            });
-            
-            if (!adminUser) {
-                console.log('   No admin user found. Adding a default admin user.');
-                await createDefaultAdmin(db);
-            }
-            
             // Verify the migration
             const count = await db.collection('Users').countDocuments();
             console.log(`   Verification: ${count} users in local database`);
@@ -115,7 +102,7 @@ async function migrateUsers() {
         } catch (atlasError) {
             console.error('   Error connecting to MongoDB Atlas:', atlasError.message);
             console.log('   Creating a default admin instead.');
-            await createDefaultAdmin(db);
+            return;
         }
         
     } catch (error) {
@@ -129,7 +116,7 @@ async function migrateUsers() {
             
             if (count === 0) {
                 console.log('   No users in database after error. Creating a default admin.');
-                await createDefaultAdmin(db);
+                return;
             }
         } catch (fallbackError) {
             console.error('   Error creating fallback admin:', fallbackError);
@@ -141,59 +128,6 @@ async function migrateUsers() {
         }
         console.log('====== USER MIGRATION COMPLETE ======');
     }
-}
-
-// Helper function to create a default admin user
-async function createDefaultAdmin(db) {
-    console.log('   Creating default admin user...');
-    
-    // Create a default admin user that matches the global schema
-    const defaultAdmin = {
-        FIRST: "ADMIN",
-        LAST: "USER",
-        CODE: "0000",
-        DEVICES: ["admin"],
-        LANGUAGE: "en",
-        FEEDS: {
-            trainer: "",
-            date: "",
-            retraining: []
-        },
-        RESIDUAL: {
-            trainer: "",
-            date: ""
-        },
-        TRAINING: {
-            trainer: "",
-            date: ""
-        },
-        employeeID: "admin",
-        title: "System Administrator",
-        cell: "",
-        email: "admin@example.com",
-        lastUpdated: new Date(),
-        userLocation: "Local System",
-        AVATAR: "👨‍💻",
-        deptLead: "false",
-        userDept: "Administration",
-        userName: "Admin User",
-        SERVICE: {
-            trainer: "",
-            date: ""
-        },
-        status: "active",
-        organization: "Local System",
-        numberFeeds: "0",
-        poundsFed: "0",
-        feedOrgID: [],
-        password: "$2a$10$X7o9AQh0jK9xyTLDRsJUxesAZjOmagBMkdxoHUGGpnrFH9YVzoJfy", // password: admin
-        lastSignIn: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date()
-    };
-    
-    await db.collection('Users').insertOne(defaultAdmin);
-    console.log('   ✓ Created default admin user (username: Admin User, password: admin)');
 }
 
 module.exports = migrateUsers; 

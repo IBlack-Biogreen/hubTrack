@@ -27,7 +27,6 @@ import {
   getWeightHistory,
   updateFeedWeights,
   Organization,
-  Department,
   FeedType
 } from '../api/trackingService';
 import Webcam from 'react-webcam';
@@ -46,18 +45,25 @@ const steps = [
 
 const SEQUENCE_TIMEOUT = 5 * 60 * 1000; // 5 minutes in milliseconds
 
+export interface DepartmentWithMeta {
+  name: string;
+  displayName?: string;
+  color?: string;
+  emoji?: string;
+}
+
 const TrackingSequence: React.FC = () => {
   const [activeStep, setActiveStep] = useState(0);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [weight, setWeight] = useState<number | null>(null);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [departments, setDepartments] = useState<DepartmentWithMeta[]>([]);
   const [feedTypes, setFeedTypes] = useState<FeedType[]>([]);
   
   // Selected values
   const [selectedOrganization, setSelectedOrganization] = useState<Organization | null>(null);
-  const [selectedDepartment, setSelectedDepartment] = useState<Department | null>(null);
+  const [selectedDepartment, setSelectedDepartment] = useState<DepartmentWithMeta | null>(null);
   const [selectedFeedType, setSelectedFeedType] = useState<FeedType | null>(null);
   
   // Webcam state
@@ -99,7 +105,7 @@ const TrackingSequence: React.FC = () => {
   // Add new state for auto-selection
   const [pendingAutoSelect, setPendingAutoSelect] = useState<{
     organization?: Organization;
-    department?: Department;
+    department?: DepartmentWithMeta;
     feedType?: FeedType;
   }>({});
   
@@ -495,7 +501,13 @@ const TrackingSequence: React.FC = () => {
       const response = await getDepartments(organizationName);
       console.log('getDepartments response:', response);
       
-      setDepartments(response.departments);
+      setDepartments(
+        (response.departments || []).map((dept: any) => ({
+          ...dept,
+          color: dept.color || '',
+          emoji: dept.emoji || ''
+        }))
+      );
       console.log('Departments set:', response.departments);
       
       // If we should auto-select, do so
@@ -579,7 +591,7 @@ const TrackingSequence: React.FC = () => {
   };
   
   // Handle department selection
-  const handleSelectDepartment = async (department: Department) => {
+  const handleSelectDepartment = async (department: DepartmentWithMeta) => {
     if (!selectedOrganization) return;
     
     setSelectedDepartment(department);
@@ -977,29 +989,38 @@ const TrackingSequence: React.FC = () => {
       case 2:
         return (
           <Box sx={{ my: 4 }}>
-            <Typography variant="h6" gutterBottom>
-              {t('selectDepartment')}
-            </Typography>
-            <Typography>
-              {t('selectDepartmentDescription')}
+            <Typography sx={{ mb: 2 }}>
+              Please select a department/outlet from the list below
             </Typography>
             {loading ? (
               <Box sx={{ textAlign: 'center', my: 2 }}>
                 <CircularProgress />
               </Box>
             ) : (
-              <Grid container spacing={2}>
+              <Grid container spacing={3}>
                 {departments.map((dept) => (
                   <Grid item xs={12} sm={6} md={4} key={dept.name}>
-                    <Card>
-                      <CardActionArea onClick={() => handleSelectDepartment(dept)}>
-                        <CardContent>
-                          <Typography variant="h6">{dept.displayName}</Typography>
-                          <Typography variant="body2" color="text.secondary">
-                            {dept.name}
-                          </Typography>
-                        </CardContent>
-                      </CardActionArea>
+                    <Card
+                      sx={{
+                        bgcolor: `#${dept.color || 'eeeeee'}`,
+                        color: '#222',
+                        cursor: 'pointer',
+                        transition: 'box-shadow 0.2s',
+                        '&:hover': { boxShadow: 6 },
+                        display: 'flex',
+                        alignItems: 'center',
+                        minHeight: 80
+                      }}
+                      onClick={() => handleSelectDepartment(dept)}
+                    >
+                      <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        {dept.emoji && (
+                          <span style={{ fontSize: '2rem', marginRight: 8 }}>{dept.emoji}</span>
+                        )}
+                        <Box>
+                          <Typography variant="h6">{dept.name}</Typography>
+                        </Box>
+                      </CardContent>
                     </Card>
                   </Grid>
                 ))}

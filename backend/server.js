@@ -35,7 +35,7 @@ if (!fs.existsSync(imagesDir)) {
 // Enable CORS for all routes with specific configuration
 app.use(cors({
     origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'file://*'], // Allow file:// URLs for Electron
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Selected-Cart'],
     credentials: true
 }));
@@ -564,6 +564,150 @@ function defineRoutes() {
         } catch (error) {
             console.error('Error fetching organizations:', error);
             res.status(500).json({ error: 'Failed to fetch organizations' });
+        }
+    });
+
+    // Get all outlets for an organization
+    app.get('/api/outlets/:organization', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const { organization } = req.params;
+            const outlets = await db.collection('localOutlets').find({ organization }).toArray();
+            res.json(outlets);
+        } catch (error) {
+            console.error('Error fetching outlets:', error);
+            res.status(500).json({ error: 'Failed to fetch outlets' });
+        }
+    });
+
+    // Update outlet status
+    app.patch('/api/outlets/:organization/:outletId', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const { organization, outletId } = req.params;
+            const { status, dateDeactivated } = req.body;
+
+            const result = await db.collection('localOutlets').updateOne(
+                { 
+                    _id: new ObjectId(outletId),
+                    organization 
+                },
+                { 
+                    $set: { 
+                        status,
+                        dateDeactivated,
+                        lastUpdated: new Date()
+                    } 
+                }
+            );
+
+            if (result.matchedCount === 0) {
+                return res.status(404).json({ error: 'Outlet not found' });
+            }
+
+            // Try to sync with Atlas
+            try {
+                const atlasUri = process.env.MONGODB_ATLAS_URI;
+                if (atlasUri) {
+                    const atlasClient = new MongoClient(atlasUri);
+                    await atlasClient.connect();
+                    const atlasDb = atlasClient.db('globalDbs');
+                    
+                    await atlasDb.collection('globalOutlets').updateOne(
+                        { _id: new ObjectId(outletId) },
+                        { 
+                            $set: { 
+                                status,
+                                dateDeactivated,
+                                lastUpdated: new Date()
+                            } 
+                        }
+                    );
+                    
+                    await atlasClient.close();
+                }
+            } catch (error) {
+                console.error('Error syncing with Atlas:', error);
+                // Queue the change for later sync
+                await queueChange(
+                    'globalOutlets',
+                    new ObjectId(outletId),
+                    'update',
+                    { status, dateDeactivated, lastUpdated: new Date() }
+                );
+            }
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Error updating outlet:', error);
+            res.status(500).json({ error: 'Failed to update outlet' });
+        }
+    });
+
+    // Create new outlet
+    app.post('/api/outlets', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const {
+                organization,
+                orgID,
+                outlet,
+                buttonColor,
+                emoji,
+                daysOfOperation
+            } = req.body;
+
+            const now = new Date().toISOString();
+
+            const outletData = {
+                organization,
+                orgID,
+                outlet,
+                buttonColor,
+                emoji,
+                daysOfOperation,
+                dateCreated: now,
+                lastUpdated: now
+            };
+
+            // Insert into local collection
+            const result = await db.collection('localOutlets').insertOne(outletData);
+
+            // Try to sync with Atlas
+            try {
+                const atlasUri = process.env.MONGODB_ATLAS_URI;
+                if (atlasUri) {
+                    const atlasClient = new MongoClient(atlasUri, {
+                        serverSelectionTimeoutMS: 5000,
+                        connectTimeoutMS: 5000
+                    });
+                    await atlasClient.connect();
+                    console.log('Connected to MongoDB Atlas for outlet sync');
+                    
+                    const atlasDb = atlasClient.db('globalDbs');
+                    await atlasDb.collection('globalOutlets').insertOne({
+                        _id: result.insertedId, // Use the same _id
+                        ...outletData
+                    });
+                    
+                    await atlasClient.close();
+                    console.log('Successfully synced new outlet to Atlas');
+                }
+            } catch (error) {
+                console.error('Error syncing outlet to Atlas:', error);
+                // Queue the change for later sync
+                await queueChange(
+                    'globalOutlets',
+                    result.insertedId,
+                    'insert',
+                    outletData
+                );
+            }
+
+            res.status(201).json(outletData);
+        } catch (error) {
+            console.error('Error creating outlet:', error);
+            res.status(500).json({ error: 'Failed to create outlet' });
         }
     });
 
@@ -1291,14 +1435,28 @@ function defineRoutes() {
             if (feedTypes.length === 0) {
                 return res.status(404).json({ error: 'No feed types found for this organization' });
             }
+
+            // Get all active outlets for this organization
+            const outlets = await db.collection('localOutlets')
+                .find({ 
+                    organization: organization,
+                    status: 'active'
+                })
+                .toArray();
             
-            // Extract unique departments
+            // Extract unique departments and merge with outlet data
             const uniqueDepartments = [...new Set(feedTypes.map(feedType => feedType.department))]
                 .filter(dept => dept) // Filter out null/undefined
-                .map(dept => ({
-                    name: dept,
-                    displayName: feedTypes.find(ft => ft.department === dept)?.deptDispName || dept
-                }));
+                .map(dept => {
+                    // Find matching outlet
+                    const matchingOutlet = outlets.find(outlet => outlet.outlet === dept);
+                    return {
+                        name: dept,
+                        displayName: feedTypes.find(ft => ft.department === dept)?.deptDispName || dept,
+                        color: matchingOutlet?.buttonColor || 'eeeeee',
+                        emoji: matchingOutlet?.emoji || ''
+                    };
+                });
             
             res.json({
                 departments: uniqueDepartments,
