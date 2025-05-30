@@ -23,10 +23,18 @@ import { ChromePicker } from 'react-color';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Keyboard } from '../components/keyboard';
 import axios from 'axios';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
+import { LocalizationProvider, DateCalendar } from '@mui/x-date-pickers';
+import { format, startOfMonth, endOfMonth } from 'date-fns';
 
 interface Organization {
   _id: string;
   org: string;
+}
+
+interface Cover {
+  date: string;
+  covers: number;
 }
 
 const API_URL = 'http://localhost:5000/api';
@@ -68,12 +76,20 @@ export default function Covers() {
     message: '',
     severity: 'success'
   });
+  const [calendarDialogOpen, setCalendarDialogOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedOutlet, setSelectedOutlet] = useState<any>(null);
+  const [coversData, setCoversData] = useState<Cover[]>([]);
+  const [numberInput, setNumberInput] = useState('');
 
   useEffect(() => {
     const fetchOrganizations = async () => {
       try {
         const response = await axios.get(`${API_URL}/organizations`);
         setOrganizations(response.data);
+        if (response.data.length > 0) {
+          setSelectedOrg(response.data[0].org);
+        }
       } catch (err) {
         console.error('Error fetching organizations:', err);
       }
@@ -216,24 +232,64 @@ export default function Covers() {
     }
   };
 
+  const fetchCoversData = async (outlet: any) => {
+    try {
+      const start = startOfMonth(new Date());
+      const end = endOfMonth(new Date());
+      const response = await axios.get(`${API_URL}/covers/${selectedOrg}/${outlet.outlet}`, {
+        params: {
+          startDate: start.toISOString(),
+          endDate: end.toISOString()
+        }
+      });
+      setCoversData(response.data);
+    } catch (error) {
+      console.error('Error fetching covers data:', error);
+    }
+  };
+
+  const handleOutletClick = async (outlet: any) => {
+    setSelectedOutlet(outlet);
+    await fetchCoversData(outlet);
+    setCalendarDialogOpen(true);
+  };
+
+  const handleDateSelect = (date: Date | null) => {
+    setSelectedDate(date);
+    setKeyboardInput('');
+    handleOpenKeyboard('covers');
+  };
+
+  const handleSaveCovers = async () => {
+    if (!selectedDate || !numberInput || !selectedOutlet) return;
+
+    try {
+      await axios.post(`${API_URL}/covers`, {
+        organization: selectedOrg,
+        outlet: selectedOutlet.outlet,
+        date: selectedDate.toISOString(),
+        covers: parseInt(numberInput)
+      });
+
+      await fetchCoversData(selectedOutlet);
+      setNumberInput('');
+      setSelectedDate(null);
+    } catch (error) {
+      console.error('Error saving covers:', error);
+    }
+  };
+
+  const getCoversForDate = (date: Date) => {
+    const coverEntry = coversData.find(
+      cover => format(new Date(cover.date), 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd')
+    );
+    return coverEntry?.covers;
+  };
+
   return (
     <Container maxWidth="md">
-      <Box sx={{ mt: 4, mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography variant="h4" gutterBottom>
-          {t('covers')}
-        </Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => setOpenDialog(true)}
-        >
-          {t('Outlet')}
-        </Button>
-      </Box>
-
-      {/* Organization Selector */}
-      <Box sx={{ mb: 3 }}>
-        <FormControl fullWidth>
+      <Box sx={{ mt: 4, mb: 2, display: 'flex', gap: 2, alignItems: 'center' }}>
+        <FormControl sx={{ flexGrow: 1 }}>
           <InputLabel>{t('Select Organization')}</InputLabel>
           <Select
             value={selectedOrg}
@@ -247,14 +303,23 @@ export default function Covers() {
             ))}
           </Select>
         </FormControl>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={() => setOpenDialog(true)}
+        >
+          {t('Outlet')}
+        </Button>
       </Box>
 
       {/* Outlets Grid */}
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 2 }}>
         {outlets.map((outlet, index) => (
-        <Paper
+          <Paper
             key={index}
-          sx={{
+            onClick={() => outlet.status === 'active' && handleOutletClick(outlet)}
+            sx={{
+              cursor: outlet.status === 'active' ? 'pointer' : 'default',
               p: 2,
               display: 'flex',
               flexDirection: 'column',
@@ -267,7 +332,7 @@ export default function Covers() {
           >
             <Typography variant="h6" sx={{ fontSize: '2rem' }}>
               {outlet.emoji}
-          </Typography>
+            </Typography>
             <Typography variant="h6" sx={{ textAlign: 'center' }}>
               {outlet.outlet}
             </Typography>
@@ -300,8 +365,8 @@ export default function Covers() {
               >
                 {outlet.status === 'active' ? 'Deactivate' : 'Activate'}
               </Button>
-          </Box>
-        </Paper>
+            </Box>
+          </Paper>
         ))}
       </Box>
 
@@ -502,6 +567,60 @@ export default function Covers() {
         </DialogActions>
       </Dialog>
 
+      {/* Calendar Dialog */}
+      <Dialog
+        open={calendarDialogOpen}
+        onClose={() => setCalendarDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          {selectedOutlet?.emoji} {selectedOutlet?.outlet} - Select Date
+        </DialogTitle>
+        <DialogContent>
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <DateCalendar
+                value={selectedDate}
+                onChange={handleDateSelect}
+                renderDay={(day, _value, DayComponentProps) => {
+                  const covers = getCoversForDate(day);
+                  return (
+                    <Box
+                      sx={{
+                        position: 'relative',
+                        width: '100%',
+                        height: '100%'
+                      }}
+                    >
+                      {DayComponentProps.children}
+                      {covers !== undefined && (
+                        <Typography
+                          sx={{
+                            position: 'absolute',
+                            bottom: 2,
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            fontSize: '0.7rem',
+                            fontWeight: 'bold',
+                            color: 'primary.main'
+                          }}
+                        >
+                          {covers}
+                        </Typography>
+                      )}
+                    </Box>
+                  );
+                }}
+              />
+            </Box>
+          </LocalizationProvider>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCalendarDialogOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Keyboard Dialog */}
       <Dialog 
         open={keyboardDialogOpen} 
@@ -509,7 +628,7 @@ export default function Covers() {
         maxWidth="md"
         fullWidth
       >
-        <DialogTitle>{t('onScreenKeyboard')}</DialogTitle>
+        <DialogTitle>Enter Covers for {format(selectedDate || new Date(), 'MMM dd, yyyy')}</DialogTitle>
         <DialogContent>
           <Box sx={{ mb: 2 }}>
             <TextField
@@ -526,7 +645,11 @@ export default function Covers() {
             onKeyPress={handleKeyboardKeyPress}
             onBackspace={handleKeyboardBackspace}
             onClear={handleKeyboardClear}
-            onEnter={handleKeyboardEnter}
+            onEnter={() => {
+              setNumberInput(keyboardInput);
+              handleKeyboardEnter();
+              handleSaveCovers();
+            }}
             currentValue={keyboardInput}
           />
         </DialogContent>
