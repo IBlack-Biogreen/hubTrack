@@ -587,7 +587,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
                   <TableCell>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       <Avatar sx={{ mr: 2, fontSize: '1rem' }}>{user.AVATAR || '👤'}</Avatar>
-                      {`${user.FIRST || ''} ${user.LAST || ''}`.trim()}
+                      {`${user.FIRST || ''} ${user.LAST || ''}`.trim() || 'N/A'}
                     </Box>
                   </TableCell>
                   <TableCell>{user.LANGUAGE || 'en'}</TableCell>
@@ -600,18 +600,18 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
                         '&:hover': { opacity: 0.7 }
                       }}
                     >
-                      {revealedCodes.has(user._id) ? user.CODE || 'N/A' : '****'}
+                      {revealedCodes.has(user._id) ? (user.CODE || 'N/A') : '****'}
                     </Box>
                   </TableCell>
                   <TableCell>{user.organization || 'N/A'}</TableCell>
                   <TableCell>
-                    {user.siteChampion === true && (
+                    {user.siteChampion === true ? (
                       <Tooltip title="Site Champion">
                         <StarIcon sx={{ color: 'primary.main' }} />
                       </Tooltip>
-                    )}
+                    ) : null}
                   </TableCell>
-                  <TableCell>{user.numberFeeds || 0}</TableCell>
+                  <TableCell>{typeof user.numberFeeds === 'number' ? user.numberFeeds : 0}</TableCell>
                 </TableRow>
               ))
             )}
@@ -1080,7 +1080,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
         <DialogTitle>{t('confirmActivation')}</DialogTitle>
         <DialogContent>
           <Typography>
-            {t('reactivateUserConfirm', { name: userToActivate?.name })}
+            {userToActivate?.name ? t(`reactivateUserConfirm_${userToActivate.name}`) : ''}
           </Typography>
         </DialogContent>
         <DialogActions>
@@ -1110,7 +1110,7 @@ const UsersTable: React.FC<UsersTableProps> = ({ users: propUsers, loading: prop
         <DialogTitle>{t('confirmDeactivation')}</DialogTitle>
         <DialogContent>
           <Typography>
-            {t('deactivateUserConfirm', { name: editingUser?.name })}
+            {editingUser?.name ? t(`deactivateUserConfirm_${editingUser.name}`) : ''}
           </Typography>
         </DialogContent>
         <DialogActions>
