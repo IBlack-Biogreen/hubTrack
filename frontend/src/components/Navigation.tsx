@@ -146,7 +146,7 @@ function Navigation() {
       <Container maxWidth={false} sx={{ px: { xs: 1, sm: 2 } }}>
         <Toolbar disableGutters sx={{ minHeight: { xs: '32px', sm: '40px' }, py: 0 }}>
           <Box
-            component={RouterLink}
+            component={!isInTrackingSequence ? RouterLink : 'div'}
             to="/"
             sx={{
               mr: 2,
@@ -215,7 +215,7 @@ function Navigation() {
           )}
 
           <Box
-            component={RouterLink}
+            component={!isInTrackingSequence ? RouterLink : 'div'}
             to="/"
             sx={{
               mr: 2,
