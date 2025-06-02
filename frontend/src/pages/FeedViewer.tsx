@@ -81,15 +81,19 @@ function FeedViewer() {
   };
 
   const handlePrevious = () => {
-    setCurrentIndex((prevIndex) => (prevIndex > 0 ? prevIndex - 1 : feeds.length - 1));
+    if (recentFeeds.length === 0) return;
+    setCurrentIndex((prevIndex) => (prevIndex > 0 ? prevIndex - 1 : recentFeeds.length - 1));
   };
 
   const handleNext = () => {
-    setCurrentIndex((prevIndex) => (prevIndex < feeds.length - 1 ? prevIndex + 1 : 0));
+    if (recentFeeds.length === 0) return;
+    setCurrentIndex((prevIndex) => (prevIndex < recentFeeds.length - 1 ? prevIndex + 1 : 0));
   };
 
   const handleFeedSelect = (index: number) => {
-    setCurrentIndex(index);
+    if (index >= 0 && index < recentFeeds.length) {
+      setCurrentIndex(index);
+    }
   };
 
   // Filter feeds from the last 7 days
@@ -99,6 +103,9 @@ function FeedViewer() {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     return feedDate >= sevenDaysAgo;
   });
+
+  // Get current feed safely
+  const currentFeed = recentFeeds[currentIndex] || null;
 
   return (
     <Container maxWidth="xl" sx={{ height: 'calc(100vh - 64px)', py: 2 }}>
@@ -121,7 +128,7 @@ function FeedViewer() {
           <Typography variant="h6" sx={{ p: 2, bgcolor: 'primary.main', color: 'white' }}>
             Recent Feeds (Last 7 Days)
           </Typography>
-          <List sx={{ p: 0 }}>
+          <List>
             {recentFeeds.map((feed, index) => (
               <ListItem key={feed.id} disablePadding>
                 <ListItemButton 
@@ -155,22 +162,22 @@ function FeedViewer() {
         </Paper>
 
         {/* Feed Details */}
-        <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
+        <Box sx={{ flex: 1, overflow: 'auto' }}>
           {loading ? (
             <Typography>Loading feed history...</Typography>
           ) : error ? (
             <Typography color="error">{error}</Typography>
           ) : recentFeeds.length === 0 ? (
             <Typography>No feed history available for the last 7 days</Typography>
-          ) : (
+          ) : currentFeed ? (
             <Box sx={{ position: 'relative', maxWidth: '800px', margin: '0 auto' }}>
               <Card>
-                {recentFeeds[currentIndex].imageFilename && (
+                {currentFeed.imageFilename && (
                   <Box sx={{ position: 'relative' }}>
                     <CardMedia
                       component="img"
                       height="400"
-                      image={`http://localhost:5000/images/${recentFeeds[currentIndex].imageFilename}`}
+                      image={`http://localhost:5000/images/${currentFeed.imageFilename}`}
                       alt="Feed image"
                       sx={{ objectFit: 'contain' }}
                     />
@@ -209,35 +216,35 @@ function FeedViewer() {
                   my: 2,
                   backgroundColor: 'background.paper'
                 }}>
-                  <Grid container spacing={2} sx={{ justifyContent: 'center' }}>
+                  <Grid container spacing={2}>
                     {/* Left column: Metadata */}
                     <Grid item xs={6} sx={{ textAlign: 'center' }}>
                       <Typography variant="body1" gutterBottom>
-                        <strong>{t('type')}:</strong> {recentFeeds[currentIndex].type}
+                        <strong>{t('type')}:</strong> {currentFeed.type}
                       </Typography>
                       <Typography variant="body1" gutterBottom>
-                        <strong>{t('department')}:</strong> {recentFeeds[currentIndex].department}
+                        <strong>{t('department')}:</strong> {currentFeed.department}
                       </Typography>
                       <Typography variant="body1" gutterBottom>
-                        <strong>{t('organization')}:</strong> {recentFeeds[currentIndex].organization}
+                        <strong>{t('organization')}:</strong> {currentFeed.organization}
                       </Typography>
                       <Typography variant="body1" gutterBottom>
-                        <strong>{t('user')}:</strong> {recentFeeds[currentIndex].user}
+                        <strong>{t('user')}:</strong> {currentFeed.user}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">
-                        <strong>{t('time')}:</strong> {formatDate(recentFeeds[currentIndex].timestamp)}
+                        <strong>{t('time')}:</strong> {formatDate(currentFeed.timestamp)}
                       </Typography>
                     </Grid>
                     {/* Right column: Weights */}
                     <Grid item xs={6} sx={{ textAlign: 'center' }}>
                       <Typography variant="h5" gutterBottom sx={{ fontWeight: 'bold' }}>
-                        <strong>{t('weight')}:</strong> {Number(recentFeeds[currentIndex].weight).toFixed(2)} lbs
+                        <strong>{t('weight')}:</strong> {Number(currentFeed.weight).toFixed(2)} lbs
                       </Typography>
                       <Typography variant="body1" gutterBottom>
-                        <strong>{t('binWeight')}:</strong> {Number(recentFeeds[currentIndex].binWeight).toFixed(2)} lbs
+                        <strong>{t('binWeight')}:</strong> {Number(currentFeed.binWeight).toFixed(2)} lbs
                       </Typography>
                       <Typography variant="body1" gutterBottom>
-                        <strong>{t('totalWeight')}:</strong> {Number(recentFeeds[currentIndex].totalWeight).toFixed(2)} lbs
+                        <strong>{t('totalWeight')}:</strong> {Number(currentFeed.totalWeight).toFixed(2)} lbs
                       </Typography>
                     </Grid>
                   </Grid>
@@ -247,7 +254,7 @@ function FeedViewer() {
                 {currentIndex + 1} of {recentFeeds.length}
               </Typography>
             </Box>
-          )}
+          ) : null}
         </Box>
       </Box>
     </Container>
