@@ -241,7 +241,17 @@ function Navigation() {
                 <Button
                   key={page.name}
                   onClick={handleCloseNavMenu}
-                  sx={{ my: 2, color: 'white', display: 'block' }}
+                  sx={{ 
+                    my: 2, 
+                    color: 'white', 
+                    display: 'block',
+                    backgroundColor: location.pathname === page.path ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
+                    '&:hover': {
+                      backgroundColor: location.pathname === page.path 
+                        ? 'rgba(255, 255, 255, 0.25)' 
+                        : 'rgba(255, 255, 255, 0.1)'
+                    }
+                  }}
                   component={RouterLink}
                   to={page.path}
                 >

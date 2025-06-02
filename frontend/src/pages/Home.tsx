@@ -73,26 +73,47 @@ const Home: React.FC = () => {
 
   // Fetch weight reading
   useEffect(() => {
+    let isSubscribed = true;
+    
     const fetchWeight = async () => {
+      if (!isSubscribed) return;
+      
       try {
-        const response = await fetch('http://localhost:5001/api/labjack/ain1');
+        const response = await fetch('http://localhost:5001/api/labjack/ain1', {
+          // Add timeout to prevent hanging requests
+          signal: AbortSignal.timeout(3000)
+        });
+        
+        if (!isSubscribed) return;
+        
         if (!response.ok) {
           throw new Error('Failed to fetch weight');
         }
+        
         const data = await response.json();
-        setWeight(data.weight);
+        if (isSubscribed) {
+          setWeight(data.weight);
+        }
       } catch (err) {
-        console.error('Error fetching weight:', err);
+        if (err.name === 'AbortError') {
+          console.log('Weight fetch request timed out');
+        } else {
+          console.error('Error fetching weight:', err);
+        }
+        // Don't set weight to null on error to maintain last known good value
       }
     };
 
     // Initial fetch
     fetchWeight();
 
-    // Set up polling
-    const interval = setInterval(fetchWeight, 500);
+    // Set up polling with a longer interval to reduce network load
+    const interval = setInterval(fetchWeight, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      isSubscribed = false;
+      clearInterval(interval);
+    };
   }, []);
 
   // Handle PIN input

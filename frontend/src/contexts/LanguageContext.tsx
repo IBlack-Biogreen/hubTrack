@@ -820,13 +820,13 @@ const translations: Translations = {
     it: 'Utente Alimentazione',
     pt: 'Usuário de Alimentação'
   },
-  storageUtilizationDescription: {
-    en: 'Please click the (+) button once for each bus bucket you add to storage. Click the (-) button to remove a bucket.',
-    es: 'Haga clic en el botón (+) una vez por cada cubo de autobús que agregue al almacenamiento. Haga clic en el botón (-) para eliminar un cubo.',
-    fr: 'Cliquez sur le bouton (+) une fois pour chaque seau de bus que vous ajoutez au stockage. Cliquez sur le bouton (-) pour supprimer un seau.',
-    de: 'Klicken Sie für jeden Bus-Eimer, den Sie zum Speicher hinzufügen, einmal auf die (+) Schaltfläche. Klicken Sie auf die (-) Schaltfläche, um einen Eimer zu entfernen.',
-    it: 'Fare clic sul pulsante (+) una volta per ogni secchio dell\'autobus che si aggiunge allo stoccaggio. Fare clic sul pulsante (-) per rimuovere un secchio.',
-    pt: 'Clique no botão (+) uma vez para cada balde de ônibus que você adiciona ao armazenamento. Clique no botão (-) para remover um balde.'
+  storageUtilization: {
+    en: 'Storage Utilization',
+    es: 'Utilización de Almacenamiento',
+    fr: 'Utilisation du Stockage',
+    de: 'Speichernutzung',
+    it: 'Utilizzo dello Spazio',
+    pt: 'Utilização do Armazenamento'
   },
   add: {
     en: 'Add',

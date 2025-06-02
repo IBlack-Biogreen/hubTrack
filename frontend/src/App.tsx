@@ -114,7 +114,7 @@ function AppWrapper() {
   return (
     <MuiThemeProvider theme={theme}>
       <CssBaseline />
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <LanguageProvider>
           <UserProvider>
             <TimeoutProvider>
