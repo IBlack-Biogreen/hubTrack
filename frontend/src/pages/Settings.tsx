@@ -245,24 +245,21 @@ function Settings() {
 
   const handleLatitudeNumberPadEnter = async () => {
     const newValue = parseFloat(tempLatitude);
-    if (!isNaN(newValue)) {
-      const newSettings = {
-        ...currentDeviceLabel?.settings,
-        latitude: newValue.toString()
-      };
-      await saveSettingsToDeviceLabel(newSettings);
-      
-      // Update the local device label state
+    if (!isNaN(newValue) && newValue >= -90 && newValue <= 90) {
       if (currentDeviceLabel) {
         const updatedLabel = {
           ...currentDeviceLabel,
-          settings: newSettings
+          settings: {
+            ...currentDeviceLabel.settings,
+            latitude: newValue
+          }
         };
         setDeviceLabels(prevLabels => 
           prevLabels.map(label => 
             label._id === currentDeviceLabel._id ? updatedLabel : label
           )
         );
+        await saveSettingsToDeviceLabel(newValue, 'latitude');
       }
     }
     setLatitudeDialogOpen(false);
@@ -282,24 +279,21 @@ function Settings() {
 
   const handleLongitudeNumberPadEnter = async () => {
     const newValue = parseFloat(tempLongitude);
-    if (!isNaN(newValue)) {
-      const newSettings = {
-        ...currentDeviceLabel?.settings,
-        longitude: newValue.toString()
-      };
-      await saveSettingsToDeviceLabel(newSettings);
-      
-      // Update the local device label state
+    if (!isNaN(newValue) && newValue >= -180 && newValue <= 180) {
       if (currentDeviceLabel) {
         const updatedLabel = {
           ...currentDeviceLabel,
-          settings: newSettings
+          settings: {
+            ...currentDeviceLabel.settings,
+            longitude: newValue
+          }
         };
         setDeviceLabels(prevLabels => 
           prevLabels.map(label => 
             label._id === currentDeviceLabel._id ? updatedLabel : label
           )
         );
+        await saveSettingsToDeviceLabel(newValue, 'longitude');
       }
     }
     setLongitudeDialogOpen(false);

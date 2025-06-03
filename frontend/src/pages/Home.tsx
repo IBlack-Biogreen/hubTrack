@@ -70,7 +70,7 @@ const Home: React.FC = () => {
       }
     };
     fetchWeather();
-    const interval = setInterval(fetchWeather, 300000); // Update every 5 minutes
+    const interval = setInterval(fetchWeather, 900000); // Update every 15 minutes
     return () => clearInterval(interval);
   }, []);
 

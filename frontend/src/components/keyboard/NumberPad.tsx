@@ -32,6 +32,20 @@ const NumberPad: React.FC<NumberPadProps> = ({
       return;
     }
 
+    // Handle negative sign
+    if (key === '-') {
+      if (currentValue === '') {
+        onKeyPress(key);
+      } else if (currentValue.startsWith('-')) {
+        // Remove negative sign if it exists
+        onKeyPress(currentValue.substring(1));
+      } else {
+        // Add negative sign at the beginning
+        onKeyPress('-' + currentValue);
+      }
+      return;
+    }
+
     // Handle number input
     if (currentValue.length < maxLength) {
       onKeyPress(key);
@@ -42,7 +56,8 @@ const NumberPad: React.FC<NumberPadProps> = ({
     ['1', '2', '3'],
     ['4', '5', '6'],
     ['7', '8', '9'],
-    [showDecimal ? '.' : 'C', '0', '⌫']
+    ['-', '0', showDecimal ? '.' : 'C'],
+    ['⌫']
   ];
 
   return (
