@@ -583,34 +583,36 @@ export default function Covers() {
               <DateCalendar
                 value={selectedDate}
                 onChange={handleDateSelect}
-                renderDay={(day, _value, DayComponentProps) => {
-                  const covers = getCoversForDate(day);
-                  return (
-                    <Box
-                      sx={{
-                        position: 'relative',
-                        width: '100%',
-                        height: '100%'
-                      }}
-                    >
-                      {DayComponentProps.children}
-                      {covers !== undefined && (
-                        <Typography
-                          sx={{
-                            position: 'absolute',
-                            bottom: 2,
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                            fontSize: '0.7rem',
-                            fontWeight: 'bold',
-                            color: 'primary.main'
-                          }}
-                        >
-                          {covers}
-                        </Typography>
-                      )}
-                    </Box>
-                  );
+                slots={{
+                  day: (props) => {
+                    const covers = getCoversForDate(props.day);
+                    return (
+                      <Box
+                        sx={{
+                          position: 'relative',
+                          width: '100%',
+                          height: '100%'
+                        }}
+                      >
+                        {props.children}
+                        {covers !== undefined && (
+                          <Typography
+                            sx={{
+                              position: 'absolute',
+                              bottom: 2,
+                              left: '50%',
+                              transform: 'translateX(-50%)',
+                              fontSize: '0.7rem',
+                              fontWeight: 'bold',
+                              color: 'primary.main'
+                            }}
+                          >
+                            {covers}
+                          </Typography>
+                        )}
+                      </Box>
+                    );
+                  }
                 }}
               />
             </Box>

@@ -23,9 +23,19 @@ const getPresetRange = (preset: string): [Date, Date] => {
       end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
       break;
     }
+    case 'lastWeek': {
+      const day = now.getDay();
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day - 7);
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - day - 1, 23, 59, 59, 999);
+      break;
+    }
     case 'thisMonth':
       start = new Date(now.getFullYear(), now.getMonth(), 1);
       end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+      break;
+    case 'lastMonth':
+      start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
       break;
     case 'thisYear':
       start = new Date(now.getFullYear(), 0, 1);
@@ -134,7 +144,9 @@ function Stats() {
                 >
                   <ToggleButton value="today">Today</ToggleButton>
                   <ToggleButton value="thisWeek">This Week</ToggleButton>
+                  <ToggleButton value="lastWeek">Last Week</ToggleButton>
                   <ToggleButton value="thisMonth">This Month</ToggleButton>
+                  <ToggleButton value="lastMonth">Last Month</ToggleButton>
                   <ToggleButton value="thisYear">This Year</ToggleButton>
                 </ToggleButtonGroup>
               </Grid>
@@ -167,7 +179,15 @@ function Stats() {
               <Paper sx={{ p: 2, height: 400, display: 'flex', flexDirection: 'column' }}>
                 <Typography variant="h6" gutterBottom>Waste by Feed Type</Typography>
                 {pieData.labels.length > 0 ? (
-                  <Pie data={pieData} />
+                  <Box sx={{ flex: 1, position: 'relative', width: '100%', height: '100%' }}>
+                    <Pie 
+                      data={pieData} 
+                      options={{
+                        maintainAspectRatio: false,
+                        responsive: true
+                      }}
+                    />
+                  </Box>
                 ) : (
                   <Typography color="text.secondary">No data for selected range.</Typography>
                 )}
