@@ -28,11 +28,13 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import WifiIcon from '@mui/icons-material/Wifi';
 import WifiOffIcon from '@mui/icons-material/WifiOff';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import KeyboardIcon from '@mui/icons-material/Keyboard';
 import { useThemeContext } from '../contexts/ThemeContext';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 import { useTimeout } from '../contexts/TimeoutContext';
 import { Link as RouterLink } from 'react-router-dom';
 import { useScreensaver } from '../contexts/ScreensaverContext';
+import { NumberPad } from '../components/keyboard';
 
 interface Cart {
     _id: string;
@@ -82,6 +84,10 @@ function Settings() {
   const [selectedNetwork, setSelectedNetwork] = useState<WiFiNetwork | null>(null);
   const [password, setPassword] = useState('');
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [latitudeDialogOpen, setLatitudeDialogOpen] = useState(false);
+  const [longitudeDialogOpen, setLongitudeDialogOpen] = useState(false);
+  const [tempLatitude, setTempLatitude] = useState('');
+  const [tempLongitude, setTempLongitude] = useState('');
 
   const saveSettingsToDeviceLabel = async (settings: any) => {
     if (!currentDeviceLabel) return;
@@ -223,6 +229,80 @@ function Settings() {
         screensaver: { ...screensaverSettings, ...newSettings }
       });
     }
+  };
+
+  const handleLatitudeNumberPadKeyPress = (key: string) => {
+    setTempLatitude(prev => prev + key);
+  };
+
+  const handleLatitudeNumberPadBackspace = () => {
+    setTempLatitude(prev => prev.slice(0, -1));
+  };
+
+  const handleLatitudeNumberPadClear = () => {
+    setTempLatitude('');
+  };
+
+  const handleLatitudeNumberPadEnter = async () => {
+    const newValue = parseFloat(tempLatitude);
+    if (!isNaN(newValue)) {
+      const newSettings = {
+        ...currentDeviceLabel?.settings,
+        latitude: newValue.toString()
+      };
+      await saveSettingsToDeviceLabel(newSettings);
+      
+      // Update the local device label state
+      if (currentDeviceLabel) {
+        const updatedLabel = {
+          ...currentDeviceLabel,
+          settings: newSettings
+        };
+        setDeviceLabels(prevLabels => 
+          prevLabels.map(label => 
+            label._id === currentDeviceLabel._id ? updatedLabel : label
+          )
+        );
+      }
+    }
+    setLatitudeDialogOpen(false);
+  };
+
+  const handleLongitudeNumberPadKeyPress = (key: string) => {
+    setTempLongitude(prev => prev + key);
+  };
+
+  const handleLongitudeNumberPadBackspace = () => {
+    setTempLongitude(prev => prev.slice(0, -1));
+  };
+
+  const handleLongitudeNumberPadClear = () => {
+    setTempLongitude('');
+  };
+
+  const handleLongitudeNumberPadEnter = async () => {
+    const newValue = parseFloat(tempLongitude);
+    if (!isNaN(newValue)) {
+      const newSettings = {
+        ...currentDeviceLabel?.settings,
+        longitude: newValue.toString()
+      };
+      await saveSettingsToDeviceLabel(newSettings);
+      
+      // Update the local device label state
+      if (currentDeviceLabel) {
+        const updatedLabel = {
+          ...currentDeviceLabel,
+          settings: newSettings
+        };
+        setDeviceLabels(prevLabels => 
+          prevLabels.map(label => 
+            label._id === currentDeviceLabel._id ? updatedLabel : label
+          )
+        );
+      }
+    }
+    setLongitudeDialogOpen(false);
   };
 
   useEffect(() => {
@@ -474,6 +554,53 @@ function Settings() {
                   <Typography variant="body1" gutterBottom>
                     <strong>Status:</strong> {currentDeviceLabel.status}
                   </Typography>
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="subtitle1" gutterBottom>
+                      Location Settings
+                    </Typography>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                      <TextField
+                        label="Latitude"
+                        value={currentDeviceLabel?.settings?.latitude || ''}
+                        onClick={() => {
+                          setTempLatitude(currentDeviceLabel?.settings?.latitude || '');
+                          setLatitudeDialogOpen(true);
+                        }}
+                        InputProps={{
+                          readOnly: true,
+                          endAdornment: (
+                            <IconButton onClick={() => {
+                              setTempLatitude(currentDeviceLabel?.settings?.latitude || '');
+                              setLatitudeDialogOpen(true);
+                            }}>
+                              <KeyboardIcon />
+                            </IconButton>
+                          ),
+                        }}
+                        sx={{ width: '200px' }}
+                      />
+                      <TextField
+                        label="Longitude"
+                        value={currentDeviceLabel?.settings?.longitude || ''}
+                        onClick={() => {
+                          setTempLongitude(currentDeviceLabel?.settings?.longitude || '');
+                          setLongitudeDialogOpen(true);
+                        }}
+                        InputProps={{
+                          readOnly: true,
+                          endAdornment: (
+                            <IconButton onClick={() => {
+                              setTempLongitude(currentDeviceLabel?.settings?.longitude || '');
+                              setLongitudeDialogOpen(true);
+                            }}>
+                              <KeyboardIcon />
+                            </IconButton>
+                          ),
+                        }}
+                        sx={{ width: '200px' }}
+                      />
+                    </Box>
+                  </Box>
                 </>
               )}
             </Box>
@@ -616,6 +743,74 @@ function Settings() {
           </List>
         </Box>
       </Box>
+
+      {/* Latitude Number Pad Dialog */}
+      <Dialog
+        open={latitudeDialogOpen}
+        onClose={() => setLatitudeDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Enter Latitude</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              value={tempLatitude}
+              variant="outlined"
+              InputProps={{
+                readOnly: true,
+                sx: { fontSize: '1.25rem' }
+              }}
+            />
+          </Box>
+          <NumberPad
+            onKeyPress={handleLatitudeNumberPadKeyPress}
+            onBackspace={handleLatitudeNumberPadBackspace}
+            onClear={handleLatitudeNumberPadClear}
+            showDecimal={true}
+            currentValue={tempLatitude}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLatitudeDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleLatitudeNumberPadEnter} variant="contained">Enter</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Longitude Number Pad Dialog */}
+      <Dialog
+        open={longitudeDialogOpen}
+        onClose={() => setLongitudeDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Enter Longitude</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mb: 2 }}>
+            <TextField
+              fullWidth
+              value={tempLongitude}
+              variant="outlined"
+              InputProps={{
+                readOnly: true,
+                sx: { fontSize: '1.25rem' }
+              }}
+            />
+          </Box>
+          <NumberPad
+            onKeyPress={handleLongitudeNumberPadKeyPress}
+            onBackspace={handleLongitudeNumberPadBackspace}
+            onClear={handleLongitudeNumberPadClear}
+            showDecimal={true}
+            currentValue={tempLongitude}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLongitudeDialogOpen(false)}>Cancel</Button>
+          <Button onClick={handleLongitudeNumberPadEnter} variant="contained">Enter</Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Hidden Setup Button */}
       <Box

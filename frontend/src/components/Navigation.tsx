@@ -316,7 +316,18 @@ function Navigation() {
 
             <Box sx={{ flexGrow: 0 }}>
               <Tooltip title={t('language')}>
-                <IconButton onClick={handleOpenLangMenu} sx={{ p: 0 }}>
+                <IconButton 
+                  onClick={handleOpenLangMenu} 
+                  sx={{ 
+                    p: 0,
+                    '&:focus': {
+                      outline: 'none'
+                    },
+                    '&:hover': {
+                      backgroundColor: 'rgba(255, 255, 255, 0.1)'
+                    }
+                  }}
+                >
                   <Typography sx={{ color: 'white', mr: 1 }}>
                     {currentLanguage.nativeName}
                   </Typography>

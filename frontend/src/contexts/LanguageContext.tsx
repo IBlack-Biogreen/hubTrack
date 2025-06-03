@@ -971,6 +971,14 @@ const translations: Translations = {
     de: 'Eingeben',
     it: 'Inserisci',
     pt: 'Entrar'
+  },
+  quickStats: {
+    en: 'Quick Stats',
+    es: 'Estadísticas Rápidas',
+    fr: 'Statistiques Rapides',
+    de: 'Schnellstatistiken',
+    it: 'Statistiche Rapide',
+    pt: 'Estatísticas Rápidas'
   }
 };
 

@@ -2040,6 +2040,64 @@ function defineRoutes() {
             res.status(500).json({ message: 'Internal server error' });
         }
     });
+
+    // Add weather endpoint
+    app.get('/api/weather', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const collections = getCollectionNames();
+            
+            // Get the device label document
+            const deviceLabel = await db.collection(collections.deviceLabels).findOne({
+                deviceType: 'trackingCart'
+            });
+
+            if (!deviceLabel) {
+                console.error('Device label not found');
+                return res.status(404).json({ error: 'Device label not found' });
+            }
+
+            // Get location from device label
+            const latitude = deviceLabel.settings?.latitude;
+            const longitude = deviceLabel.settings?.longitude;
+
+            // If coordinates are not set, return null instead of error
+            if (!latitude || !longitude) {
+                return res.json(null);
+            }
+
+            const apiKey = process.env.WEATHER_API_KEY;
+
+            if (!apiKey) {
+                console.error('Weather API key not configured');
+                return res.json(null);
+            }
+
+            const response = await axios.get(
+                `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=imperial&appid=${apiKey}`
+            );
+
+            const weatherData = response.data;
+            
+            // Map weather condition to our icon types
+            let icon = 'cloudy';
+            if (weatherData.weather[0].main === 'Clear') {
+                icon = 'sunny';
+            } else if (weatherData.weather[0].main === 'Rain' || weatherData.weather[0].main === 'Drizzle') {
+                icon = 'rainy';
+            }
+
+            res.json({
+                temperature: Math.round(weatherData.main.temp),
+                condition: weatherData.weather[0].description,
+                icon: icon
+            });
+        } catch (error) {
+            console.error('Error fetching weather:', error);
+            // Return null instead of error to prevent breaking the app
+            res.json(null);
+        }
+    });
 }
 
 // Clean up on server shutdown

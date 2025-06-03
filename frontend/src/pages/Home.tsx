@@ -15,6 +15,10 @@ import BackspaceIcon from '@mui/icons-material/Backspace';
 import axios from 'axios';
 import Webcam from 'react-webcam';
 import { useLanguage } from '../contexts/LanguageContext';
+import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import WbSunnyIcon from '@mui/icons-material/WbSunny';
+import CloudIcon from '@mui/icons-material/Cloud';
+import GrainIcon from '@mui/icons-material/Grain';
 
 const API_URL = window.electron ? 'http://localhost:5000/api' : '/api';
 
@@ -36,7 +40,39 @@ const Home: React.FC = () => {
     allTime: 0
   });
   const [weight, setWeight] = useState<number | null>(null);
+  const [weather, setWeather] = useState<{
+    temperature: number;
+    condition: string;
+    icon: string;
+  } | null>(null);
+  const [currentTime, setCurrentTime] = useState<string>('');
   const { t } = useLanguage();
+
+  // Update current time every second
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      setCurrentTime(now.toLocaleTimeString());
+    };
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Fetch weather data
+  useEffect(() => {
+    const fetchWeather = async () => {
+      try {
+        const response = await axios.get('http://localhost:5000/api/weather');
+        setWeather(response.data);
+      } catch (error) {
+        console.error('Error fetching weather:', error);
+      }
+    };
+    fetchWeather();
+    const interval = setInterval(fetchWeather, 300000); // Update every 5 minutes
+    return () => clearInterval(interval);
+  }, []);
 
   // Fetch stats on component mount
   useEffect(() => {
@@ -238,7 +274,7 @@ const Home: React.FC = () => {
         <Grid item xs={12} md={4}>
           <Paper elevation={3} sx={{ p: 3, height: 'calc(100vh - 128px)', borderRadius: 2, overflow: 'auto' }}>
             <Typography variant="h6" gutterBottom>
-              {t('trackingStatistics')}
+              {t('quickStats')}
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
               <Paper sx={{ 
@@ -345,49 +381,106 @@ const Home: React.FC = () => {
           </Paper>
         </Grid>
 
-        {/* Right Column - Camera Preview */}
+        {/* Right Column - Camera Preview and Weather */}
         <Grid item xs={12} md={4}>
-          {/* Load Cell Reading Card */}
-          <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 2 }}>
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="h3" color="primary" sx={{ mb: 1 }}>
+          {/* Combined Camera and Weight Card */}
+          <Paper elevation={3} sx={{ p: 3, mb: 3, borderRadius: 2, height: 'calc(100vh - 256px)', display: 'flex', flexDirection: 'column' }}>
+            {/* Weight Display */}
+            <Box sx={{ textAlign: 'center', mb: 2 }}>
+              <Typography variant="h3" color="primary">
                 {weight !== null ? (Math.abs(weight) <= 0.25 ? '0.00' : weight.toFixed(2)) : '--'} lbs
               </Typography>
             </Box>
+
+            {/* Camera Display */}
+            <Box sx={{ 
+              flex: 1, 
+              position: 'relative', 
+              width: '100%', 
+              height: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              overflow: 'hidden'
+            }}>
+              <Box sx={{
+                position: 'relative',
+                width: '100%',
+                height: '100%',
+                maxHeight: 'calc(100% - 20px)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center'
+              }}>
+                <Webcam
+                  ref={webcamRef}
+                  onUserMediaError={(error) => {
+                    console.error('Camera error:', error);
+                    setCameraError(t('cameraError'));
+                    setCameraReady(false);
+                  }}
+                  onUserMedia={() => {
+                    setCameraError(null);
+                    setCameraReady(true);
+                  }}
+                  screenshotFormat="image/jpeg"
+                  width={480}
+                  height={360}
+                  audio={false}
+                  imageSmoothing={true}
+                  mirrored={false}
+                  videoConstraints={{
+                    width: 480,
+                    height: 360,
+                    facingMode: "environment"
+                  }}
+                  style={{ 
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'contain',
+                    borderRadius: '4px'
+                  }}
+                />
+                {cameraError && (
+                  <Typography color="error" sx={{ mt: 1, textAlign: 'center' }}>
+                    {cameraError}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
           </Paper>
 
-          <Paper elevation={3} sx={{ p: 3, height: 'calc(100vh - 256px)', borderRadius: 2, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-            <Box sx={{ position: 'relative', width: '100%', height: 'auto' }}>
-              <Webcam
-                ref={webcamRef}
-                onUserMediaError={(error) => {
-                  console.error('Camera error:', error);
-                  setCameraError(t('cameraError'));
-                  setCameraReady(false);
-                }}
-                onUserMedia={() => {
-                  setCameraError(null);
-                  setCameraReady(true);
-                }}
-                screenshotFormat="image/jpeg"
-                width={480}
-                height={360}
-                audio={false}
-                imageSmoothing={true}
-                mirrored={false}
-                videoConstraints={{
-                  width: 480,
-                  height: 360,
-                  facingMode: "environment"
-                }}
-                style={{ width: '100%', borderRadius: '4px' }}
-              />
-              {cameraError && (
-                <Typography color="error" sx={{ mt: 1, textAlign: 'center' }}>
-                  {cameraError}
+          {/* Weather and Time Card */}
+          <Paper elevation={3} sx={{ p: 3, borderRadius: 2 }}>
+            <Grid container spacing={2}>
+              {/* Time Display */}
+              <Grid item xs={6}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <AccessTimeIcon color="primary" />
+                  <Typography variant="h6">
+                    {currentTime}
+                  </Typography>
+                </Box>
+                <Typography variant="body2" color="text.secondary">
+                  {new Date().toLocaleDateString()}
                 </Typography>
-              )}
-            </Box>
+              </Grid>
+
+              {/* Weather Display */}
+              <Grid item xs={6}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  {weather?.icon === 'sunny' && <WbSunnyIcon color="warning" />}
+                  {weather?.icon === 'cloudy' && <CloudIcon color="info" />}
+                  {weather?.icon === 'rainy' && <GrainIcon color="primary" />}
+                  <Typography variant="h6">
+                    {weather ? `${weather.temperature}°F` : '--'}
+                  </Typography>
+                </Box>
+                <Typography variant="body2" color="text.secondary">
+                  {weather?.condition || 'Loading...'}
+                </Typography>
+              </Grid>
+            </Grid>
           </Paper>
         </Grid>
       </Grid>
