@@ -7,6 +7,7 @@ const migrateDeviceLabels = require('./scripts/migrateDeviceLabels');
 const migrateUsers = require('./scripts/migrateUsers');
 const migrateFeedTypes = require('./scripts/migrateFeedTypes');
 const migrateOrgs = require('./scripts/migrateOrgs');
+const syncEvents = require('./scripts/syncEvents');
 const axios = require('axios');
 const migrateCarts = require('./scripts/migrateCarts');
 const path = require('path');
@@ -106,6 +107,7 @@ app.post('/api/sync-images', async (req, res) => {
 const SYNC_QUEUE_COLLECTION = 'syncQueue';
 const SYNC_BATCH_SIZE = 50;
 const SYNC_INTERVAL = 60000; // 1 minute
+const EVENTS_SYNC_INTERVAL = 300000; // 5 minutes
 
 // Add these functions before defineRoutes()
 async function queueChange(collection, documentId, operation, data) {
@@ -293,6 +295,19 @@ async function initializeServer() {
         await dbManager.connect();
         console.log('Database connection established');
 
+        // Wait a moment to ensure database is fully ready
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Initial sync of events
+        console.log('Performing initial events sync...');
+        try {
+            await syncEvents();
+            console.log('Initial events sync completed');
+        } catch (error) {
+            console.error('Error during initial events sync:', error);
+            console.error('Error stack:', error.stack);
+        }
+
         // Sync scale configuration with LabJack server
         console.log('Syncing scale configuration...');
         await syncScaleConfiguration();
@@ -429,6 +444,9 @@ async function initializeServer() {
         // Start the feed sync service
         feedSyncService.startSyncService();
         
+        // Start periodic events sync
+        setInterval(syncEvents, EVENTS_SYNC_INTERVAL);
+        
         // Start server
         app.listen(PORT, () => {
             console.log(`Server is running on port ${PORT}`);
@@ -564,6 +582,21 @@ function defineRoutes() {
         } catch (error) {
             console.error('Error fetching organizations:', error);
             res.status(500).json({ error: 'Failed to fetch organizations' });
+        }
+    });
+
+    // Get all events
+    app.get('/api/events', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const events = await db.collection('localEvents')
+                .find({})
+                .sort({ timestamp: -1 })
+                .toArray();
+            res.json(events);
+        } catch (error) {
+            console.error('Error fetching events:', error);
+            res.status(500).json({ error: 'Failed to fetch events' });
         }
     });
 
