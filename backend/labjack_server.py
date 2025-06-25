@@ -291,11 +291,26 @@ def get_config():
         logging.error(f"Error in get_config: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/labjack/clear-history', methods=['POST'])
+def clear_history():
+    try:
+        global voltage_buffer, current_second_readings
+        logging.info("Clear history request received")
+        
+        # Clear the voltage buffer
+        voltage_buffer.clear()
+        current_second_readings.clear()
+        
+        logging.info("Weight history cleared successfully")
+        return jsonify({'success': True, 'message': 'History cleared successfully'})
+    except Exception as e:
+        logging.error(f"Error in clear_history: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 @app.after_request
 def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST')
+    # Remove the conflicting CORS headers since Flask-CORS handles this
+    # The CORS(app) call at the top should handle all CORS requirements
     return response
 
 if __name__ == '__main__':

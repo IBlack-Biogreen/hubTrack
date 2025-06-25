@@ -18,7 +18,10 @@ import {
   DialogContent,
   DialogActions,
   Stack,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { useLanguage } from '../contexts/LanguageContext';
 import { Chart, registerables } from 'chart.js';
 import 'chartjs-adapter-date-fns';
@@ -68,6 +71,7 @@ export default function Setup() {
   const [storageUtilizationDialogOpen, setStorageUtilizationDialogOpen] = useState(false);
   const [tempStorageCapacity, setTempStorageCapacity] = useState('');
   const [tempStorageUtilization, setTempStorageUtilization] = useState('');
+  const [calibrationHelpDialogOpen, setCalibrationHelpDialogOpen] = useState(false);
 
   // Load saved cart on component mount
   useEffect(() => {
@@ -769,6 +773,29 @@ export default function Setup() {
     }
   };
 
+  const handleClearHistory = async () => {
+    try {
+      const response = await fetch('http://localhost:5001/api/labjack/clear-history', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        setHistory([]);
+        console.log('Weight history cleared successfully');
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to clear weight history:', errorData);
+        setError('Failed to clear weight history. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error clearing weight history:', error);
+      setError('Failed to connect to LabJack server. Please ensure the server is running.');
+    }
+  };
+
   return (
     <Container maxWidth="md">
       <Box sx={{ mt: 4 }}>
@@ -880,14 +907,24 @@ export default function Setup() {
                   readOnly: true,
                 }}
               />
-              <Button
-                fullWidth
-                variant="outlined"
-                onClick={handleCalibrateScale}
-                sx={{ mt: 1 }}
-              >
-                Calibrate Scale
-              </Button>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  onClick={handleCalibrateScale}
+                >
+                  Calibrate Scale
+                </Button>
+                <Tooltip title="Calibration Help">
+                  <IconButton
+                    onClick={() => setCalibrationHelpDialogOpen(true)}
+                    size="small"
+                    color="primary"
+                  >
+                    <HelpOutlineIcon />
+                  </IconButton>
+                </Tooltip>
+              </Box>
             </Grid2>
             <Grid2 item xs={12} sm={6}>
               <TextField
@@ -960,9 +997,19 @@ export default function Setup() {
             flexDirection: 'column'
           }}
         >
-          <Typography variant="h6" gutterBottom>
-            Weight History
-          </Typography>
+          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+            <Typography variant="h6">
+              Weight History
+            </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              onClick={handleClearHistory}
+              color="secondary"
+            >
+              Clear History
+            </Button>
+          </Box>
           <Box sx={{ flex: 1, position: 'relative', minHeight: 0 }}>
             <canvas ref={chartRef} style={{ width: '100%', height: '100%' }} />
           </Box>
@@ -1071,11 +1118,11 @@ export default function Setup() {
                 onChange={(e) => setBinWeight(parseFloat(e.target.value))}
                 sx={{
                   '& input[type=number]::-webkit-inner-spin-button, & input[type=number]::-webkit-outer-spin-button': {
-                    '-webkit-appearance': 'none',
+                    WebkitAppearance: 'none',
                     margin: 0,
                   },
                   '& input[type=number]': {
-                    '-moz-appearance': 'textfield',
+                    MozAppearance: 'textfield',
                   },
                 }}
               />
@@ -1089,11 +1136,11 @@ export default function Setup() {
                 onChange={(e) => setStorageCapacity(parseFloat(e.target.value))}
                 sx={{
                   '& input[type=number]::-webkit-inner-spin-button, & input[type=number]::-webkit-outer-spin-button': {
-                    '-webkit-appearance': 'none',
+                    WebkitAppearance: 'none',
                     margin: 0,
                   },
                   '& input[type=number]': {
-                    '-moz-appearance': 'textfield',
+                    MozAppearance: 'textfield',
                   },
                 }}
               />
@@ -1107,11 +1154,11 @@ export default function Setup() {
                 onChange={(e) => setStorageUtilization(parseFloat(e.target.value))}
                 sx={{
                   '& input[type=number]::-webkit-inner-spin-button, & input[type=number]::-webkit-outer-spin-button': {
-                    '-webkit-appearance': 'none',
+                    WebkitAppearance: 'none',
                     margin: 0,
                   },
                   '& input[type=number]': {
-                    '-moz-appearance': 'textfield',
+                    MozAppearance: 'textfield',
                   },
                 }}
               />
@@ -1320,6 +1367,156 @@ export default function Setup() {
               </Grid2>
             </Box>
           </DialogContent>
+        </Dialog>
+
+        {/* Calibration Dialog */}
+        <Dialog 
+          open={calibrationDialogOpen} 
+          onClose={() => setCalibrationDialogOpen(false)}
+          maxWidth="sm"
+          fullWidth
+          PaperProps={{
+            sx: {
+              maxHeight: '80vh',
+              overflow: 'hidden'
+            }
+          }}
+        >
+          <DialogTitle>Calibrate Scale</DialogTitle>
+          <DialogContent>
+            <Box sx={{ p: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Typography variant="body1" align="center" gutterBottom>
+                Current Voltage: {currentVoltage?.toFixed(4) || '0.0000'} V
+              </Typography>
+              <Typography variant="body1" align="center" gutterBottom>
+                Tare Voltage: {tareVoltage.toFixed(4)} V
+              </Typography>
+              <Typography variant="h6" align="center" gutterBottom>
+                Enter Known Weight: {knownWeight} lbs
+              </Typography>
+              <Grid2 container spacing={1}>
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, '.', 0, 'C'].map((key) => (
+                  <Grid2 item xs={4} key={key}>
+                    <Button
+                      fullWidth
+                      variant="outlined"
+                      onClick={() => {
+                        if (key === 'C') {
+                          handleCalibrationNumberPadClear();
+                        } else {
+                          handleCalibrationNumberPadKeyPress(key.toString());
+                        }
+                      }}
+                    >
+                      {key}
+                    </Button>
+                  </Grid2>
+                ))}
+                <Grid2 item xs={4}>
+                  <Button
+                    fullWidth
+                    variant="outlined"
+                    onClick={handleCalibrationNumberPadBackspace}
+                  >
+                    ←
+                  </Button>
+                </Grid2>
+                <Grid2 item xs={4}>
+                  <Button
+                    fullWidth
+                    variant="contained"
+                    color="primary"
+                    onClick={handleCalibrationNumberPadEnter}
+                  >
+                    Enter
+                  </Button>
+                </Grid2>
+              </Grid2>
+            </Box>
+          </DialogContent>
+        </Dialog>
+
+        {/* Calibration Help Dialog */}
+        <Dialog 
+          open={calibrationHelpDialogOpen} 
+          onClose={() => setCalibrationHelpDialogOpen(false)}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle>How to Calibrate the Scale</DialogTitle>
+          <DialogContent>
+            <Box sx={{ p: 2 }}>
+              <Typography variant="h6" gutterBottom>
+                Calibration Process:
+              </Typography>
+              <Box component="ol" sx={{ pl: 2 }}>
+                <Box component="li" sx={{ mb: 1 }}>
+                  <Typography variant="body1">
+                    Put a known weight on the scale (like a 25lb weight)
+                  </Typography>
+                </Box>
+                <Box component="li" sx={{ mb: 1 }}>
+                  <Typography variant="body1">
+                    Click "Calibrate Scale"
+                  </Typography>
+                </Box>
+                <Box component="li" sx={{ mb: 1 }}>
+                  <Typography variant="body1">
+                    Dialog opens showing current voltage
+                  </Typography>
+                </Box>
+                <Box component="li" sx={{ mb: 1 }}>
+                  <Typography variant="body1">
+                    Enter the known weight (25)
+                  </Typography>
+                </Box>
+                <Box component="li" sx={{ mb: 1 }}>
+                  <Typography variant="body1">
+                    Press Enter
+                  </Typography>
+                </Box>
+                <Box component="li" sx={{ mb: 1 }}>
+                  <Typography variant="body1">
+                    System calculates new scale factor
+                  </Typography>
+                </Box>
+                <Box component="li" sx={{ mb: 1 }}>
+                  <Typography variant="body1">
+                    Updates both LabJack server and database
+                  </Typography>
+                </Box>
+                <Box component="li" sx={{ mb: 1 }}>
+                  <Typography variant="body1">
+                    Future weight readings use the new scale factor
+                  </Typography>
+                </Box>
+              </Box>
+              
+              <Typography variant="h6" sx={{ mt: 3, mb: 1 }}>
+                How it works:
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 2 }}>
+                The system calculates the scale factor using this formula:
+              </Typography>
+              <Box sx={{ 
+                bgcolor: 'grey.100', 
+                p: 2, 
+                borderRadius: 1, 
+                fontFamily: 'monospace',
+                mb: 2
+              }}>
+                Scale Factor = Known Weight / (Current Voltage - Tare Voltage)
+              </Box>
+              <Typography variant="body2">
+                This ensures that the scale accurately converts voltage readings to weight measurements.
+              </Typography>
+            </Box>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setCalibrationHelpDialogOpen(false)} variant="contained">
+              Got it!
+            </Button>
+          </DialogActions>
         </Dialog>
       </Box>
     </Container>
