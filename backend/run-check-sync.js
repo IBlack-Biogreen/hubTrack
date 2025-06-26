@@ -1,2 +1,7 @@
-process.env.MONGODB_ATLAS_URI = 'mongodb+srv://hubTrack:c42kRqZUKpfG6si5@biogreen360.9cjky.mongodb.net/?retryWrites=true&w=majority&appName=BioGreen360';
+// Require environment variable to be set
+if (!process.env.MONGODB_ATLAS_URI) {
+  console.error('MONGODB_ATLAS_URI environment variable is required');
+  process.exit(1);
+}
+
 require('./check-sync-status.js'); 

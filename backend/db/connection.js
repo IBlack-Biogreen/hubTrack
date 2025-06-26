@@ -9,6 +9,20 @@ class DatabaseManager {
         this.isLocal = false;
     }
 
+    // Validate MongoDB connection string format
+    validateConnectionString(uri) {
+        if (!uri) {
+            throw new Error('Connection string is required');
+        }
+        
+        // Basic validation for MongoDB URI format
+        if (!uri.startsWith('mongodb://') && !uri.startsWith('mongodb+srv://')) {
+            throw new Error('Invalid MongoDB connection string format');
+        }
+        
+        return true;
+    }
+
     async connect() {
         try {
             // Try local MongoDB first
@@ -35,15 +49,17 @@ class DatabaseManager {
                 console.log('Successfully connected to local MongoDB');
                 return;
             } catch (error) {
-                console.error('MongoDB is not running locally:', error.message);
-                console.log('Falling back to MongoDB Atlas...');
+                console.log('Local MongoDB not available, trying Atlas...');
             }
 
             // Fall back to MongoDB Atlas
             const atlasUri = process.env.MONGODB_ATLAS_URI;
             if (!atlasUri) {
-                throw new Error('MongoDB Atlas URI not found in environment variables');
+                throw new Error('MONGODB_ATLAS_URI environment variable is required');
             }
+            
+            // Validate Atlas connection string
+            this.validateConnectionString(atlasUri);
             
             this.client = new MongoClient(atlasUri, {
                 serverSelectionTimeoutMS: 5000,
@@ -56,7 +72,7 @@ class DatabaseManager {
             this.isLocal = false;
             console.log('Successfully connected to MongoDB Atlas');
         } catch (error) {
-            console.error('Failed to connect to any MongoDB instance:', error.message);
+            console.error('Failed to connect to MongoDB:', error.message);
             throw new Error('Failed to connect to MongoDB. Please check your connection settings.');
         }
     }

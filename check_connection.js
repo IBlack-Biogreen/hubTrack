@@ -2,8 +2,13 @@ require('dotenv').config();
 const { MongoClient } = require('mongodb');
 
 async function main() {
-  // MongoDB connection URI
-  const uri = process.env.MONGODB_ATLAS_URI || 'mongodb+srv://hubTrack:c42kRqZUKpfG6si5@biogreen360.9cjky.mongodb.net/?retryWrites=true&w=majority&appName=BioGreen360';
+  // MongoDB connection URI - must be set in environment
+  const uri = process.env.MONGODB_ATLAS_URI;
+  
+  if (!uri) {
+    console.error('MONGODB_ATLAS_URI environment variable is required');
+    process.exit(1);
+  }
   
   console.log('Connecting to MongoDB Atlas...');
   const client = new MongoClient(uri);
