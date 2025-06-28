@@ -264,7 +264,7 @@ function Navigation() {
           <Box sx={{ 
             display: 'flex', 
             alignItems: 'center',
-            gap: 2,
+            gap: 1,
             ml: 'auto',
             minWidth: 0
           }}>
@@ -281,17 +281,17 @@ function Navigation() {
                 width: '100%'
               }
             }}>
-              <Typography variant="body2" noWrap>
+              <Typography variant="caption" noWrap>
                 {formatDate(currentTime)}
               </Typography>
-              <Typography variant="body1" sx={{ fontWeight: 'bold' }} noWrap>
+              <Typography variant="body2" sx={{ fontWeight: 'bold' }} noWrap>
                 {formatTime(currentTime)}
               </Typography>
             </Box>
 
-            <Tooltip title={isOnline ? "Connected to Atlas" : "Working Offline"}>
+            <Tooltip title={isOnline ? "Database connected" : "Working Offline"}>
               <IconButton
-                size="large"
+                size="small"
                 color="inherit"
                 sx={{
                   color: isOnline ? 'white' : 'error.main',
@@ -307,7 +307,7 @@ function Navigation() {
             <IconButton
               component={RouterLink}
               to="/settings"
-              size="large"
+              size="small"
               aria-label="settings"
               color="inherit"
             >
