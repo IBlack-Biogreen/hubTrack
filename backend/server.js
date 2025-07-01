@@ -2209,6 +2209,7 @@ function defineRoutes() {
 
     // Add timezone endpoint
     app.get('/api/timezone', async (req, res) => {
+        console.log('=== TIMEZONE ENDPOINT CALLED - UPDATED VERSION ===');
         try {
             const db = dbManager.getDb();
             const collections = getCollectionNames();
@@ -2242,24 +2243,30 @@ function defineRoutes() {
             // Use OpenWeatherMap API to get timezone info (it's included in the weather response)
             const apiKey = process.env.WEATHER_API_KEY;
 
+            console.log(`API key check: ${apiKey ? 'API key found' : 'No API key found'}`);
+
             if (!apiKey) {
                 console.error('Weather API key not configured, using system timezone');
                 const systemOffset = new Date().getTimezoneOffset() * 60; // Convert to seconds
-                return res.json({
+                const fallbackResponse = {
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
                     offset: systemOffset,
                     offsetHours: systemOffset / 3600,
                     currentTime: new Date().toISOString(),
                     utcTime: new Date().toISOString()
-                });
+                };
+                console.log('Returning fallback response:', fallbackResponse);
+                return res.json(fallbackResponse);
             }
 
+            console.log(`Making OpenWeatherMap API call for coordinates: lat=${latitude}, lon=${longitude}`);
             const response = await axios.get(
                 `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`,
                 { timeout: 5000 } // 5 second timeout
             );
 
             const weatherData = response.data;
+            console.log(`OpenWeatherMap API response received. Timezone offset: ${weatherData.timezone} seconds`);
             
             // Calculate timezone offset from the timezone data
             const timezoneOffset = weatherData.timezone; // Offset in seconds from UTC
@@ -2269,36 +2276,82 @@ function defineRoutes() {
             const utcTime = new Date();
             const localTime = new Date(utcTime.getTime() + (timezoneOffset * 1000));
             
-            // Get timezone name (this is approximate since OpenWeatherMap doesn't provide timezone names)
-            const timezoneNames = {
-                '-12': 'Pacific/Kwajalein',
-                '-11': 'Pacific/Midway',
-                '-10': 'Pacific/Honolulu',
-                '-9': 'America/Anchorage',
-                '-8': 'America/Los_Angeles',
-                '-7': 'America/Denver',
-                '-6': 'America/Chicago',
-                '-5': 'America/New_York',
-                '-4': 'America/Halifax',
-                '-3': 'America/Sao_Paulo',
-                '-2': 'Atlantic/South_Georgia',
-                '-1': 'Atlantic/Azores',
-                '0': 'UTC',
-                '1': 'Europe/London',
-                '2': 'Europe/Paris',
-                '3': 'Europe/Moscow',
-                '4': 'Asia/Dubai',
-                '5': 'Asia/Karachi',
-                '6': 'Asia/Dhaka',
-                '7': 'Asia/Bangkok',
-                '8': 'Asia/Shanghai',
-                '9': 'Asia/Tokyo',
-                '10': 'Australia/Sydney',
-                '11': 'Pacific/Guadalcanal',
-                '12': 'Pacific/Auckland'
-            };
+            // Get timezone name based on coordinates and offset
+            let timezoneName = 'UTC';
             
-            const timezoneName = timezoneNames[Math.round(offsetHours).toString()] || 'UTC';
+            console.log(`Timezone calculation for coordinates: lat=${latitude}, lon=${longitude}, offsetHours=${offsetHours}`);
+            
+            // Determine timezone based on geographic location and offset
+            if (latitude >= 24 && latitude <= 49 && longitude >= -125 && longitude <= -66) {
+                console.log('Location identified as North America');
+                // North America
+                if (longitude >= -125 && longitude <= -115) {
+                    timezoneName = 'America/Los_Angeles'; // Pacific
+                    console.log('Assigned Pacific timezone');
+                } else if (longitude >= -115 && longitude <= -105) {
+                    timezoneName = 'America/Denver'; // Mountain
+                    console.log('Assigned Mountain timezone');
+                } else if (longitude >= -105 && longitude <= -90) {
+                    timezoneName = 'America/Chicago'; // Central
+                    console.log('Assigned Central timezone');
+                } else if (longitude >= -90 && longitude <= -66) {
+                    timezoneName = 'America/New_York'; // Eastern
+                    console.log('Assigned Eastern timezone');
+                }
+            } else if (latitude >= 44 && latitude <= 60 && longitude >= -80 && longitude <= -52) {
+                // Atlantic Canada
+                timezoneName = 'America/Halifax';
+                console.log('Assigned Halifax timezone (Atlantic Canada)');
+            } else if (latitude >= 49 && latitude <= 60 && longitude >= -141 && longitude <= -52) {
+                console.log('Location identified as Canada');
+                // Canada (Alaska to Newfoundland)
+                if (longitude >= -141 && longitude <= -125) {
+                    timezoneName = 'America/Anchorage'; // Alaska
+                } else if (longitude >= -125 && longitude <= -115) {
+                    timezoneName = 'America/Vancouver'; // Pacific
+                } else if (longitude >= -115 && longitude <= -105) {
+                    timezoneName = 'America/Edmonton'; // Mountain
+                } else if (longitude >= -105 && longitude <= -90) {
+                    timezoneName = 'America/Winnipeg'; // Central
+                } else if (longitude >= -90 && longitude <= -80) {
+                    timezoneName = 'America/Toronto'; // Eastern
+                } else {
+                    timezoneName = 'America/Halifax'; // Atlantic
+                }
+            } else {
+                console.log('Using fallback offset-based mapping');
+                // Fallback to offset-based mapping for other regions
+                const timezoneNames = {
+                    '-12': 'Pacific/Kwajalein',
+                    '-11': 'Pacific/Midway',
+                    '-10': 'Pacific/Honolulu',
+                    '-9': 'America/Anchorage',
+                    '-8': 'America/Los_Angeles',
+                    '-7': 'America/Denver',
+                    '-6': 'America/Chicago',
+                    '-5': 'America/New_York',
+                    '-4': 'America/Halifax',
+                    '-3': 'America/Sao_Paulo',
+                    '-2': 'Atlantic/South_Georgia',
+                    '-1': 'Atlantic/Azores',
+                    '0': 'UTC',
+                    '1': 'Europe/London',
+                    '2': 'Europe/Paris',
+                    '3': 'Europe/Moscow',
+                    '4': 'Asia/Dubai',
+                    '5': 'Asia/Karachi',
+                    '6': 'Asia/Dhaka',
+                    '7': 'Asia/Bangkok',
+                    '8': 'Asia/Shanghai',
+                    '9': 'Asia/Tokyo',
+                    '10': 'Australia/Sydney',
+                    '11': 'Pacific/Guadalcanal',
+                    '12': 'Pacific/Auckland'
+                };
+                timezoneName = timezoneNames[Math.round(offsetHours).toString()] || 'UTC';
+            }
+            
+            console.log(`Final timezone assigned: ${timezoneName}`);
 
             res.json({
                 timezone: timezoneName,

@@ -22,12 +22,6 @@ async function migrateOrgs() {
         const existingCount = await db.collection('localOrgs').countDocuments();
         console.log(`   Found ${existingCount} existing organizations in local database`);
         
-        if (existingCount > 0) {
-            console.log('   Organizations collection already has documents. Deleting existing organizations and reimporting.');
-            await db.collection('localOrgs').drop();
-            console.log('   Organizations collection dropped.');
-        }
-        
         // Get feedOrgIDs from the cartDeviceLabels collection
         console.log('2. Collecting feedOrgIDs from local device labels...');
         const deviceLabels = await db.collection('cartDeviceLabels').find({}).toArray();
@@ -51,14 +45,21 @@ async function migrateOrgs() {
             return;
         }
         
-        // Connect to MongoDB Atlas to get matching organization data
-        console.log('3. Connecting to MongoDB Atlas to fetch matching organizations...');
+        // Test Atlas connectivity BEFORE dropping local collection
+        console.log('3. Testing MongoDB Atlas connectivity...');
         const atlasUri = process.env.MONGODB_ATLAS_URI;
         if (!atlasUri) {
             console.error('MongoDB Atlas URI not found. Creating a default organization instead.');
+            if (existingCount > 0) {
+                console.log('   Preserving existing local organizations due to missing Atlas URI');
+                return;
+            }
             await createDefaultOrg(db);
             return;
         }
+        
+        let atlasConnected = false;
+        let allOrgs = [];
         
         try {
             atlasClient = new MongoClient(atlasUri, {
@@ -67,6 +68,7 @@ async function migrateOrgs() {
             });
             await atlasClient.connect();
             console.log('   Connected to MongoDB Atlas');
+            atlasConnected = true;
             
             const atlasDb = atlasClient.db('globalDbs');
             
@@ -106,11 +108,15 @@ async function migrateOrgs() {
             
             // Fetch organizations and their children
             console.log('4. Fetching organization hierarchy...');
-            const allOrgs = await fetchOrgHierarchy(relevantFeedOrgIDs);
+            allOrgs = await fetchOrgHierarchy(relevantFeedOrgIDs);
             console.log(`   Found ${allOrgs.length} total organizations in hierarchy`);
             
             if (allOrgs.length === 0) {
                 console.log('   No organizations found in Atlas. Creating a default organization.');
+                if (existingCount > 0) {
+                    console.log('   Preserving existing local organizations due to no data in Atlas');
+                    return;
+                }
                 await createDefaultOrg(db);
                 return;
             }
@@ -124,21 +130,45 @@ async function migrateOrgs() {
                 console.log(`   - Children: ${JSON.stringify(sampleOrg.children || [])}`);
             }
             
-            // Insert the organizations into the local database
-            console.log('5. Importing organizations to local database...');
-            const result = await db.collection('localOrgs').insertMany(allOrgs);
-            console.log(`   Successfully imported ${result.insertedCount} organizations to local database`);
-            
-            // Verify the migration
-            const count = await db.collection('localOrgs').countDocuments();
-            console.log(`   Verification: ${count} organizations in local database`);
-            
         } catch (atlasError) {
             console.error('   Error connecting to MongoDB Atlas:', atlasError.message);
             console.error('   Error stack:', atlasError.stack);
+            console.log('   Atlas is not available. Skipping organization migration.');
+            if (existingCount > 0) {
+                console.log('   Preserving existing local organizations due to Atlas connectivity issues');
+                return;
+            }
             console.log('   Creating a default organization instead.');
             await createDefaultOrg(db);
+            return;
         }
+        
+        // Only proceed with migration if Atlas is connected and we have data
+        if (!atlasConnected || allOrgs.length === 0) {
+            console.log('   Cannot proceed with migration - Atlas not connected or no data');
+            if (existingCount > 0) {
+                console.log('   Preserving existing local organizations');
+                return;
+            }
+            await createDefaultOrg(db);
+            return;
+        }
+        
+        // Now safe to drop and recreate the collection since we have Atlas data
+        console.log('5. Dropping existing localOrgs collection for fresh import...');
+        if (existingCount > 0) {
+            await db.collection('localOrgs').drop();
+            console.log('   localOrgs collection dropped.');
+        }
+        
+        // Insert the organizations into the local database
+        console.log('6. Importing organizations to local database...');
+        const result = await db.collection('localOrgs').insertMany(allOrgs);
+        console.log(`   Successfully imported ${result.insertedCount} organizations to local database`);
+        
+        // Verify the migration
+        const count = await db.collection('localOrgs').countDocuments();
+        console.log(`   Verification: ${count} organizations in local database`);
         
     } catch (error) {
         console.error('Error during organization migration:', error);

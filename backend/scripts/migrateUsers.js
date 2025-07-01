@@ -22,12 +22,6 @@ async function migrateUsers() {
         const existingCount = await db.collection('Users').countDocuments();
         console.log(`   Found ${existingCount} existing users in local database`);
         
-        if (existingCount > 0) {
-            console.log('   Users collection already has documents. Deleting existing users and reimporting.');
-            await db.collection('Users').drop();
-            console.log('   Users collection dropped.');
-        }
-        
         // Get all feedOrgIDs from the cartDeviceLabels collection
         console.log('2. Collecting feedOrgIDs from local device labels...');
         const deviceLabels = await db.collection('cartDeviceLabels').find({}).toArray();
@@ -50,13 +44,19 @@ async function migrateUsers() {
             return;
         }
         
-        // Connect to MongoDB Atlas to get matching user data
-        console.log('3. Connecting to MongoDB Atlas to fetch matching users...');
+        // Test Atlas connectivity BEFORE dropping local collection
+        console.log('3. Testing MongoDB Atlas connectivity...');
         const atlasUri = process.env.MONGODB_ATLAS_URI;
         if (!atlasUri) {
-            console.error('MongoDB Atlas URI not found. Creating a default admin instead.');
+            console.error('MongoDB Atlas URI not found. Skipping user migration.');
+            if (existingCount > 0) {
+                console.log('   Preserving existing local users due to missing Atlas URI');
+            }
             return;
         }
+        
+        let atlasConnected = false;
+        let globalUsers = [];
         
         try {
             atlasClient = new MongoClient(atlasUri, {
@@ -65,19 +65,23 @@ async function migrateUsers() {
             });
             await atlasClient.connect();
             console.log('   Connected to MongoDB Atlas');
+            atlasConnected = true;
             
             // Fetch users whose feedOrgID contains any of the relevant IDs
             const atlasDb = atlasClient.db('globalDbs');
             
             console.log(`   Querying globalUsers for feedOrgID in [${relevantFeedOrgIDs.join(', ')}]`);
-            const globalUsers = await atlasDb.collection('globalUsers')
+            globalUsers = await atlasDb.collection('globalUsers')
                 .find({ feedOrgID: { $in: relevantFeedOrgIDs } })
                 .toArray();
                 
             console.log(`   Found ${globalUsers.length} matching users in Atlas`);
             
             if (globalUsers.length === 0) {
-                console.log('   No matching users found in Atlas. Creating a default admin instead.');
+                console.log('   No matching users found in Atlas. Skipping user migration.');
+                if (existingCount > 0) {
+                    console.log('   Preserving existing local users due to no matching data in Atlas');
+                }
                 return;
             }
             
@@ -90,20 +94,39 @@ async function migrateUsers() {
                 console.log(`   - feedOrgID: ${JSON.stringify(sampleUser.feedOrgID || [])}`);
             }
             
-            // Insert the global users as-is into the local database
-            console.log('4. Importing matching users to local database...');
-            const result = await db.collection('Users').insertMany(globalUsers);
-            console.log(`   Successfully imported ${result.insertedCount} users to local database`);
-            
-            // Verify the migration
-            const count = await db.collection('Users').countDocuments();
-            console.log(`   Verification: ${count} users in local database`);
-            
         } catch (atlasError) {
             console.error('   Error connecting to MongoDB Atlas:', atlasError.message);
-            console.log('   Creating a default admin instead.');
+            console.log('   Atlas is not available. Skipping user migration.');
+            if (existingCount > 0) {
+                console.log('   Preserving existing local users due to Atlas connectivity issues');
+            }
             return;
         }
+        
+        // Only proceed with migration if Atlas is connected and we have matching data
+        if (!atlasConnected || globalUsers.length === 0) {
+            console.log('   Cannot proceed with migration - Atlas not connected or no matching data');
+            if (existingCount > 0) {
+                console.log('   Preserving existing local users');
+            }
+            return;
+        }
+        
+        // Now safe to drop and recreate the collection since we have Atlas data
+        console.log('4. Dropping existing Users collection for fresh import...');
+        if (existingCount > 0) {
+            await db.collection('Users').drop();
+            console.log('   Users collection dropped.');
+        }
+        
+        // Insert the global users as-is into the local database
+        console.log('5. Importing matching users to local database...');
+        const result = await db.collection('Users').insertMany(globalUsers);
+        console.log(`   Successfully imported ${result.insertedCount} users to local database`);
+        
+        // Verify the migration
+        const count = await db.collection('Users').countDocuments();
+        console.log(`   Verification: ${count} users in local database`);
         
     } catch (error) {
         console.error('Error during user migration:', error);
