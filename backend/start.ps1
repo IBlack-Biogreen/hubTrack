@@ -174,15 +174,48 @@ if (Test-Path ".\labjack_server.py") {
     exit 1
 }
 
+# Check for Python virtual environment
+$pythonPath = "python"
+$venvPath = ".\venv"
+if (Test-Path $venvPath) {
+    $venvPythonPath = Join-Path $venvPath "Scripts\python.exe"
+    if (Test-Path $venvPythonPath) {
+        $pythonPath = $venvPythonPath
+        Write-Host "Using Python virtual environment: $pythonPath" -ForegroundColor Green
+        
+        # Check if requirements are installed
+        Write-Host "Checking Python dependencies..." -ForegroundColor Yellow
+        try {
+            $testResult = & $pythonPath -c "import u3; print('LabJackPython module found')" 2>&1
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host "LabJackPython module is available" -ForegroundColor Green
+            } else {
+                Write-Host "LabJackPython module not found. Installing requirements..." -ForegroundColor Yellow
+                & $pythonPath -m pip install -r requirements.txt
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Host "Failed to install Python requirements" -ForegroundColor Red
+                    exit 1
+                }
+            }
+        } catch {
+            Write-Host "Error checking Python dependencies: $($_.Exception.Message)" -ForegroundColor Red
+        }
+    } else {
+        Write-Host "Virtual environment found but python.exe not found, using system Python" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "No virtual environment found, using system Python" -ForegroundColor Yellow
+}
+
 # Start the LabJack Python script in the background with error handling
-Write-Host "Starting LabJack Python script..." -ForegroundColor Green
+Write-Host "Starting LabJack Python script with: $pythonPath" -ForegroundColor Green
 # Create empty log files
 New-Item -Path "labjack_error.log" -ItemType File -Force | Out-Null
 New-Item -Path "labjack_output.log" -ItemType File -Force | Out-Null
 
 # Start the process with more detailed output and a different port
 try {
-    $labjackProcess = Start-Process -FilePath python -ArgumentList "-u", ".\labjack_server.py", "--port", "5001" -NoNewWindow -PassThru -RedirectStandardError "labjack_error.log" -RedirectStandardOutput "labjack_output.log"
+    $labjackProcess = Start-Process -FilePath $pythonPath -ArgumentList "-u", ".\labjack_server.py", "--port", "5001" -NoNewWindow -PassThru -RedirectStandardError "labjack_error.log" -RedirectStandardOutput "labjack_output.log"
     Write-Host "LabJack process started with PID: $($labjackProcess.Id)" -ForegroundColor Green
 } catch {
     Write-Host "Error starting LabJack process: $($_.Exception.Message)" -ForegroundColor Red
