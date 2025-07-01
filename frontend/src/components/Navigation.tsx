@@ -53,7 +53,7 @@ function Navigation() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
-  const { localTime } = useLocalTime();
+  const { localTime, timezone, formatTimeInTimezone } = useLocalTime();
   const { currentLanguage, setLanguage, enabledLanguages, t } = useLanguage();
   const { isInTrackingSequence } = useTrackingSequence();
 
@@ -125,7 +125,7 @@ function Navigation() {
   };
 
   const formatTime = (date: Date) => {
-    return date.toLocaleTimeString(currentLanguage.code, {
+    return formatTimeInTimezone(date, timezone, {
       hour: '2-digit',
       minute: '2-digit',
       second: '2-digit',
@@ -134,7 +134,7 @@ function Navigation() {
   };
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString(currentLanguage.code, {
+    return formatTimeInTimezone(date, timezone, {
       weekday: 'short',
       month: 'short',
       day: 'numeric'

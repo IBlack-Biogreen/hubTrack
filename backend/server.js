@@ -91,6 +91,38 @@ app.get('/api/health', (req, res) => {
     });
 });
 
+// Connectivity check endpoint
+app.get('/api/connectivity', async (req, res) => {
+    try {
+        // Check internet connectivity with timeout
+        const hasInternet = await checkInternetConnectivity();
+        res.json({ 
+            hasInternet,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        console.error('Error checking connectivity:', error);
+        res.json({ 
+            hasInternet: false,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// Helper function to check internet connectivity
+async function checkInternetConnectivity() {
+    try {
+        await axios.get('https://www.google.com', { 
+            timeout: 3000,
+            validateStatus: () => true // Accept any status code
+        });
+        return true;
+    } catch (error) {
+        console.log('No internet connection available');
+        return false;
+    }
+}
+
 // Add S3 sync endpoint
 app.post('/api/sync-images', async (req, res) => {
     try {
@@ -2149,7 +2181,8 @@ function defineRoutes() {
             }
 
             const response = await axios.get(
-                `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=imperial&appid=${apiKey}`
+                `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&units=imperial&appid=${apiKey}`,
+                { timeout: 5000 } // 5 second timeout
             );
 
             const weatherData = response.data;
@@ -2196,10 +2229,13 @@ function defineRoutes() {
 
             // If coordinates are not set, return system timezone as fallback
             if (!latitude || !longitude) {
+                const systemOffset = new Date().getTimezoneOffset() * 60; // Convert to seconds
                 return res.json({
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    offset: new Date().getTimezoneOffset(),
-                    currentTime: new Date().toISOString()
+                    offset: systemOffset,
+                    offsetHours: systemOffset / 3600,
+                    currentTime: new Date().toISOString(),
+                    utcTime: new Date().toISOString()
                 });
             }
 
@@ -2208,15 +2244,19 @@ function defineRoutes() {
 
             if (!apiKey) {
                 console.error('Weather API key not configured, using system timezone');
+                const systemOffset = new Date().getTimezoneOffset() * 60; // Convert to seconds
                 return res.json({
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    offset: new Date().getTimezoneOffset(),
-                    currentTime: new Date().toISOString()
+                    offset: systemOffset,
+                    offsetHours: systemOffset / 3600,
+                    currentTime: new Date().toISOString(),
+                    utcTime: new Date().toISOString()
                 });
             }
 
             const response = await axios.get(
-                `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`
+                `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`,
+                { timeout: 5000 } // 5 second timeout
             );
 
             const weatherData = response.data;
@@ -2270,10 +2310,13 @@ function defineRoutes() {
         } catch (error) {
             console.error('Error fetching timezone:', error);
             // Return system timezone as fallback
+            const systemOffset = new Date().getTimezoneOffset() * 60; // Convert to seconds
             res.json({
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                offset: new Date().getTimezoneOffset(),
-                currentTime: new Date().toISOString()
+                offset: systemOffset,
+                offsetHours: systemOffset / 3600,
+                currentTime: new Date().toISOString(),
+                utcTime: new Date().toISOString()
             });
         }
     });

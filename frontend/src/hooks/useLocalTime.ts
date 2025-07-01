@@ -67,12 +67,26 @@ export function useLocalTime() {
     return () => clearInterval(timer);
   }, [timezoneData]);
 
+  // Helper function to format time in the target timezone
+  const formatTimeInTimezone = (date: Date, timezone: string, options?: Intl.DateTimeFormatOptions) => {
+    try {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        ...options
+      }).format(date);
+    } catch (error) {
+      // Fallback to local timezone if the timezone is invalid
+      return new Intl.DateTimeFormat('en-US', options).format(date);
+    }
+  };
+
   return {
     localTime,
     timezoneData,
     loading,
     error,
     timezone: timezoneData?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-    offsetHours: timezoneData?.offsetHours || (new Date().getTimezoneOffset() / 60)
+    offsetHours: timezoneData?.offsetHours || (new Date().getTimezoneOffset() / 60),
+    formatTimeInTimezone
   };
 } 

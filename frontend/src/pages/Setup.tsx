@@ -120,9 +120,9 @@ export default function Setup() {
                   const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/settings`);
                   if (settingsResponse.ok) {
                     const settings = await settingsResponse.json();
-                    if (settings.settings?.binWeight !== undefined) {
-                      console.log('Setting bin weight from device settings:', settings.settings.binWeight);
-                      setBinWeight(settings.settings.binWeight);
+                    if (settings.binWeight !== undefined) {
+                      console.log('Setting bin weight from device settings:', settings.binWeight);
+                      setBinWeight(settings.binWeight);
                     }
                     if (settings.storageCapacity !== undefined) {
                       console.log('Setting storage capacity from device settings:', settings.storageCapacity);
@@ -190,9 +190,9 @@ export default function Setup() {
                       const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/settings`);
                       if (settingsResponse.ok) {
                         const settings = await settingsResponse.json();
-                        if (settings.settings?.binWeight !== undefined) {
-                          console.log('Setting bin weight from device settings:', settings.settings.binWeight);
-                          setBinWeight(settings.settings.binWeight);
+                        if (settings.binWeight !== undefined) {
+                          console.log('Setting bin weight from device settings:', settings.binWeight);
+                          setBinWeight(settings.binWeight);
                         }
                         if (settings.storageCapacity !== undefined) {
                           console.log('Setting storage capacity from device settings:', settings.storageCapacity);

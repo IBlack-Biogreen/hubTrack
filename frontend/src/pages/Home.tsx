@@ -46,12 +46,22 @@ const Home: React.FC = () => {
     condition: string;
     icon: string;
   } | null>(null);
-  const { localTime, timezone, loading: timezoneLoading } = useLocalTime();
+  const { localTime, timezone, loading: timezoneLoading, formatTimeInTimezone } = useLocalTime();
   const { t } = useLanguage();
 
-  // Format current time based on local timezone
-  const currentTime = localTime.toLocaleTimeString();
-  const currentDate = localTime.toLocaleDateString();
+  // Format current time based on target timezone
+  const currentTime = formatTimeInTimezone(localTime, timezone, {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
+  const currentDate = formatTimeInTimezone(localTime, timezone, {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
 
   // Fetch weather data
   useEffect(() => {

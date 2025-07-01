@@ -1078,7 +1078,7 @@ const TrackingSequence: React.FC = () => {
         );
       case 4:
         return (
-          <Box sx={{ my: 4 }}>
+          <Box sx={{ my: 2 }}>
             <Typography variant="h6" gutterBottom>
               {t('summary')}
             </Typography>
@@ -1088,29 +1088,29 @@ const TrackingSequence: React.FC = () => {
               </Box>
             ) : (
               <>
-                <Grid container spacing={3}>
+                <Grid container spacing={2}>
                   {/* Feed details */}
                   <Grid item xs={12} md={6}>
-                    <Paper sx={{ p: 3, height: '100%' }}>
+                    <Paper sx={{ p: 2, height: 'fit-content' }}>
                       <Typography variant="h6" gutterBottom>
                         {t('feedDetails')}
                       </Typography>
-                      <Typography variant="body1" gutterBottom>
+                      <Typography variant="body2" gutterBottom>
                         <strong>{t('totalWeight')}:</strong> {feedSummaryData?.totalWeight} lbs
                       </Typography>
-                      <Typography variant="body1" gutterBottom>
+                      <Typography variant="body2" gutterBottom>
                         <strong>{t('netWeight')}:</strong> {feedSummaryData?.weight} lbs
                       </Typography>
-                      <Typography variant="body1" gutterBottom>
+                      <Typography variant="body2" gutterBottom>
                         <strong>{t('binWeight')}:</strong> {feedSummaryData?.binWeight} lbs
                       </Typography>
-                      <Typography variant="body1" gutterBottom>
+                      <Typography variant="body2" gutterBottom>
                         <strong>{t('organization')}:</strong> {feedSummaryData?.organization || t('notSelected')}
                       </Typography>
-                      <Typography variant="body1" gutterBottom>
+                      <Typography variant="body2" gutterBottom>
                         <strong>{t('department')}:</strong> {feedSummaryData?.department || t('notSelected')}
                       </Typography>
-                      <Typography variant="body1" gutterBottom>
+                      <Typography variant="body2" gutterBottom>
                         <strong>{t('feedType')}:</strong> {feedSummaryData?.typeDisplayName || t('notSelected')}
                       </Typography>
                     </Paper>
@@ -1118,24 +1118,23 @@ const TrackingSequence: React.FC = () => {
                   
                   {/* Image preview */}
                   <Grid item xs={12} md={6}>
-                    <Paper sx={{ p: 3, height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <Paper sx={{ p: 2, height: 'fit-content', display: 'flex', flexDirection: 'column' }}>
                       <Typography variant="subtitle1" gutterBottom fontWeight="bold">
                         {t('imagePreview')}
                       </Typography>
                       {capturedImage ? (
                         <Box sx={{ 
-                          flex: 1, 
                           display: 'flex', 
                           justifyContent: 'center', 
                           alignItems: 'center',
-                          mt: 2
+                          mt: 1
                         }}>
                           <img 
                             src={capturedImage}
                             alt={t('feed')}
                             style={{ 
                               maxWidth: '100%', 
-                              maxHeight: '300px',
+                              maxHeight: '200px',
                               border: '1px solid #ccc',
                               borderRadius: '4px'
                             }} 
@@ -1143,12 +1142,12 @@ const TrackingSequence: React.FC = () => {
                         </Box>
                       ) : (
                         <Box sx={{ 
-                          flex: 1, 
                           display: 'flex', 
                           justifyContent: 'center', 
                           alignItems: 'center',
                           bgcolor: '#f5f5f5',
-                          borderRadius: 1
+                          borderRadius: 1,
+                          minHeight: '100px'
                         }}>
                           <Typography color="text.secondary">
                             {t('noImageCaptured')}
@@ -1159,8 +1158,8 @@ const TrackingSequence: React.FC = () => {
                   </Grid>
                 </Grid>
                 
-                <Box sx={{ mt: 3, textAlign: 'center' }}>
-                  <Typography variant="body1" color="success.main" sx={{ mb: 2 }}>
+                <Box sx={{ mt: 2, textAlign: 'center' }}>
+                  <Typography variant="body2" color="success.main">
                     {t('feedEntrySuccess')}
                   </Typography>
                 </Box>
@@ -1361,7 +1360,7 @@ const TrackingSequence: React.FC = () => {
     <Container maxWidth="md" sx={{ height: '100vh', display: 'flex', flexDirection: 'column', py: 2 }}>
       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <Paper sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Stepper activeStep={activeStep} alternativeLabel sx={{ p: 2 }}>
+          <Stepper activeStep={activeStep} alternativeLabel sx={{ p: 2, flexShrink: 0 }}>
             {steps.map((label) => (
               <Step key={label}>
                 <StepLabel>{t(label)}</StepLabel>
@@ -1370,17 +1369,17 @@ const TrackingSequence: React.FC = () => {
           </Stepper>
           
           {error && (
-            <Box sx={{ p: 2, bgcolor: '#ffeeee', borderRadius: 1, mx: 2 }}>
+            <Box sx={{ p: 2, bgcolor: '#ffeeee', borderRadius: 1, mx: 2, flexShrink: 0 }}>
               <Typography color="error">{error}</Typography>
             </Box>
           )}
           
-          <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+          <Box sx={{ flex: 1, overflow: 'auto', p: 2, minHeight: 0 }}>
             {getStepContent(activeStep)}
           </Box>
 
           {/* Global exit button that's always visible */}
-          <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end' }}>
+          <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end', flexShrink: 0, borderTop: '1px solid #e0e0e0' }}>
             <Button
               variant="outlined"
               color="error"
