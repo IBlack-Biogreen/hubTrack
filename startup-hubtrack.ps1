@@ -186,8 +186,8 @@ Write-Host "Frontend: http://localhost:5173" -ForegroundColor Cyan
 Write-Host "LabJack: http://localhost:5001" -ForegroundColor Cyan
 Write-Host "===============================" -ForegroundColor Green
 Write-Host "All services are now running!" -ForegroundColor Green
-Write-Host "Configure Chrome to start automatically with http://localhost:5173 as homepage" -ForegroundColor Yellow
-Write-Host "Use --start-fullscreen flag in Chrome shortcut for full-screen mode" -ForegroundColor Yellow
+Write-Host "Chrome should open automatically with static loading page" -ForegroundColor Yellow
+Write-Host "Loading page will redirect to main app when services are ready" -ForegroundColor Yellow
 
 # Keep the script running to maintain the processes
 Write-Host "`nPress Ctrl+C to stop all services" -ForegroundColor Yellow

@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HubTrack - Starting Up</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            overflow: hidden;
+        }
+
+        .loading-container {
+            text-align: center;
+            max-width: 600px;
+            padding: 2rem;
+        }
+
+        .logo {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 2rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.05); opacity: 0.8; }
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            font-weight: 300;
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .loading-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .loading-progress {
+            height: 100%;
+            background: linear-gradient(90deg, #4CAF50, #45a049);
+            border-radius: 3px;
+            width: 0%;
+            animation: loading 3s ease-in-out infinite;
+        }
+
+        @keyframes loading {
+            0% { width: 0%; }
+            50% { width: 70%; }
+            100% { width: 100%; }
+        }
+
+        .status {
+            font-size: 1rem;
+            margin-bottom: 1rem;
+            opacity: 0.8;
+        }
+
+        .dots {
+            display: inline-block;
+            animation: dots 1.5s infinite;
+        }
+
+        @keyframes dots {
+            0%, 20% { content: ""; }
+            40% { content: "."; }
+            60% { content: ".."; }
+            80%, 100% { content: "..."; }
+        }
+
+        .dots::after {
+            content: "";
+            animation: dots 1.5s infinite;
+        }
+
+        .current-time {
+            font-size: 1.5rem;
+            margin-top: 2rem;
+            opacity: 0.8;
+        }
+
+        .current-date {
+            font-size: 1rem;
+            opacity: 0.6;
+        }
+
+        .retry-section {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            display: none;
+        }
+
+        .retry-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .retry-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .status-indicators {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .status-indicator {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transition: background 0.3s ease;
+        }
+
+        .status-dot.ready {
+            background: #4CAF50;
+        }
+
+        .status-label {
+            font-size: 0.8rem;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-container">
+        <div class="logo">🚀</div>
+        <h1>HubTrack</h1>
+        <div class="subtitle">Starting up services<span class="dots"></span></div>
+        
+        <div class="loading-bar">
+            <div class="loading-progress"></div>
+        </div>
+        
+        <div class="status" id="status">Initializing HubTrack services<span class="dots"></span></div>
+        
+        <div class="current-time" id="currentTime"></div>
+        <div class="current-date" id="currentDate"></div>
+        
+        <div class="status-indicators">
+            <div class="status-indicator">
+                <div class="status-dot" id="loadingServerStatus"></div>
+                <div class="status-label">Loading Server</div>
+            </div>
+            <div class="status-indicator">
+                <div class="status-dot" id="backendStatus"></div>
+                <div class="status-label">Backend</div>
+            </div>
+            <div class="status-indicator">
+                <div class="status-dot" id="frontendStatus"></div>
+                <div class="status-label">Frontend</div>
+            </div>
+        </div>
+        
+        <div class="retry-section" id="retrySection">
+            <div>Services are taking longer than expected to start.</div>
+            <button class="retry-btn" onclick="retryConnection()">Retry Connection</button>
+        </div>
+    </div>
+
+    <script>
+        let checkCount = 0;
+        const maxChecks = 120; // 4 minutes max
+        const checkInterval = 2000; // 2 seconds
+        let redirectAttempted = false;
+        
+        const statusElement = document.getElementById('status');
+        const retrySection = document.getElementById('retrySection');
+        const loadingServerStatus = document.getElementById('loadingServerStatus');
+        const backendStatus = document.getElementById('backendStatus');
+        const frontendStatus = document.getElementById('frontendStatus');
+        
+        // Update current time
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = now.toLocaleTimeString();
+            document.getElementById('currentDate').textContent = now.toLocaleDateString();
+        }
+        
+        updateTime();
+        setInterval(updateTime, 1000);
+        
+        function updateStatus(message) {
+            statusElement.innerHTML = message + '<span class="dots"></span>';
+        }
+        
+        function updateServiceStatus(service, isReady) {
+            const statusDot = document.getElementById(service + 'Status');
+            if (statusDot) {
+                statusDot.classList.toggle('ready', isReady);
+            }
+        }
+        
+        async function checkService(url, serviceName) {
+            try {
+                const response = await fetch(url, { 
+                    method: 'GET',
+                    mode: 'no-cors',
+                    cache: 'no-cache'
+                });
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
+        
+        async function checkServices() {
+            checkCount++;
+            
+            // Update status based on check count
+            if (checkCount <= 10) {
+                updateStatus('Starting HubTrack services');
+            } else if (checkCount <= 30) {
+                updateStatus('Loading server starting up');
+            } else if (checkCount <= 60) {
+                updateStatus('Backend services initializing');
+            } else if (checkCount <= 90) {
+                updateStatus('Frontend services starting');
+            } else {
+                updateStatus('Finalizing startup process');
+            }
+            
+            // Check loading server
+            const loadingServerReady = await checkService('http://localhost:8080/health', 'Loading Server');
+            updateServiceStatus('loadingServer', loadingServerReady);
+            
+            // Check backend
+            const backendReady = await checkService('http://localhost:5000/api/health', 'Backend');
+            updateServiceStatus('backend', backendReady);
+            
+            // Check frontend
+            const frontendReady = await checkService('http://localhost:5173', 'Frontend');
+            updateServiceStatus('frontend', frontendReady);
+            
+            // If all services are ready, redirect
+            if (loadingServerReady && backendReady && frontendReady) {
+                updateStatus('All services ready! Redirecting...');
+                if (!redirectAttempted) {
+                    redirectAttempted = true;
+                    setTimeout(() => {
+                        window.location.href = 'http://localhost:5173';
+                    }, 1000);
+                }
+                return;
+            }
+            
+            // Check if we've exceeded max attempts
+            if (checkCount >= maxChecks) {
+                updateStatus('Services taking longer than expected');
+                retrySection.style.display = 'block';
+                return;
+            }
+            
+            // Continue checking
+            setTimeout(checkServices, checkInterval);
+        }
+        
+        function retryConnection() {
+            retrySection.style.display = 'none';
+            checkCount = 0;
+            redirectAttempted = false;
+            updateStatus('Retrying connection...');
+            setTimeout(checkServices, 1000);
+        }
+        
+        // Start the service check after a short delay
+        setTimeout(checkServices, 1000);
+        
+        // Fallback: if we can't detect services, try to redirect anyway after 5 minutes
+        setTimeout(() => {
+            if (!redirectAttempted) {
+                updateStatus('Attempting to connect anyway...');
+                redirectAttempted = true;
+                window.location.href = 'http://localhost:5173';
+            }
+        }, 300000); // 5 minutes
+    </script>
+</body>
+</html> 

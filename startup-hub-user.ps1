@@ -6,17 +6,34 @@ param(
     [int]$StartupDelay = 10
 )
 
+# Set up logging to file instead of console
+$logPath = Join-Path $PSScriptRoot "startup.log"
+$timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+function Write-Log {
+    param([string]$Message, [string]$Level = "INFO")
+    $logMessage = "[$timestamp] [$Level] $Message"
+    Add-Content -Path $logPath -Value $logMessage
+}
+
+Write-Log "=== HubTrack Startup Script (hub user) ==="
+Write-Log "Project Path: $projectPath"
+Write-Log "Backend Path: $backendPath"
+Write-Log "Frontend Path: $frontendPath"
+Write-Log "Current User: $env:USERNAME"
+Write-Log "========================================="
+
 # Set the project path to Public Documents
 $projectPath = "C:\Users\Public\Documents\hubTrack\hubTrack"
 $backendPath = Join-Path $projectPath "backend"
 $frontendPath = Join-Path $projectPath "frontend"
 
-Write-Host "=== HubTrack Startup Script (hub user) ===" -ForegroundColor Cyan
-Write-Host "Project Path: $projectPath" -ForegroundColor Yellow
-Write-Host "Backend Path: $backendPath" -ForegroundColor Yellow
-Write-Host "Frontend Path: $frontendPath" -ForegroundColor Yellow
-Write-Host "Current User: $env:USERNAME" -ForegroundColor Yellow
-Write-Host "=========================================" -ForegroundColor Cyan
+Write-Log "=== HubTrack Startup Script (hub user) ==="
+Write-Log "Project Path: $projectPath"
+Write-Log "Backend Path: $backendPath"
+Write-Log "Frontend Path: $frontendPath"
+Write-Log "Current User: $env:USERNAME"
+Write-Log "========================================="
 
 # Function to check if a port is available
 function Test-PortAvailable {
@@ -36,7 +53,7 @@ function Wait-ForService {
         [string]$Url,
         [int]$Timeout = 60
     )
-    Write-Host "Waiting for $ServiceName to be ready..." -ForegroundColor Yellow
+    Write-Log "Waiting for $ServiceName to be ready..."
     $startTime = Get-Date
     $timeoutTime = $startTime.AddSeconds($Timeout)
     
@@ -44,7 +61,7 @@ function Wait-ForService {
         try {
             $response = Invoke-WebRequest -Uri $Url -TimeoutSec 5 -ErrorAction SilentlyContinue
             if ($response.StatusCode -eq 200) {
-                Write-Host "$ServiceName is ready!" -ForegroundColor Green
+                Write-Log "$ServiceName is ready!"
                 return $true
             }
         } catch {
@@ -53,7 +70,7 @@ function Wait-ForService {
         Start-Sleep -Seconds 2
     }
     
-    Write-Host "$ServiceName failed to start within $Timeout seconds" -ForegroundColor Red
+    Write-Log "$ServiceName failed to start within $Timeout seconds" "ERROR"
     return $false
 }
 
@@ -64,42 +81,78 @@ function Stop-ProcessOnPort {
         $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
         foreach ($conn in $connections) {
             $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
-            if ($process) {
-                Write-Host "Stopping process on port ${Port}: $($process.ProcessName) (PID: $($process.Id))" -ForegroundColor Yellow
-                Stop-Process -Id $process.Id -Force
-            }
+                    if ($process) {
+            Write-Log "Stopping process on port ${Port}: $($process.ProcessName) (PID: $($process.Id))"
+            Stop-Process -Id $process.Id -Force
         }
-        Start-Sleep -Seconds 2
-    } catch {
-        Write-Host "Error stopping process on port ${Port}: $($_.Exception.Message)" -ForegroundColor Red
     }
+    Start-Sleep -Seconds 2
+} catch {
+    Write-Log "Error stopping process on port ${Port}: $($_.Exception.Message)" "ERROR"
+}
 }
 
 # Check if paths exist
 if (-not (Test-Path $projectPath)) {
-    Write-Host "Project directory not found: $projectPath" -ForegroundColor Red
-    Write-Host "Please ensure the project is located at: $projectPath" -ForegroundColor Yellow
+    Write-Log "Project directory not found: $projectPath" "ERROR"
+    Write-Log "Please ensure the project is located at: $projectPath" "ERROR"
     exit 1
 }
 
 if (-not (Test-Path $backendPath)) {
-    Write-Host "Backend directory not found: $backendPath" -ForegroundColor Red
+    Write-Log "Backend directory not found: $backendPath" "ERROR"
     exit 1
 }
 
 if (-not (Test-Path $frontendPath)) {
-    Write-Host "Frontend directory not found: $frontendPath" -ForegroundColor Red
+    Write-Log "Frontend directory not found: $frontendPath" "ERROR"
     exit 1
 }
 
 # Kill any existing processes on our ports
-Write-Host "Cleaning up existing processes..." -ForegroundColor Green
+Write-Log "Cleaning up existing processes..."
 Stop-ProcessOnPort -Port 5000  # Backend API
 Stop-ProcessOnPort -Port 5001  # LabJack
 Stop-ProcessOnPort -Port 5173  # Frontend dev server
+Stop-ProcessOnPort -Port 8080  # Loading server
+
+# Start loading server first
+Write-Log "Starting loading server..."
+Set-Location $projectPath
+
+try {
+    Write-Log "Starting loading server on port 8080..."
+    $loadingProcess = Start-Process -FilePath "node" -ArgumentList "loading-server.js" -NoNewWindow -PassThru
+    Write-Log "Loading server launched with PID: $($loadingProcess.Id)"
+    
+    # Wait for loading server to be ready before proceeding
+    Write-Log "Waiting for loading server to be ready..."
+    if (Wait-ForService -ServiceName "Loading Server" -Url "http://localhost:8080/health" -Timeout 15) {
+        Write-Log "Loading server is ready - Chrome can now open safely"
+        
+        # Launch Chrome now that loading server is ready
+        Write-Log "Launching Chrome..."
+        $chromeStartupScript = Join-Path $projectPath "start-chrome.ps1"
+        if (Test-Path $chromeStartupScript) {
+            try {
+                $chromeProcess = Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", $chromeStartupScript -NoNewWindow -PassThru
+                Write-Log "Chrome startup script launched with PID: $($chromeProcess.Id)"
+            } catch {
+                Write-Log "Error launching Chrome: $($_.Exception.Message)" "ERROR"
+            }
+        } else {
+            Write-Log "Chrome startup script not found: $chromeStartupScript" "WARN"
+        }
+    } else {
+        Write-Log "Loading server failed to start properly - Chrome may show connection error" "WARN"
+    }
+} catch {
+    Write-Log "Error starting loading server: $($_.Exception.Message)" "ERROR"
+    # Continue anyway as this is not critical
+}
 
 # Start backend services
-Write-Host "Starting backend services..." -ForegroundColor Green
+Write-Log "Starting backend services..."
 Set-Location $backendPath
 
 # Check if Python virtual environment exists
@@ -108,28 +161,28 @@ $pythonPath = ""
 if (Test-Path $venvPath) {
     $pythonPath = Join-Path $venvPath "Scripts\python.exe"
     if (Test-Path $pythonPath) {
-        Write-Host "Found Python virtual environment: $pythonPath" -ForegroundColor Green
+        Write-Log "Found Python virtual environment: $pythonPath"
     } else {
-        Write-Host "Virtual environment found but python.exe not found at: $pythonPath" -ForegroundColor Yellow
+        Write-Log "Virtual environment found but python.exe not found at: $pythonPath" "WARN"
         $pythonPath = "python"
     }
 } else {
-    Write-Host "No virtual environment found, using system Python" -ForegroundColor Yellow
+    Write-Log "No virtual environment found, using system Python" "WARN"
     $pythonPath = "python"
 }
 
 # Start the backend using the existing script
 try {
-    Write-Host "Running backend startup script..." -ForegroundColor Yellow
-    $backendProcess = Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy", "Bypass", "-File", "start.ps1" -NoNewWindow -PassThru
-    Write-Host "Backend startup script launched with PID: $($backendProcess.Id)" -ForegroundColor Green
+    Write-Log "Running backend startup script..."
+    $backendProcess = Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", "start.ps1" -NoNewWindow -PassThru
+    Write-Log "Backend startup script launched with PID: $($backendProcess.Id)"
 } catch {
-    Write-Host "Error starting backend: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Log "Error starting backend: $($_.Exception.Message)" "ERROR"
     exit 1
 }
 
 # Wait for backend services to be ready
-Write-Host "Waiting for backend services to initialize..." -ForegroundColor Yellow
+Write-Log "Waiting for backend services to initialize..."
 Start-Sleep -Seconds $StartupDelay
 
 # Check if backend is ready - try multiple endpoints
@@ -148,16 +201,19 @@ foreach ($endpoint in $healthEndpoints) {
 }
 
 if (-not $backendReady) {
-    Write-Host "Backend failed to start properly" -ForegroundColor Red
-    Write-Host "Checking backend logs for errors..." -ForegroundColor Yellow
+    Write-Log "Backend failed to start properly" "ERROR"
+    Write-Log "Checking backend logs for errors..." "ERROR"
     
     # Check for log files and display recent errors
     $logFiles = @("node_error.log", "labjack_error.log", "flask_error.log")
     foreach ($logFile in $logFiles) {
         if (Test-Path $logFile) {
-            Write-Host "=== Recent errors from $logFile ===" -ForegroundColor Red
-            Get-Content $logFile -Tail 10
-            Write-Host "=====================================" -ForegroundColor Red
+            Write-Log "=== Recent errors from $logFile ===" "ERROR"
+            $logContent = Get-Content $logFile -Tail 10
+            foreach ($line in $logContent) {
+                Write-Log $line "ERROR"
+            }
+            Write-Log "=====================================" "ERROR"
         }
     }
     
@@ -165,48 +221,54 @@ if (-not $backendReady) {
 }
 
 # Start frontend development server
-Write-Host "Starting frontend development server..." -ForegroundColor Green
+Write-Log "Starting frontend development server..."
 Set-Location $frontendPath
 
 try {
-    Write-Host "Installing frontend dependencies if needed..." -ForegroundColor Yellow
+    Write-Log "Installing frontend dependencies if needed..."
     if (-not (Test-Path "node_modules")) {
         npm install
     }
     
-    Write-Host "Starting frontend dev server..." -ForegroundColor Yellow
+    Write-Log "Starting frontend dev server..."
     $frontendProcess = Start-Process -FilePath "npm" -ArgumentList "run", "dev" -NoNewWindow -PassThru
-    Write-Host "Frontend dev server launched with PID: $($frontendProcess.Id)" -ForegroundColor Green
+    Write-Log "Frontend dev server launched with PID: $($frontendProcess.Id)"
 } catch {
-    Write-Host "Error starting frontend: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Log "Error starting frontend: $($_.Exception.Message)" "ERROR"
     exit 1
 }
 
 # Wait for frontend to be ready
 if (-not (Wait-ForService -ServiceName "Frontend" -Url "http://localhost:5173" -Timeout 30)) {
-    Write-Host "Frontend failed to start properly" -ForegroundColor Red
+    Write-Log "Frontend failed to start properly" "ERROR"
     exit 1
 }
 
-Write-Host "`n=== HubTrack Startup Complete ===" -ForegroundColor Green
-Write-Host "Backend API: http://localhost:5000" -ForegroundColor Cyan
-Write-Host "Frontend: http://localhost:5173" -ForegroundColor Cyan
-Write-Host "LabJack: http://localhost:5001" -ForegroundColor Cyan
-Write-Host "===============================" -ForegroundColor Green
-Write-Host "All services are now running!" -ForegroundColor Green
-Write-Host "Chrome should automatically open to http://localhost:5173" -ForegroundColor Yellow
+Write-Log "=== HubTrack Startup Complete ==="
+Write-Log "Loading Server: http://localhost:8080"
+Write-Log "Backend API: http://localhost:5000"
+Write-Log "Frontend: http://localhost:5173"
+Write-Log "LabJack: http://localhost:5001"
+Write-Log "==============================="
+Write-Log "All services are now running!"
+Write-Log "Chrome should automatically open to http://localhost:8080 (loading page)"
 
 # Keep the script running to maintain the processes
-Write-Host "`nPress Ctrl+C to stop all services" -ForegroundColor Yellow
+Write-Log "Startup script completed successfully - keeping processes alive"
 
 try {
     # Wait for any of the main processes to exit
     Wait-Process -Id $backendProcess.Id, $frontendProcess.Id -ErrorAction SilentlyContinue
 } catch {
-    Write-Host "One or more processes have stopped" -ForegroundColor Yellow
+    Write-Log "One or more processes have stopped" "WARN"
 } finally {
     # Cleanup on exit
-    Write-Host "`nStopping all HubTrack services..." -ForegroundColor Yellow
+    Write-Log "Stopping all HubTrack services..."
+    
+    # Stop loading server process
+    if ($loadingProcess -and -not $loadingProcess.HasExited) {
+        Stop-Process -Id $loadingProcess.Id -Force
+    }
     
     # Stop backend processes
     Get-Process | Where-Object { 
@@ -214,7 +276,7 @@ try {
         $_.MainWindowTitle -like "*hubtrack*" -or 
         $_.ProcessName -like "*labjack*"
     } | ForEach-Object {
-        Write-Host "Stopping process: $($_.ProcessName) (PID: $($_.Id))" -ForegroundColor Yellow
+        Write-Log "Stopping process: $($_.ProcessName) (PID: $($_.Id))"
         Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
     }
     
@@ -223,5 +285,5 @@ try {
         Stop-Process -Id $frontendProcess.Id -Force
     }
     
-    Write-Host "All HubTrack services stopped." -ForegroundColor Green
+    Write-Log "All HubTrack services stopped."
 } 

@@ -16,10 +16,11 @@ if (-not $isAdmin) {
     exit 1
 }
 
-# Get hub user profile path
+# Get hub user profile path and project path
 $hubUserProfile = "C:\Users\$HubUsername"
 $startupFolder = "$hubUserProfile\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
 $desktopFolder = "$hubUserProfile\Desktop"
+$projectPath = "C:\Users\Public\Documents\hubTrack\hubTrack"
 
 Write-Host "=== Chrome Startup Configuration for Hub User ===" -ForegroundColor Cyan
 Write-Host "Hub Username: $HubUsername" -ForegroundColor Yellow
@@ -89,73 +90,23 @@ if (-not (Test-Path $desktopFolder)) {
     Write-Host "Created desktop folder: $desktopFolder" -ForegroundColor Green
 }
 
-# Create Chrome shortcut for startup
+# Create shortcuts for the Chrome startup script
 $startupShortcut = Join-Path $startupFolder "$ChromeShortcutName.lnk"
 $desktopShortcut = Join-Path $desktopFolder "$ChromeShortcutName.lnk"
 
-# Chrome arguments for fullscreen kiosk mode with DevTools enabled
-$chromeArgs = @(
-    "--start-fullscreen",
-    "--kiosk",
-    "--disable-web-security",
-    "--auto-open-devtools-for-tabs",
-    "--disable-features=VizDisplayCompositor",
-    "--disable-background-timer-throttling",
-    "--disable-backgrounding-occluded-windows",
-    "--disable-renderer-backgrounding",
-    "--disable-features=TranslateUI",
-    "--disable-ipc-flooding-protection",
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-default-apps",
-    "--disable-popup-blocking",
-    "--disable-notifications",
-    "--disable-extensions",
-    "--disable-plugins",
-    "--disable-images",
-    "--disable-javascript",
-    "--disable-java",
-    "--disable-sync",
-    "--disable-translate",
-    "--disable-logging",
-    "--disable-dev-shm-usage",
-    "--disable-gpu",
-    "--disable-software-rasterizer",
-    "--disable-background-networking",
-    "--disable-component-extensions-with-background-pages",
-    "--disable-background-mode",
-    "--disable-client-side-phishing-detection",
-    "--disable-component-update",
-    "--disable-domain-reliability",
-    "--disable-features=AudioServiceOutOfProcess",
-    "--disable-hang-monitor",
-    "--disable-prompt-on-repost",
-    "--disable-sync-preferences",
-    "--disable-web-resources",
-    "--disable-features=VizDisplayCompositor",
-    "--force-color-profile=srgb",
-    "--metrics-recording-only",
-    "--no-sandbox",
-    "--safebrowsing-disable-auto-update",
-    "--silent-launch",
-    "--disable-background-timer-throttling",
-    "--disable-backgrounding-occluded-windows",
-    "--disable-renderer-backgrounding",
-    "http://localhost:5173"
-)
-
-$chromeArgsString = $chromeArgs -join " "
+# Path to the Chrome startup script
+$chromeStartupScript = Join-Path $projectPath "start-chrome.ps1"
 
 # Create WScript Shell object for creating shortcuts
 $WScriptShell = New-Object -ComObject WScript.Shell
 
-# Create startup shortcut
+# Create startup shortcut (PowerShell script)
 try {
     $shortcut = $WScriptShell.CreateShortcut($startupShortcut)
-    $shortcut.TargetPath = $chromePath
-    $shortcut.Arguments = $chromeArgsString
-    $shortcut.WorkingDirectory = Split-Path $chromePath
-    $shortcut.Description = "Chrome HubTrack Kiosk Mode"
+    $shortcut.TargetPath = "powershell.exe"
+    $shortcut.Arguments = "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$chromeStartupScript`""
+    $shortcut.WorkingDirectory = $projectPath
+    $shortcut.Description = "HubTrack Chrome Startup (waits for loading server)"
     $shortcut.WindowStyle = 7  # Minimized
     $shortcut.Save()
     
@@ -168,10 +119,10 @@ try {
 # Create desktop shortcut (for testing)
 try {
     $shortcut = $WScriptShell.CreateShortcut($desktopShortcut)
-    $shortcut.TargetPath = $chromePath
-    $shortcut.Arguments = $chromeArgsString
-    $shortcut.WorkingDirectory = Split-Path $chromePath
-    $shortcut.Description = "Chrome HubTrack Kiosk Mode (Desktop)"
+    $shortcut.TargetPath = "powershell.exe"
+    $shortcut.Arguments = "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$chromeStartupScript`""
+    $shortcut.WorkingDirectory = $projectPath
+    $shortcut.Description = "HubTrack Chrome Startup (Desktop - waits for loading server)"
     $shortcut.WindowStyle = 7  # Minimized
     $shortcut.Save()
     
@@ -194,10 +145,15 @@ try {
 }
 
 Write-Host "`n=== Chrome Configuration Complete ===" -ForegroundColor Green
-Write-Host "Chrome will now start automatically in fullscreen kiosk mode when hub user logs in." -ForegroundColor Cyan
+Write-Host "Chrome will now start automatically after the loading server is ready." -ForegroundColor Cyan
+Write-Host "Chrome startup script: $chromeStartupScript" -ForegroundColor Yellow
+Write-Host "Loading Page: http://localhost:8080" -ForegroundColor Yellow
 Write-Host "Target URL: http://localhost:5173" -ForegroundColor Yellow
 Write-Host "Startup Shortcut: $startupShortcut" -ForegroundColor Yellow
 Write-Host "Desktop Shortcut: $desktopShortcut" -ForegroundColor Yellow
+Write-Host "" -ForegroundColor White
+Write-Host "Note: Chrome is now launched by the main startup script after the loading server is ready." -ForegroundColor Yellow
+Write-Host "The Windows startup shortcuts are for testing purposes only." -ForegroundColor Yellow
 Write-Host "To remove the configuration, run:" -ForegroundColor Yellow
 Write-Host ".\setup-chrome-startup.ps1 -RemoveConfig" -ForegroundColor White
 Write-Host "=====================================" -ForegroundColor Green 

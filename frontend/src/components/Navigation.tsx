@@ -19,7 +19,7 @@ import LanguageIcon from '@mui/icons-material/Language';
 import SettingsIcon from '@mui/icons-material/Settings';
 import WifiIcon from '@mui/icons-material/Wifi';
 import WifiOffIcon from '@mui/icons-material/WifiOff';
-import { useCurrentTime } from '../hooks/useCurrentTime';
+import { useLocalTime } from '../hooks/useLocalTime';
 import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 import { useTrackingSequence } from '../contexts/TrackingSequenceContext';
 import biogreenLogo from '../assets/biogreen-logo.svg';
@@ -53,7 +53,7 @@ function Navigation() {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const location = useLocation();
-  const currentTime = useCurrentTime();
+  const { localTime } = useLocalTime();
   const { currentLanguage, setLanguage, enabledLanguages, t } = useLanguage();
   const { isInTrackingSequence } = useTrackingSequence();
 
@@ -282,10 +282,10 @@ function Navigation() {
               }
             }}>
               <Typography variant="caption" noWrap>
-                {formatDate(currentTime)}
+                {formatDate(localTime)}
               </Typography>
               <Typography variant="body2" sx={{ fontWeight: 'bold' }} noWrap>
-                {formatTime(currentTime)}
+                {formatTime(localTime)}
               </Typography>
             </Box>
 

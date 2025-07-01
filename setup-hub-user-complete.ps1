@@ -153,9 +153,12 @@ Write-Host "`n=== Setup Complete ===" -ForegroundColor Green
 Write-Host "HubTrack is now configured to start automatically when the hub user logs in." -ForegroundColor Cyan
 Write-Host "" -ForegroundColor White
 Write-Host "What happens when hub user logs in:" -ForegroundColor Yellow
-Write-Host "1. HubTrack backend and frontend services will start automatically" -ForegroundColor White
-Write-Host "2. Chrome will open in fullscreen kiosk mode to http://localhost:5173" -ForegroundColor White
-Write-Host "3. The system will be ready for kiosk operation" -ForegroundColor White
+Write-Host "1. HubTrack loading server will start first (hidden window)" -ForegroundColor White
+Write-Host "2. Once loading server is ready, Chrome will open in fullscreen kiosk mode" -ForegroundColor White
+Write-Host "3. Chrome will display the loading page while backend/frontend start" -ForegroundColor White
+Write-Host "4. Once services are ready, the page will automatically redirect to the main app" -ForegroundColor White
+Write-Host "5. The system will be ready for kiosk operation" -ForegroundColor White
+Write-Host "6. Startup logs are saved to startup.log for troubleshooting" -ForegroundColor White
 Write-Host "" -ForegroundColor White
 Write-Host "To test the setup:" -ForegroundColor Yellow
 Write-Host "1. Switch to the hub user account" -ForegroundColor White

@@ -11,6 +11,7 @@ import {
   CircularProgress
 } from '@mui/material';
 import { useUser } from '../contexts/UserContext';
+import { useLocalTime } from '../hooks/useLocalTime';
 import BackspaceIcon from '@mui/icons-material/Backspace';
 import axios from 'axios';
 import Webcam from 'react-webcam';
@@ -45,19 +46,12 @@ const Home: React.FC = () => {
     condition: string;
     icon: string;
   } | null>(null);
-  const [currentTime, setCurrentTime] = useState<string>('');
+  const { localTime, timezone, loading: timezoneLoading } = useLocalTime();
   const { t } = useLanguage();
 
-  // Update current time every second
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setCurrentTime(now.toLocaleTimeString());
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 1000);
-    return () => clearInterval(interval);
-  }, []);
+  // Format current time based on local timezone
+  const currentTime = localTime.toLocaleTimeString();
+  const currentDate = localTime.toLocaleDateString();
 
   // Fetch weather data
   useEffect(() => {
@@ -462,7 +456,7 @@ const Home: React.FC = () => {
                   </Typography>
                 </Box>
                 <Typography variant="body2" color="text.secondary">
-                  {new Date().toLocaleDateString()}
+                  {currentDate}
                 </Typography>
               </Grid>
 

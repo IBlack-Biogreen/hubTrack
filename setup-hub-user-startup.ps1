@@ -70,7 +70,7 @@ try {
 }
 
 # Create the action
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -File `"$startupScriptPath`""
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$startupScriptPath`""
 
 # Create the trigger - run when hub user logs in
 $trigger = New-ScheduledTaskTrigger -AtLogOn -User $HubUsername
@@ -103,6 +103,8 @@ try {
 
 Write-Host "`n=== Setup Complete ===" -ForegroundColor Green
 Write-Host "HubTrack will now start automatically when the hub user logs in." -ForegroundColor Cyan
+Write-Host "Note: The PowerShell window will be hidden during startup." -ForegroundColor Yellow
+Write-Host "To view startup logs, run: .\view-startup-log.ps1" -ForegroundColor White
 Write-Host "To test the task manually, run:" -ForegroundColor Yellow
 Write-Host "Start-ScheduledTask -TaskName `"$TaskName`"" -ForegroundColor White
 Write-Host "To remove the task, run:" -ForegroundColor Yellow

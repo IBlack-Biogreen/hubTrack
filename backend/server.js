@@ -904,7 +904,7 @@ function defineRoutes() {
                 return res.status(404).json({ error: 'Device label not found' });
             }
             
-            // Update local document
+            // Update local document - merge settings instead of overwriting
             const result = await db.collection(collections.deviceLabels).updateOne(
                 { 
                     deviceLabel,
@@ -912,9 +912,12 @@ function defineRoutes() {
                 },
                 { 
                     $set: { 
-                        settings,
+                        settings: {
+                            ...currentDoc.settings,
+                            ...settings
+                        },
                         lastUpdated: timestamp
-                    } 
+                    }
                 }
             );
             
@@ -936,12 +939,18 @@ function defineRoutes() {
                     await atlasClient.connect();
                     const atlasDb = atlasClient.db('globalDbs');
                     
-                    // Update Atlas document
+                    // Get current Atlas document to merge settings
+                    const atlasDoc = await atlasDb.collection('globalDeviceLabels').findOne({ deviceLabel });
+                    
+                    // Update Atlas document - merge settings instead of overwriting
                     await atlasDb.collection('globalDeviceLabels').updateOne(
                         { deviceLabel },
                         { 
                             $set: { 
-                                settings,
+                                settings: {
+                                    ...(atlasDoc?.settings || {}),
+                                    ...settings
+                                },
                                 lastUpdated: timestamp
                             } 
                         }
@@ -2162,6 +2171,110 @@ function defineRoutes() {
             console.error('Error fetching weather:', error);
             // Return null instead of error to prevent breaking the app
             res.json(null);
+        }
+    });
+
+    // Add timezone endpoint
+    app.get('/api/timezone', async (req, res) => {
+        try {
+            const db = dbManager.getDb();
+            const collections = getCollectionNames();
+            
+            // Get the device label document
+            const deviceLabel = await db.collection(collections.deviceLabels).findOne({
+                deviceType: 'trackingCart'
+            });
+
+            if (!deviceLabel) {
+                console.error('Device label not found');
+                return res.status(404).json({ error: 'Device label not found' });
+            }
+
+            // Get location from device label
+            const latitude = deviceLabel.settings?.latitude;
+            const longitude = deviceLabel.settings?.longitude;
+
+            // If coordinates are not set, return system timezone as fallback
+            if (!latitude || !longitude) {
+                return res.json({
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    offset: new Date().getTimezoneOffset(),
+                    currentTime: new Date().toISOString()
+                });
+            }
+
+            // Use OpenWeatherMap API to get timezone info (it's included in the weather response)
+            const apiKey = process.env.WEATHER_API_KEY;
+
+            if (!apiKey) {
+                console.error('Weather API key not configured, using system timezone');
+                return res.json({
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    offset: new Date().getTimezoneOffset(),
+                    currentTime: new Date().toISOString()
+                });
+            }
+
+            const response = await axios.get(
+                `https://api.openweathermap.org/data/2.5/weather?lat=${latitude}&lon=${longitude}&appid=${apiKey}`
+            );
+
+            const weatherData = response.data;
+            
+            // Calculate timezone offset from the timezone data
+            const timezoneOffset = weatherData.timezone; // Offset in seconds from UTC
+            const offsetHours = timezoneOffset / 3600;
+            
+            // Create a date object in the target timezone
+            const utcTime = new Date();
+            const localTime = new Date(utcTime.getTime() + (timezoneOffset * 1000));
+            
+            // Get timezone name (this is approximate since OpenWeatherMap doesn't provide timezone names)
+            const timezoneNames = {
+                '-12': 'Pacific/Kwajalein',
+                '-11': 'Pacific/Midway',
+                '-10': 'Pacific/Honolulu',
+                '-9': 'America/Anchorage',
+                '-8': 'America/Los_Angeles',
+                '-7': 'America/Denver',
+                '-6': 'America/Chicago',
+                '-5': 'America/New_York',
+                '-4': 'America/Halifax',
+                '-3': 'America/Sao_Paulo',
+                '-2': 'Atlantic/South_Georgia',
+                '-1': 'Atlantic/Azores',
+                '0': 'UTC',
+                '1': 'Europe/London',
+                '2': 'Europe/Paris',
+                '3': 'Europe/Moscow',
+                '4': 'Asia/Dubai',
+                '5': 'Asia/Karachi',
+                '6': 'Asia/Dhaka',
+                '7': 'Asia/Bangkok',
+                '8': 'Asia/Shanghai',
+                '9': 'Asia/Tokyo',
+                '10': 'Australia/Sydney',
+                '11': 'Pacific/Guadalcanal',
+                '12': 'Pacific/Auckland'
+            };
+            
+            const timezoneName = timezoneNames[Math.round(offsetHours).toString()] || 'UTC';
+
+            res.json({
+                timezone: timezoneName,
+                offset: timezoneOffset,
+                offsetHours: offsetHours,
+                currentTime: localTime.toISOString(),
+                utcTime: utcTime.toISOString()
+            });
+        } catch (error) {
+            console.error('Error fetching timezone:', error);
+            // Return system timezone as fallback
+            res.json({
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                offset: new Date().getTimezoneOffset(),
+                currentTime: new Date().toISOString()
+            });
         }
     });
 }

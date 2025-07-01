@@ -7,6 +7,9 @@ This directory contains scripts to automatically start HubTrack on Windows start
 - **`startup-hubtrack.ps1`** - Main startup script that starts backend, frontend, and launches browser
 - **`setup-startup-task.ps1`** - Creates Windows Task Scheduler task for auto-startup
 - **`start-hubtrack.bat`** - Simple batch file for manual startup
+- **`start-chrome.ps1`** - Chrome startup script that opens static loading page
+- **`static-loading.html`** - Static loading page that displays immediately
+- **`test-static-loading.ps1`** - Test script for static loading page functionality
 - **`STARTUP-README.md`** - This documentation file
 
 ## Quick Start
@@ -19,6 +22,33 @@ This directory contains scripts to automatically start HubTrack on Windows start
 1. **Run PowerShell as Administrator**
 2. Execute: `.\setup-startup-task.ps1`
 3. HubTrack will now start automatically on every Windows startup
+
+## Static Loading Page
+
+The system uses a static loading page that displays immediately when Chrome opens, eliminating the "refused connection" issue:
+
+### Features
+- **No Server Dependency**: Loads immediately from filesystem using `file://` protocol
+- **Immediate Display**: Shows instantly when Chrome starts, no waiting required
+- **Service Monitoring**: Checks if backend (port 5000) and frontend (port 5173) services are ready
+- **Auto-redirect**: Once all services are ready, automatically redirects to main app
+- **Retry Logic**: If services take too long, users can manually retry the connection
+- **Fallback Timer**: Attempts connection after 5 minutes regardless of service status
+
+### File Location
+```
+C:\Users\Public\Documents\hubTrack\hubTrack\static-loading.html
+```
+
+### Testing
+Run the test script to verify the static loading page:
+```powershell
+# Test configuration
+.\test-static-loading.ps1
+
+# Test opening in browser
+.\test-static-loading.ps1 -OpenChrome
+```
 
 ## Script Details
 
@@ -52,6 +82,19 @@ This directory contains scripts to automatically start HubTrack on Windows start
 # Longer startup delay
 .\startup-hubtrack.ps1 -StartupDelay 15
 ```
+
+### `start-chrome.ps1`
+
+**What it does:**
+1. Finds Chrome executable in standard locations
+2. Opens Chrome in kiosk mode with static loading page
+3. Uses `file://` protocol to load static HTML immediately
+4. No waiting for services - page loads instantly
+
+**Chrome Arguments:**
+- Fullscreen kiosk mode
+- Disabled security features for local development
+- Static loading page URL: `file:///C:/Users/Public/Documents/hubTrack/hubTrack/static-loading.html`
 
 ### `setup-startup-task.ps1`
 

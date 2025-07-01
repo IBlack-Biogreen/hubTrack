@@ -34,6 +34,7 @@ import { useLanguage, availableLanguages } from '../contexts/LanguageContext';
 import { useTimeout } from '../contexts/TimeoutContext';
 import { Link as RouterLink } from 'react-router-dom';
 import { useScreensaver } from '../contexts/ScreensaverContext';
+import { useLocalTime } from '../hooks/useLocalTime';
 import { NumberPad } from '../components/keyboard';
 
 interface Cart {
@@ -88,6 +89,7 @@ function Settings() {
   const [longitudeDialogOpen, setLongitudeDialogOpen] = useState(false);
   const [tempLatitude, setTempLatitude] = useState('');
   const [tempLongitude, setTempLongitude] = useState('');
+  const { timezone, offsetHours } = useLocalTime();
 
   const saveSettingsToDeviceLabel = async (settings: any) => {
     if (!currentDeviceLabel) return;
@@ -259,7 +261,7 @@ function Settings() {
             label._id === currentDeviceLabel._id ? updatedLabel : label
           )
         );
-        await saveSettingsToDeviceLabel(newValue, 'latitude');
+        await saveSettingsToDeviceLabel({ latitude: newValue });
       }
     }
     setLatitudeDialogOpen(false);
@@ -293,7 +295,7 @@ function Settings() {
             label._id === currentDeviceLabel._id ? updatedLabel : label
           )
         );
-        await saveSettingsToDeviceLabel(newValue, 'longitude');
+        await saveSettingsToDeviceLabel({ longitude: newValue });
       }
     }
     setLongitudeDialogOpen(false);
@@ -545,7 +547,7 @@ function Settings() {
                     <Typography variant="subtitle1" gutterBottom>
                       Location Settings
                     </Typography>
-                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+                    <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 2 }}>
                       <TextField
                         label="Latitude"
                         value={currentDeviceLabel?.settings?.latitude || ''}
@@ -587,6 +589,12 @@ function Settings() {
                         sx={{ width: '200px' }}
                       />
                     </Box>
+                    <Typography variant="body2" color="text.secondary">
+                      Current Timezone: {timezone} (UTC{offsetHours >= 0 ? '+' : ''}{offsetHours})
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Weather and time are based on these coordinates
+                    </Typography>
                   </Box>
                 </>
               )}
