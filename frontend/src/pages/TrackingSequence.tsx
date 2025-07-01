@@ -755,28 +755,7 @@ const TrackingSequence: React.FC = () => {
       let deviceSettings = null;
       let cartSettings = null;
       try {
-        const response = await fetch('http://localhost:5000/api/device-labels');
-        if (!response.ok) {
-          throw new Error(`Failed to fetch device labels: ${response.status} ${response.statusText}`);
-        }
-        const deviceLabels = await response.json();
-        if (!Array.isArray(deviceLabels) || deviceLabels.length === 0) {
-          throw new Error('No device labels found in local collection');
-        }
-        deviceLabelString = deviceLabels[0].deviceLabel;
-        
-        // Fetch settings from device-labels collection
-        const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabelString}/settings`);
-        if (!settingsResponse.ok) {
-          throw new Error(`Failed to fetch device settings: ${settingsResponse.status} ${settingsResponse.statusText}`);
-        }
-        deviceSettings = await settingsResponse.json();
-        console.log('Fetched device settings:', deviceSettings);
-        binWeight = deviceSettings.binWeight;
-        console.log('Extracted bin weight:', binWeight);
-        console.log('Current weight value:', weightValue);
-
-        // Fetch cart settings from database
+        // First get the cart settings to find the correct device label
         const cartResponse = await fetch('http://localhost:5000/api/selected-cart');
         if (!cartResponse.ok) {
           throw new Error(`Failed to fetch cart settings: ${cartResponse.status} ${cartResponse.statusText}`);
@@ -788,6 +767,37 @@ const TrackingSequence: React.FC = () => {
         if (!cartSettings.tareVoltage || !cartSettings.scaleFactor) {
           throw new Error('Missing required cart settings: tareVoltage or scaleFactor');
         }
+
+        // Now get device labels and find the correct one
+        const response = await fetch('http://localhost:5000/api/device-labels');
+        if (!response.ok) {
+          throw new Error(`Failed to fetch device labels: ${response.status} ${response.statusText}`);
+        }
+        const deviceLabels = await response.json();
+        if (!Array.isArray(deviceLabels) || deviceLabels.length === 0) {
+          throw new Error('No device labels found in local collection');
+        }
+        
+        // Use the cart's currentDeviceLabelID if available, otherwise use the first device label
+        if (cartSettings.currentDeviceLabelID) {
+          const matchingLabel = deviceLabels.find(label => label._id === cartSettings.currentDeviceLabelID);
+          deviceLabelString = matchingLabel ? matchingLabel.deviceLabel : deviceLabels[0].deviceLabel;
+          console.log('Using device label from cart currentDeviceLabelID:', deviceLabelString);
+        } else {
+          deviceLabelString = deviceLabels[0].deviceLabel;
+          console.log('Using first device label (no currentDeviceLabelID):', deviceLabelString);
+        }
+        
+        // Fetch settings from device-labels collection
+        const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabelString}/settings`);
+        if (!settingsResponse.ok) {
+          throw new Error(`Failed to fetch device settings: ${settingsResponse.status} ${settingsResponse.statusText}`);
+        }
+        deviceSettings = await settingsResponse.json();
+        console.log('Fetched device settings:', deviceSettings);
+        binWeight = deviceSettings.binWeight;
+        console.log('Extracted bin weight:', binWeight);
+        console.log('Current weight value:', weightValue);
 
         // Ensure binWeight is a number
         const numericBinWeight = Number(binWeight || 0);

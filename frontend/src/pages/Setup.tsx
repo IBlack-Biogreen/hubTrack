@@ -106,7 +106,17 @@ export default function Setup() {
               if (deviceLabelsResponse.ok) {
                 const deviceLabels = await deviceLabelsResponse.json();
                 if (Array.isArray(deviceLabels) && deviceLabels.length > 0) {
-                  const deviceLabel = deviceLabels[0].deviceLabel;
+                  // Use the cart's currentDeviceLabelID if available, otherwise use the first device label
+                  let deviceLabel;
+                  if (cartData.currentDeviceLabelID) {
+                    const matchingLabel = deviceLabels.find(label => label._id === cartData.currentDeviceLabelID);
+                    deviceLabel = matchingLabel ? matchingLabel.deviceLabel : deviceLabels[0].deviceLabel;
+                    console.log('Using device label from cart currentDeviceLabelID:', deviceLabel);
+                  } else {
+                    deviceLabel = deviceLabels[0].deviceLabel;
+                    console.log('Using first device label (no currentDeviceLabelID):', deviceLabel);
+                  }
+                  
                   const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/settings`);
                   if (settingsResponse.ok) {
                     const settings = await settingsResponse.json();
@@ -166,7 +176,17 @@ export default function Setup() {
                   if (deviceLabelsResponse.ok) {
                     const deviceLabels = await deviceLabelsResponse.json();
                     if (Array.isArray(deviceLabels) && deviceLabels.length > 0) {
-                      const deviceLabel = deviceLabels[0].deviceLabel;
+                      // Use the cart's currentDeviceLabelID if available, otherwise use the first device label
+                      let deviceLabel;
+                      if (cartData.currentDeviceLabelID) {
+                        const matchingLabel = deviceLabels.find(label => label._id === cartData.currentDeviceLabelID);
+                        deviceLabel = matchingLabel ? matchingLabel.deviceLabel : deviceLabels[0].deviceLabel;
+                        console.log('Using device label from cart currentDeviceLabelID:', deviceLabel);
+                      } else {
+                        deviceLabel = deviceLabels[0].deviceLabel;
+                        console.log('Using first device label (no currentDeviceLabelID):', deviceLabel);
+                      }
+                      
                       const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/settings`);
                       if (settingsResponse.ok) {
                         const settings = await settingsResponse.json();

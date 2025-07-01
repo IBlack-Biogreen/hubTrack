@@ -1104,14 +1104,47 @@ function defineRoutes() {
             // First, delete any existing carts
             await db.collection(collections.carts).deleteMany({});
             
-            // Then insert the new cart
-            let query = { serialNumber };
+            // Get the complete cart data from Atlas
+            let cartData = null;
+            
             if (!dbManager.isLocalConnection()) {
-                // If connected to Atlas, also check for machineType
-                query = { serialNumber, machineType: 'BGTrack' };
+                // If connected to Atlas directly, get from local Atlas collection
+                cartData = await db.collection(collections.carts).findOne({ 
+                    serialNumber, 
+                    machineType: 'BGTrack' 
+                });
+            } else {
+                // If connected to local DB, fetch from Atlas
+                try {
+                    const atlasUri = process.env.MONGODB_ATLAS_URI;
+                    if (atlasUri) {
+                        const atlasClient = new MongoClient(atlasUri, {
+                            serverSelectionTimeoutMS: 5000,
+                            connectTimeoutMS: 5000
+                        });
+                        await atlasClient.connect();
+                        
+                        const atlasDb = atlasClient.db('globalDbs');
+                        cartData = await atlasDb.collection('globalMachines').findOne({ 
+                            serialNumber, 
+                            machineType: 'BGTrack' 
+                        });
+                        
+                        await atlasClient.close();
+                    }
+                } catch (atlasError) {
+                    console.error('Error fetching cart from Atlas:', atlasError);
+                    // Fallback to creating a basic cart object
+                    cartData = { serialNumber, machineType: 'BGTrack' };
+                }
             }
             
-            const result = await db.collection(collections.carts).insertOne(query);
+            if (!cartData) {
+                return res.status(404).json({ error: 'Cart not found in Atlas' });
+            }
+            
+            // Insert the complete cart data
+            const result = await db.collection(collections.carts).insertOne(cartData);
             
             if (!result.insertedId) {
                 return res.status(500).json({ error: 'Failed to insert cart' });

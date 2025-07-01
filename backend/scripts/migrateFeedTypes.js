@@ -1,6 +1,7 @@
 const { MongoClient } = require('mongodb');
 require('dotenv').config();
 const dbManager = require('../db/connection');
+const { ObjectId } = require('mongodb');
 
 async function migrateFeedTypes() {
     console.log('====== STARTING FEED TYPES MIGRATION ======');
@@ -37,13 +38,47 @@ async function migrateFeedTypes() {
         console.log('2. Getting current cart device label...');
         const cart = await db.collection('Carts').findOne({});
         
-        if (!cart || !cart.currentDeviceLabel) {
-            console.error('   No cart found or cart has no currentDeviceLabel.');
+        if (!cart) {
+            console.error('   No cart found.');
             return;
         }
         
-        const deviceLabel = cart.currentDeviceLabel;
-        console.log(`   Found device label: ${deviceLabel}`);
+        let deviceLabel;
+        
+        // Try to get device label from currentDeviceLabelID first
+        if (cart.currentDeviceLabelID) {
+            console.log(`   Cart has currentDeviceLabelID: ${cart.currentDeviceLabelID}`);
+            let deviceLabelID = cart.currentDeviceLabelID;
+            // Convert to ObjectId if it's a string
+            if (typeof deviceLabelID === 'string' && deviceLabelID.match(/^[a-fA-F0-9]{24}$/)) {
+                try {
+                    deviceLabelID = new ObjectId(deviceLabelID);
+                } catch (e) {
+                    console.log('   Could not convert currentDeviceLabelID to ObjectId:', e.message);
+                }
+            }
+            // Get the device label from the device labels collection
+            const deviceLabelDoc = await db.collection('cartDeviceLabels').findOne({ _id: deviceLabelID });
+            if (deviceLabelDoc) {
+                deviceLabel = deviceLabelDoc.deviceLabel;
+                console.log(`   Found device label from currentDeviceLabelID: ${deviceLabel}`);
+            } else {
+                console.log(`   Device label document not found for ID: ${cart.currentDeviceLabelID}`);
+            }
+        }
+        
+        // Fallback to currentDeviceLabel if currentDeviceLabelID didn't work
+        if (!deviceLabel && cart.currentDeviceLabel) {
+            deviceLabel = cart.currentDeviceLabel;
+            console.log(`   Using fallback currentDeviceLabel: ${deviceLabel}`);
+        }
+        
+        if (!deviceLabel) {
+            console.error('   No device label found in cart (neither currentDeviceLabelID nor currentDeviceLabel).');
+            return;
+        }
+        
+        console.log(`   Final device label to use: ${deviceLabel}`);
         
         // Connect to MongoDB Atlas to get matching feed type data
         console.log('3. Connecting to MongoDB Atlas to fetch matching feed types...');
