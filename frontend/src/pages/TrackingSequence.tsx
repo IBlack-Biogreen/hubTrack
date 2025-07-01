@@ -776,12 +776,8 @@ const TrackingSequence: React.FC = () => {
         console.log('Extracted bin weight:', binWeight);
         console.log('Current weight value:', weightValue);
 
-        // Fetch cart settings
-        const savedCartSerial = localStorage.getItem('selectedCart');
-        if (!savedCartSerial) {
-          throw new Error('No cart selected');
-        }
-        const cartResponse = await fetch(`http://localhost:5000/api/carts/${savedCartSerial}`);
+        // Fetch cart settings from database
+        const cartResponse = await fetch('http://localhost:5000/api/selected-cart');
         if (!cartResponse.ok) {
           throw new Error(`Failed to fetch cart settings: ${cartResponse.status} ${cartResponse.statusText}`);
         }

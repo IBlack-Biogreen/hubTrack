@@ -93,11 +93,12 @@ if (-not (Test-Path $desktopFolder)) {
 $startupShortcut = Join-Path $startupFolder "$ChromeShortcutName.lnk"
 $desktopShortcut = Join-Path $desktopFolder "$ChromeShortcutName.lnk"
 
-# Chrome arguments for fullscreen kiosk mode
+# Chrome arguments for fullscreen kiosk mode with DevTools enabled
 $chromeArgs = @(
     "--start-fullscreen",
     "--kiosk",
     "--disable-web-security",
+    "--auto-open-devtools-for-tabs",
     "--disable-features=VizDisplayCompositor",
     "--disable-background-timer-throttling",
     "--disable-backgrounding-occluded-windows",

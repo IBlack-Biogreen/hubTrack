@@ -75,22 +75,22 @@ export default function Setup() {
 
   // Load saved cart on component mount
   useEffect(() => {
-    const savedCart = localStorage.getItem('selectedCart');
-    const savedDeviceLabel = localStorage.getItem('selectedDeviceLabel');
-    console.log('Saved cart from localStorage:', savedCart);
-    
-    if (savedCart) {
-      setSelectedCart(savedCart);
-      setIsCartSelected(true);
-      
-      // Load scale configuration from the cart
-      const fetchCartConfig = async () => {
-        try {
-          console.log('Fetching cart config for:', savedCart);
-          const response = await fetch(`http://localhost:5000/api/carts/${savedCart}`);
-          if (response.ok) {
-            const cartData = await response.json();
-            console.log('Cart data received:', cartData);
+    const loadSelectedCart = async () => {
+      try {
+        // First try to get the selected cart from the database
+        const response = await fetch('http://localhost:5000/api/selected-cart');
+        if (response.ok) {
+          const cartData = await response.json();
+          console.log('Selected cart from database:', cartData);
+          
+          if (cartData.serialNumber) {
+            setSelectedCart(cartData.serialNumber);
+            setIsCartSelected(true);
+            
+            // Also save to localStorage for backward compatibility
+            localStorage.setItem('selectedCart', cartData.serialNumber);
+            
+            // Load scale configuration from the cart
             if (cartData.tareVoltage !== undefined) {
               console.log('Setting tare voltage from cart:', cartData.tareVoltage);
               setTareVoltage(cartData.tareVoltage);
@@ -99,7 +99,7 @@ export default function Setup() {
               console.log('Setting scale factor from cart:', cartData.scaleFactor);
               setScaleFactor(cartData.scaleFactor);
             }
-
+            
             // Fetch device label settings
             try {
               const deviceLabelsResponse = await fetch('http://localhost:5000/api/device-labels');
@@ -107,7 +107,7 @@ export default function Setup() {
                 const deviceLabels = await deviceLabelsResponse.json();
                 if (Array.isArray(deviceLabels) && deviceLabels.length > 0) {
                   const deviceLabel = deviceLabels[0].deviceLabel;
-                  const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}`);
+                  const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/settings`);
                   if (settingsResponse.ok) {
                     const settings = await settingsResponse.json();
                     if (settings.settings?.binWeight !== undefined) {
@@ -128,22 +128,87 @@ export default function Setup() {
             } catch (err) {
               console.error('Error fetching device settings:', err);
             }
-
+            
             setCartConfigLoaded(true);
-          } else {
-            console.error('Failed to fetch cart config:', response.status, response.statusText);
-            setCartConfigLoaded(true);
+            return;
           }
-        } catch (err) {
-          console.error('Error fetching cart config:', err);
-          setCartConfigLoaded(true);
         }
-      };
-      
-      fetchCartConfig();
-    } else {
-      setCartConfigLoaded(true); // No cart to load, so we're done
-    }
+        
+        // Fallback to localStorage if database doesn't have a selected cart
+        const savedCart = localStorage.getItem('selectedCart');
+        const savedDeviceLabel = localStorage.getItem('selectedDeviceLabel');
+        console.log('Saved cart from localStorage (fallback):', savedCart);
+        
+        if (savedCart) {
+          setSelectedCart(savedCart);
+          setIsCartSelected(true);
+          
+          // Load scale configuration from the cart
+          const fetchCartConfig = async () => {
+            try {
+              console.log('Fetching cart config for:', savedCart);
+              const response = await fetch(`http://localhost:5000/api/carts/${savedCart}`);
+              if (response.ok) {
+                const cartData = await response.json();
+                console.log('Cart data received:', cartData);
+                if (cartData.tareVoltage !== undefined) {
+                  console.log('Setting tare voltage from cart:', cartData.tareVoltage);
+                  setTareVoltage(cartData.tareVoltage);
+                }
+                if (cartData.scaleFactor !== undefined) {
+                  console.log('Setting scale factor from cart:', cartData.scaleFactor);
+                  setScaleFactor(cartData.scaleFactor);
+                }
+                
+                // Fetch device label settings
+                try {
+                  const deviceLabelsResponse = await fetch('http://localhost:5000/api/device-labels');
+                  if (deviceLabelsResponse.ok) {
+                    const deviceLabels = await deviceLabelsResponse.json();
+                    if (Array.isArray(deviceLabels) && deviceLabels.length > 0) {
+                      const deviceLabel = deviceLabels[0].deviceLabel;
+                      const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/settings`);
+                      if (settingsResponse.ok) {
+                        const settings = await settingsResponse.json();
+                        if (settings.settings?.binWeight !== undefined) {
+                          console.log('Setting bin weight from device settings:', settings.settings.binWeight);
+                          setBinWeight(settings.settings.binWeight);
+                        }
+                        if (settings.storageCapacity !== undefined) {
+                          console.log('Setting storage capacity from device settings:', settings.storageCapacity);
+                          setStorageCapacity(settings.storageCapacity);
+                        }
+                        if (settings.storageUtilization !== undefined) {
+                          console.log('Setting storage utilization from device settings:', settings.storageUtilization);
+                          setStorageUtilization(settings.storageUtilization);
+                        }
+                      }
+                    }
+                  }
+                } catch (err) {
+                  console.error('Error fetching device settings:', err);
+                }
+              } else {
+                console.error('Failed to fetch cart config:', response.status, response.statusText);
+              }
+            } catch (err) {
+              console.error('Error fetching cart config:', err);
+            } finally {
+              setCartConfigLoaded(true);
+            }
+          };
+          
+          fetchCartConfig();
+        } else {
+          setCartConfigLoaded(true); // No cart to load, so we're done
+        }
+      } catch (err) {
+        console.error('Error loading selected cart:', err);
+        setCartConfigLoaded(true);
+      }
+    };
+    
+    loadSelectedCart();
   }, []);
 
   // Save cart selection to localStorage and database

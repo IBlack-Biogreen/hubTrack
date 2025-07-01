@@ -304,21 +304,14 @@ function Settings() {
         setLoading(true);
         setError(null);
         try {
-            // Get the selected cart from localStorage
-            const savedCartSerial = localStorage.getItem('selectedCart');
-            if (!savedCartSerial) {
-                console.log('No cart selected');
+            // Get the selected cart from database
+            const selectedCartResponse = await fetch('http://localhost:5000/api/selected-cart');
+            if (!selectedCartResponse.ok) {
+                console.log('No cart selected in database');
                 return;
             }
-
-            // Fetch carts to get the selected cart's details
-            const cartsResponse = await fetch('http://localhost:5000/api/carts/serial-numbers');
-            if (!cartsResponse.ok) {
-                throw new Error('Failed to fetch carts');
-            }
-            const carts = await cartsResponse.json();
-            const currentCart = carts.find((cart: Cart) => cart.serialNumber === savedCartSerial);
-            setSelectedCart(currentCart || null);
+            const selectedCartData = await selectedCartResponse.json();
+            setSelectedCart(selectedCartData);
 
             // Fetch device labels
             const labelsResponse = await fetch('http://localhost:5000/api/device-labels');
@@ -329,8 +322,8 @@ function Settings() {
             setDeviceLabels(labels);
 
             // Get the current device label
-            const currentLabel = currentCart?.currentDeviceLabelID 
-                ? labels.find((label: DeviceLabel) => label._id === currentCart.currentDeviceLabelID)
+            const currentLabel = selectedCartData?.currentDeviceLabelID 
+                ? labels.find((label: DeviceLabel) => label._id === selectedCartData.currentDeviceLabelID)
                 : null;
 
             if (currentLabel) {
