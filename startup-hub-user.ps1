@@ -27,6 +27,7 @@ Write-Log "========================================="
 $projectPath = "C:\Users\Public\Documents\hubTrack\hubTrack"
 $backendPath = Join-Path $projectPath "backend"
 $frontendPath = Join-Path $projectPath "frontend"
+$loadingPagePath = Join-Path $projectPath "auto-loading.html"
 
 Write-Log "=== HubTrack Startup Script (hub user) ==="
 Write-Log "Project Path: $projectPath"
@@ -74,6 +75,21 @@ function Wait-ForService {
     return $false
 }
 
+# Function to find Chrome executable
+function Find-Chrome {
+    $chromePaths = @(
+        "${env:ProgramFiles}\Google\Chrome\Application\chrome.exe",
+        "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe"
+    )
+    
+    foreach ($path in $chromePaths) {
+        if (Test-Path $path) {
+            return $path
+        }
+    }
+    return $null
+}
+
 # Function to kill processes on specific ports
 function Stop-ProcessOnPort {
     param([int]$Port)
@@ -81,15 +97,15 @@ function Stop-ProcessOnPort {
         $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
         foreach ($conn in $connections) {
             $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
-                    if ($process) {
-            Write-Log "Stopping process on port ${Port}: $($process.ProcessName) (PID: $($process.Id))"
-            Stop-Process -Id $process.Id -Force
+            if ($process) {
+                Write-Log "Stopping process on port ${Port}: $($process.ProcessName) (PID: $($process.Id))"
+                Stop-Process -Id $process.Id -Force
+            }
         }
+        Start-Sleep -Seconds 2
+    } catch {
+        Write-Log "Error stopping process on port ${Port}: $($_.Exception.Message)" "ERROR"
     }
-    Start-Sleep -Seconds 2
-} catch {
-    Write-Log "Error stopping process on port ${Port}: $($_.Exception.Message)" "ERROR"
-}
 }
 
 # Check if paths exist
@@ -114,42 +130,62 @@ Write-Log "Cleaning up existing processes..."
 Stop-ProcessOnPort -Port 5000  # Backend API
 Stop-ProcessOnPort -Port 5001  # LabJack
 Stop-ProcessOnPort -Port 5173  # Frontend dev server
-Stop-ProcessOnPort -Port 8080  # Loading server
 
-# Start loading server first
-Write-Log "Starting loading server..."
-Set-Location $projectPath
+# STEP 1: Open Chrome to the auto-loading page immediately
+Write-Log "Step 1: Opening Chrome to auto-loading page..."
+
+$chromePath = Find-Chrome
+if (-not $chromePath) {
+    Write-Log "Chrome not found in standard locations" "ERROR"
+    exit 1
+}
+
+Write-Log "Found Chrome at: $chromePath"
+
+# Check if auto-loading page exists
+if (-not (Test-Path $loadingPagePath)) {
+    Write-Log "Auto-loading page not found: $loadingPagePath" "ERROR"
+    exit 1
+}
+
+# Convert the loading page path to a file:// URL
+$loadingPageUrl = "file:///" + $loadingPagePath.Replace('\', '/')
+
+# Chrome arguments for fullscreen kiosk mode (simplified)
+$chromeArgs = @(
+    "--start-fullscreen",
+    "--kiosk",
+    "--disable-web-security",
+    "--no-first-run",
+    "--no-default-browser-check",
+    "--disable-default-apps",
+    "--disable-popup-blocking",
+    "--disable-notifications",
+    "--disable-extensions",
+    "--disable-plugins",
+    "--disable-sync",
+    "--disable-translate",
+    "--disable-logging",
+    "--disable-dev-shm-usage",
+    "--disable-gpu",
+    "--no-sandbox",
+    "--silent-launch",
+    $loadingPageUrl
+)
+
+$chromeArgsString = $chromeArgs -join " "
 
 try {
-    Write-Log "Starting loading server on port 8080..."
-    $loadingProcess = Start-Process -FilePath "node" -ArgumentList "loading-server.js" -NoNewWindow -PassThru
-    Write-Log "Loading server launched with PID: $($loadingProcess.Id)"
-    
-    # Wait for loading server to be ready before proceeding
-    Write-Log "Waiting for loading server to be ready..."
-    if (Wait-ForService -ServiceName "Loading Server" -Url "http://localhost:8080/health" -Timeout 15) {
-        Write-Log "Loading server is ready - Chrome can now open safely"
-        
-        # Launch Chrome now that loading server is ready
-        Write-Log "Launching Chrome..."
-        $chromeStartupScript = Join-Path $projectPath "start-chrome.ps1"
-        if (Test-Path $chromeStartupScript) {
-            try {
-                $chromeProcess = Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy", "Bypass", "-WindowStyle", "Hidden", "-File", $chromeStartupScript -NoNewWindow -PassThru
-                Write-Log "Chrome startup script launched with PID: $($chromeProcess.Id)"
-            } catch {
-                Write-Log "Error launching Chrome: $($_.Exception.Message)" "ERROR"
-            }
-        } else {
-            Write-Log "Chrome startup script not found: $chromeStartupScript" "WARN"
-        }
-    } else {
-        Write-Log "Loading server failed to start properly - Chrome may show connection error" "WARN"
-    }
+    $chromeProcess = Start-Process -FilePath $chromePath -ArgumentList $chromeArgsString -PassThru
+    Write-Log "Chrome opened with PID: $($chromeProcess.Id)"
+    Write-Log "Chrome is now showing the auto-loading page"
 } catch {
-    Write-Log "Error starting loading server: $($_.Exception.Message)" "ERROR"
-    # Continue anyway as this is not critical
+    Write-Log "Error opening Chrome: $($_.Exception.Message)" "ERROR"
+    exit 1
 }
+
+# Give Chrome a moment to open
+Start-Sleep -Seconds 3
 
 # Start backend services
 Write-Log "Starting backend services..."
@@ -245,13 +281,12 @@ if (-not (Wait-ForService -ServiceName "Frontend" -Url "http://localhost:5173" -
 }
 
 Write-Log "=== HubTrack Startup Complete ==="
-Write-Log "Loading Server: http://localhost:8080"
 Write-Log "Backend API: http://localhost:5000"
 Write-Log "Frontend: http://localhost:5173"
 Write-Log "LabJack: http://localhost:5001"
 Write-Log "==============================="
 Write-Log "All services are now running!"
-Write-Log "Chrome should automatically open to http://localhost:8080 (loading page)"
+Write-Log "Chrome should automatically redirect to the main application when ready"
 
 # Keep the script running to maintain the processes
 Write-Log "Startup script completed successfully - keeping processes alive"
@@ -264,11 +299,6 @@ try {
 } finally {
     # Cleanup on exit
     Write-Log "Stopping all HubTrack services..."
-    
-    # Stop loading server process
-    if ($loadingProcess -and -not $loadingProcess.HasExited) {
-        Stop-Process -Id $loadingProcess.Id -Force
-    }
     
     # Stop backend processes
     Get-Process | Where-Object { 

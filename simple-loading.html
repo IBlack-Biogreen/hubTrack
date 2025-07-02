@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HubTrack - Starting Up</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        
+        .loading-container {
+            text-align: center;
+            max-width: 600px;
+            padding: 40px;
+        }
+        
+        .logo {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .loading-text {
+            font-size: 1.5rem;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+        
+        .spinner {
+            width: 60px;
+            height: 60px;
+            border: 6px solid rgba(255,255,255,0.3);
+            border-top: 6px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 30px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .status {
+            font-size: 1.2rem;
+            margin-bottom: 10px;
+            opacity: 0.8;
+        }
+        
+        .progress {
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.3);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: white;
+            width: 0%;
+            transition: width 0.5s ease;
+            border-radius: 4px;
+        }
+        
+        .instructions {
+            font-size: 1rem;
+            opacity: 0.7;
+            margin-top: 30px;
+            line-height: 1.5;
+        }
+        
+        .redirecting {
+            font-size: 1.3rem;
+            font-weight: bold;
+            color: #90EE90;
+            margin-top: 20px;
+            animation: pulse 1s ease-in-out infinite alternate;
+        }
+        
+        @keyframes pulse {
+            from { opacity: 0.7; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-container">
+        <div class="logo">HubTrack</div>
+        <div class="loading-text">Starting up...</div>
+        
+        <div class="spinner"></div>
+        
+        <div class="status" id="status">Initializing...</div>
+        <div class="progress">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <div class="instructions">
+            <p>Please wait while the system initializes.</p>
+            <p>This may take a few moments on first startup.</p>
+        </div>
+        
+        <div class="redirecting" id="redirecting" style="display: none;">
+            Redirecting to main application...
+        </div>
+    </div>
+
+    <script>
+        // Simple loading page that will automatically redirect to the main app
+        let progress = 0;
+        const statusElement = document.getElementById('status');
+        const progressBar = document.getElementById('progressBar');
+        const redirectingElement = document.getElementById('redirecting');
+        
+        const statuses = [
+            'Initializing...',
+            'Starting backend services...',
+            'Starting frontend...',
+            'Connecting to database...',
+            'Loading application...',
+            'Almost ready...',
+            'Checking services...',
+            'Preparing to launch...'
+        ];
+        
+        let currentStatus = 0;
+        let servicesChecked = false;
+        
+        function updateProgress() {
+            progress += Math.random() * 10;
+            if (progress > 90) progress = 90; // Don't go to 100% until services are ready
+            
+            progressBar.style.width = progress + '%';
+            
+            if (progress < 90) {
+                setTimeout(updateProgress, 1000 + Math.random() * 2000);
+            }
+        }
+        
+        function updateStatus() {
+            if (currentStatus < statuses.length - 1) {
+                currentStatus++;
+                statusElement.textContent = statuses[currentStatus];
+                setTimeout(updateStatus, 2000 + Math.random() * 3000);
+            }
+        }
+        
+        async function checkServices() {
+            if (servicesChecked) return;
+            
+            try {
+                // Check backend
+                const backendResponse = await fetch('http://localhost:5000/api/health', { 
+                    method: 'GET',
+                    mode: 'no-cors' // Allow cross-origin for file:// URLs
+                });
+                
+                // Check frontend
+                const frontendResponse = await fetch('http://localhost:5173', { 
+                    method: 'GET',
+                    mode: 'no-cors'
+                });
+                
+                // If we get here, both services are responding
+                servicesChecked = true;
+                statusElement.textContent = 'All services ready!';
+                progressBar.style.width = '100%';
+                redirectingElement.style.display = 'block';
+                
+                // Redirect to main application
+                setTimeout(() => {
+                    window.location.href = 'http://localhost:5173';
+                }, 2000);
+                
+            } catch (error) {
+                // Services not ready yet, check again in 3 seconds
+                setTimeout(checkServices, 3000);
+            }
+        }
+        
+        // Start the loading animation
+        setTimeout(updateProgress, 500);
+        setTimeout(updateStatus, 1000);
+        
+        // Start checking services after 10 seconds
+        setTimeout(checkServices, 10000);
+        
+        // Also check services periodically
+        setInterval(checkServices, 5000);
+        
+        console.log('Simple loading page loaded - will auto-redirect when services are ready');
+    </script>
+</body>
+</html> 
