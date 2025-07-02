@@ -5,7 +5,15 @@ const dbManager = require('../db/connection');
 async function migrateDeviceLabels() {
     try {
         const db = dbManager.getDb();
-        const collections = getCollectionNames();
+        
+        // Define collection names based on connection type
+        const collections = dbManager.isLocalConnection() ? {
+            carts: 'Carts',
+            deviceLabels: 'cartDeviceLabels'
+        } : {
+            carts: 'globalMachines',
+            deviceLabels: 'globalDeviceLabels'
+        };
         
         // Check if we're connected to Atlas
         const isAtlasConnected = !dbManager.isLocalConnection();
