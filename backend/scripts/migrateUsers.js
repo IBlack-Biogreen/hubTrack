@@ -2,6 +2,40 @@ const { MongoClient } = require('mongodb');
 require('dotenv').config();
 const dbManager = require('../db/connection');
 
+// Define the fields we want to keep locally
+const LOCAL_USER_FIELDS = [
+    '_id',
+    'FIRST',
+    'LAST',
+    'CODE',
+    'LANGUAGE',
+    'title',
+    'lastUpdated',
+    'AVATAR',
+    'deptLead',
+    'userDept',
+    'status',
+    'organization',
+    'numberFeeds',
+    'poundsFed',
+    'feedOrg',
+    'celebrations',
+    'feedOrgID'
+];
+
+// Function to filter user document to only include pertinent fields
+function filterUserForLocal(user) {
+    const filteredUser = {};
+    
+    LOCAL_USER_FIELDS.forEach(field => {
+        if (user.hasOwnProperty(field)) {
+            filteredUser[field] = user[field];
+        }
+    });
+    
+    return filteredUser;
+}
+
 async function migrateUsers() {
     console.log('====== STARTING USER MIGRATION ======');
     
@@ -88,10 +122,11 @@ async function migrateUsers() {
             // Log some sample data for debugging
             if (globalUsers.length > 0) {
                 const sampleUser = globalUsers[0];
-                console.log('   Sample user data:');
+                console.log('   Sample user data from Atlas:');
                 console.log(`   - Name: ${sampleUser.userName || `${sampleUser.FIRST || ''} ${sampleUser.LAST || ''}`.trim()}`);
                 console.log(`   - Email: ${sampleUser.email || 'N/A'}`);
                 console.log(`   - feedOrgID: ${JSON.stringify(sampleUser.feedOrgID || [])}`);
+                console.log(`   - Total fields in Atlas: ${Object.keys(sampleUser).length}`);
             }
             
         } catch (atlasError) {
@@ -119,10 +154,21 @@ async function migrateUsers() {
             console.log('   Users collection dropped.');
         }
         
-        // Insert the global users as-is into the local database
-        console.log('5. Importing matching users to local database...');
-        const result = await db.collection('Users').insertMany(globalUsers);
+        // Filter and insert only the pertinent fields into the local database
+        console.log('5. Filtering and importing matching users to local database...');
+        const filteredUsers = globalUsers.map(filterUserForLocal);
+        
+        const result = await db.collection('Users').insertMany(filteredUsers);
         console.log(`   Successfully imported ${result.insertedCount} users to local database`);
+        
+        // Log sample of filtered data
+        if (filteredUsers.length > 0) {
+            const sampleFilteredUser = filteredUsers[0];
+            console.log('   Sample filtered user data for local storage:');
+            console.log(`   - Name: ${sampleFilteredUser.FIRST || ''} ${sampleFilteredUser.LAST || ''}`);
+            console.log(`   - Total fields kept locally: ${Object.keys(sampleFilteredUser).length}`);
+            console.log(`   - Fields kept: ${Object.keys(sampleFilteredUser).join(', ')}`);
+        }
         
         // Verify the migration
         const count = await db.collection('Users').countDocuments();
