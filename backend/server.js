@@ -19,6 +19,72 @@ const multer = require('multer');
 const { ObjectId } = require('mongodb');
 const { MongoClient } = require('mongodb');
 
+// Enhanced logging setup
+const logDir = path.join(__dirname, 'logs');
+if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true });
+}
+
+const logFile = path.join(logDir, `server-${new Date().toISOString().split('T')[0]}.log`);
+
+function logToFile(level, message, error = null) {
+    const timestamp = new Date().toISOString();
+    let logMessage = `[${timestamp}] [${level}] ${message}`;
+    
+    if (error) {
+        logMessage += `\nError: ${error.message}`;
+        if (error.stack) {
+            logMessage += `\nStack: ${error.stack}`;
+        }
+    }
+    
+    logMessage += '\n';
+    
+    // Log to console
+    console.log(logMessage);
+    
+    // Log to file
+    fs.appendFileSync(logFile, logMessage);
+}
+
+// Global error handlers for crash recovery
+process.on('uncaughtException', (error) => {
+    logToFile('FATAL', 'Uncaught Exception - Server will restart', error);
+    
+    // Attempt graceful shutdown
+    setTimeout(() => {
+        process.exit(1);
+    }, 1000);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    logToFile('FATAL', 'Unhandled Rejection', reason);
+    
+    // Attempt graceful shutdown
+    setTimeout(() => {
+        process.exit(1);
+    }, 1000);
+});
+
+// Memory leak detection
+let memoryUsageInterval;
+function startMemoryMonitoring() {
+    memoryUsageInterval = setInterval(() => {
+        const memUsage = process.memoryUsage();
+        const memUsageMB = {
+            rss: Math.round(memUsage.rss / 1024 / 1024),
+            heapUsed: Math.round(memUsage.heapUsed / 1024 / 1024),
+            heapTotal: Math.round(memUsage.heapTotal / 1024 / 1024)
+        };
+        
+        if (memUsageMB.heapUsed > 500) { // Alert if heap usage > 500MB
+            logToFile('WARN', `High memory usage detected: ${JSON.stringify(memUsageMB)}`);
+        }
+        
+        logToFile('DEBUG', `Memory usage: ${JSON.stringify(memUsageMB)}`);
+    }, 300000); // Check every 5 minutes
+}
+
 const app = express();
 const PORT = process.env.PORT || 5000;
 const pythonServerPort = 5001; // Python server will run on this port
@@ -76,7 +142,7 @@ const getCollectionNames = () => {
 
 // Add request logging middleware
 app.use((req, res, next) => {
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+    logToFile('INFO', `${req.method} ${req.url} - ${req.ip}`);
     next();
 });
 
@@ -461,23 +527,26 @@ async function initializeServer() {
         defineRoutes();
         
         // Start periodic S3 sync job (every 5 minutes)
-        setInterval(async () => {
+        global.s3SyncInterval = setInterval(async () => {
             try {
                 const db = dbManager.getDb();
                 await s3Service.syncPendingImages(db);
             } catch (error) {
-                console.error('Error in periodic S3 sync:', error);
+                logToFile('ERROR', 'Error in periodic S3 sync', error);
             }
         }, 5 * 60 * 1000); // 5 minutes
         
         // Start the sync queue processor
-        setInterval(processSyncQueue, SYNC_INTERVAL);
+        global.syncInterval = setInterval(processSyncQueue, SYNC_INTERVAL);
         
         // Start the feed sync service
         feedSyncService.startSyncService();
         
         // Start periodic events sync
-        setInterval(syncEvents, EVENTS_SYNC_INTERVAL);
+        global.eventsSyncInterval = setInterval(syncEvents, EVENTS_SYNC_INTERVAL);
+        
+        // Start memory monitoring
+        startMemoryMonitoring();
         
         // Start server
         app.listen(PORT, () => {
@@ -2377,12 +2446,42 @@ function defineRoutes() {
 
 // Clean up on server shutdown
 process.on('SIGINT', async () => {
-    await dbManager.disconnect();
-    process.exit();
+    logToFile('INFO', 'Received SIGINT - shutting down gracefully');
+    await cleanup();
+    process.exit(0);
 });
+
+process.on('SIGTERM', async () => {
+    logToFile('INFO', 'Received SIGTERM - shutting down gracefully');
+    await cleanup();
+    process.exit(0);
+});
+
+async function cleanup() {
+    try {
+        logToFile('INFO', 'Starting cleanup...');
+        
+        // Stop memory monitoring
+        if (memoryUsageInterval) {
+            clearInterval(memoryUsageInterval);
+        }
+        
+        // Stop all intervals
+        if (global.syncInterval) clearInterval(global.syncInterval);
+        if (global.eventsSyncInterval) clearInterval(global.eventsSyncInterval);
+        if (global.s3SyncInterval) clearInterval(global.s3SyncInterval);
+        
+        // Disconnect database
+        await dbManager.disconnect();
+        
+        logToFile('INFO', 'Cleanup completed');
+    } catch (error) {
+        logToFile('ERROR', 'Error during cleanup', error);
+    }
+}
 
 // Start the server
 initializeServer().catch(error => {
-    console.error('Failed to start server:', error);
+    logToFile('FATAL', 'Failed to start server', error);
     process.exit(1);
 }); 

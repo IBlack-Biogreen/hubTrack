@@ -27,9 +27,14 @@ import { Chart, registerables } from 'chart.js';
 import 'chartjs-adapter-date-fns';
 import Webcam from 'react-webcam';
 import { NumberPad } from '../components/keyboard';
+import moment from 'moment-timezone';
+import Autocomplete from '@mui/material/Autocomplete';
 
 // Register Chart.js components
 Chart.register(...registerables);
+
+// Get the full IANA timezone list
+const timezoneList = moment.tz.names();
 
 export default function Setup() {
   const [reading, setReading] = useState<number | null>(null);
@@ -40,6 +45,7 @@ export default function Setup() {
   const [scaleFactor, setScaleFactor] = useState(24.5);
   const [tareVoltage, setTareVoltage] = useState(0.0);
   const [binWeight, setBinWeight] = useState(0.0);
+  const [timezone, setTimezone] = useState('America/New_York');
   const [carts, setCarts] = useState<Array<{ 
     _id: string, 
     serialNumber: string, 
@@ -132,6 +138,10 @@ export default function Setup() {
                       console.log('Setting storage utilization from device settings:', settings.storageUtilization);
                       setStorageUtilization(settings.storageUtilization);
                     }
+                    if (settings.timezone !== undefined) {
+                      console.log('Setting timezone from device settings:', settings.timezone);
+                      setTimezone(settings.timezone);
+                    }
                   }
                 }
               }
@@ -201,6 +211,10 @@ export default function Setup() {
                         if (settings.storageUtilization !== undefined) {
                           console.log('Setting storage utilization from device settings:', settings.storageUtilization);
                           setStorageUtilization(settings.storageUtilization);
+                        }
+                        if (settings.timezone !== undefined) {
+                          console.log('Setting timezone from device settings:', settings.timezone);
+                          setTimezone(settings.timezone);
                         }
                       }
                     }
@@ -858,6 +872,39 @@ export default function Setup() {
     }
   };
 
+  const handleTimezoneChange = async (event: any) => {
+    const newTimezone = event.target.value as string;
+    setTimezone(newTimezone);
+    
+    try {
+      // Get the device label from the database
+      const response = await fetch('http://localhost:5000/api/device-labels');
+      if (!response.ok) {
+        throw new Error('Failed to fetch device labels');
+      }
+      const deviceLabels = await response.json();
+      const deviceLabel = deviceLabels[0]?.deviceLabel;
+      
+      if (!deviceLabel) {
+        throw new Error('No device label found');
+      }
+
+      const updateResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ timezone: newTimezone }),
+      });
+      if (!updateResponse.ok) {
+        throw new Error('Failed to update timezone');
+      }
+    } catch (err) {
+      console.error('Error updating timezone:', err);
+      setError('Failed to update timezone. Please try again.');
+    }
+  };
+
   const handleClearHistory = async () => {
     try {
       const response = await fetch('http://localhost:5001/api/labjack/clear-history', {
@@ -1246,6 +1293,20 @@ export default function Setup() {
                     MozAppearance: 'textfield',
                   },
                 }}
+              />
+            </Grid2>
+            <Grid2 item xs={12} sm={6}>
+              <Autocomplete
+                fullWidth
+                options={timezoneList}
+                getOptionLabel={(option) => option}
+                value={timezone}
+                onChange={(_event, newValue) => {
+                  if (newValue) handleTimezoneChange({ target: { value: newValue } });
+                }}
+                renderInput={(params) => (
+                  <TextField {...params} label="Timezone" variant="outlined" />
+                )}
               />
             </Grid2>
           </Grid2>

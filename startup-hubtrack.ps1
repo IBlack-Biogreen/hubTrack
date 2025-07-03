@@ -1,220 +1,236 @@
-# HubTrack Windows Startup Script
-# This script starts all backend services and frontend development server
+# HubTrack Startup Script with PM2 Process Management
+# This script starts all HubTrack services with enhanced crash recovery
 
 param(
-    [int]$StartupDelay = 10
+    [switch]$UsePM2 = $true,
+    [switch]$StartMonitor = $true
 )
 
-# Get the script's directory and set up paths
-$scriptPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-$backendPath = Join-Path $scriptPath "backend"
-$frontendPath = Join-Path $scriptPath "frontend"
-
-Write-Host "=== HubTrack Startup Script ===" -ForegroundColor Cyan
-Write-Host "Script Path: $scriptPath" -ForegroundColor Yellow
-Write-Host "Backend Path: $backendPath" -ForegroundColor Yellow
-Write-Host "Frontend Path: $frontendPath" -ForegroundColor Yellow
-Write-Host "===============================" -ForegroundColor Cyan
-
-# Function to check if a port is available
-function Test-PortAvailable {
-    param([int]$Port)
-    try {
-        $connection = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
-        return $null -eq $connection
-    } catch {
-        return $true
-    }
-}
-
-# Function to wait for a service to be ready
-function Wait-ForService {
+# Function to write colored output
+function Write-Log {
     param(
-        [string]$ServiceName,
-        [string]$Url,
-        [int]$Timeout = 60
+        [string]$Message,
+        [string]$Level = "INFO"
     )
-    Write-Host "Waiting for $ServiceName to be ready..." -ForegroundColor Yellow
-    $startTime = Get-Date
-    $timeoutTime = $startTime.AddSeconds($Timeout)
     
-    while ((Get-Date) -lt $timeoutTime) {
-        try {
-            $response = Invoke-WebRequest -Uri $Url -TimeoutSec 5 -ErrorAction SilentlyContinue
-            if ($response.StatusCode -eq 200) {
-                Write-Host "$ServiceName is ready!" -ForegroundColor Green
-                return $true
-            }
-        } catch {
-            # Service not ready yet
-        }
-        Start-Sleep -Seconds 2
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $color = switch ($Level) {
+        "ERROR" { "Red" }
+        "WARN" { "Yellow" }
+        "SUCCESS" { "Green" }
+        default { "White" }
     }
     
-    Write-Host "$ServiceName failed to start within $Timeout seconds" -ForegroundColor Red
-    return $false
+    Write-Host "[$timestamp] [$Level] $Message" -ForegroundColor $color
 }
 
-# Function to kill processes on specific ports
+# Function to stop processes on specific ports
 function Stop-ProcessOnPort {
     param([int]$Port)
+    
     try {
         $connections = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
         foreach ($conn in $connections) {
-            $process = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
-            if ($process) {
-                Write-Host "Stopping process on port ${Port}: $($process.ProcessName) (PID: $($process.Id))" -ForegroundColor Yellow
-                Stop-Process -Id $process.Id -Force
-            }
+            $processId = $conn.OwningProcess
+            $processName = (Get-Process -Id $processId -ErrorAction SilentlyContinue).ProcessName
+            Write-Log "Stopping $processName (PID: $processId) on port $Port" "WARN"
+            Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
         }
         Start-Sleep -Seconds 2
     } catch {
-        Write-Host "Error stopping process on port ${Port}: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Log "Error stopping processes on port $Port : $($_.Exception.Message)" "ERROR"
     }
 }
 
-# Check if paths exist
-if (-not (Test-Path $backendPath)) {
-    Write-Host "Backend directory not found: $backendPath" -ForegroundColor Red
-    exit 1
-}
+# Set working directory
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+Set-Location $scriptDir
 
-if (-not (Test-Path $frontendPath)) {
-    Write-Host "Frontend directory not found: $frontendPath" -ForegroundColor Red
-    exit 1
-}
+Write-Log "=== HubTrack Startup Script ===" "SUCCESS"
+Write-Log "Working directory: $scriptDir"
 
-# Kill any existing processes on our ports
-Write-Host "Cleaning up existing processes..." -ForegroundColor Green
+# Clean up existing processes
+Write-Log "Cleaning up existing processes..." "INFO"
 Stop-ProcessOnPort -Port 5000  # Backend API
 Stop-ProcessOnPort -Port 5001  # LabJack
 Stop-ProcessOnPort -Port 5173  # Frontend dev server
 
-# Start backend services
-Write-Host "Starting backend services..." -ForegroundColor Green
-Set-Location $backendPath
+# Kill any existing PM2 processes
+try {
+    $pm2Processes = Get-Process | Where-Object { $_.ProcessName -like "*pm2*" }
+    foreach ($proc in $pm2Processes) {
+        Write-Log "Stopping PM2 process: $($proc.ProcessName) (PID: $($proc.Id))" "WARN"
+        Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+    }
+} catch {
+    Write-Log "Error stopping PM2 processes: $($_.Exception.Message)" "ERROR"
+}
 
-# Check if Python virtual environment exists
-$venvPath = Join-Path $backendPath "venv"
-$pythonPath = ""
-if (Test-Path $venvPath) {
-    $pythonPath = Join-Path $venvPath "Scripts\python.exe"
-    if (Test-Path $pythonPath) {
-        Write-Host "Found Python virtual environment: $pythonPath" -ForegroundColor Green
-    } else {
-        Write-Host "Virtual environment found but python.exe not found at: $pythonPath" -ForegroundColor Yellow
-        $pythonPath = "python"
+# Start MongoDB if not running
+Write-Log "Starting MongoDB..." "INFO"
+$mongodProcess = Start-Process -FilePath "mongod" -ArgumentList "--dbpath", ".\data" -NoNewWindow -PassThru
+Start-Sleep -Seconds 3
+
+# Start LabJack server
+Write-Log "Starting LabJack server..." "INFO"
+Set-Location ".\backend"
+$labjackProcess = Start-Process -FilePath "python" -ArgumentList "labjack_server.py" -NoNewWindow -PassThru
+Start-Sleep -Seconds 5
+
+# Install PM2 if not installed
+if ($UsePM2) {
+    Write-Log "Checking PM2 installation..." "INFO"
+    try {
+        $pm2Version = npm list -g pm2 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Log "Installing PM2 globally..." "INFO"
+            npm install -g pm2
+        } else {
+            Write-Log "PM2 already installed" "SUCCESS"
+        }
+    } catch {
+        Write-Log "Error checking/installing PM2: $($_.Exception.Message)" "ERROR"
+    }
+}
+
+# Start backend with PM2 or direct
+if ($UsePM2) {
+    Write-Log "Starting backend with PM2..." "INFO"
+    try {
+        # Install dependencies if needed
+        if (-not (Test-Path "node_modules")) {
+            Write-Log "Installing backend dependencies..." "INFO"
+            npm install
+        }
+        
+        # Start with PM2
+        pm2 start ecosystem.config.js
+        if ($LASTEXITCODE -eq 0) {
+            Write-Log "Backend started with PM2 successfully" "SUCCESS"
+        } else {
+            throw "PM2 start failed"
+        }
+    } catch {
+        Write-Log "PM2 start failed, falling back to direct start: $($_.Exception.Message)" "ERROR"
+        $backendProcess = Start-Process -FilePath "node" -ArgumentList "server.js" -NoNewWindow -PassThru
     }
 } else {
-    Write-Host "No virtual environment found, using system Python" -ForegroundColor Yellow
-    $pythonPath = "python"
+    Write-Log "Starting backend directly..." "INFO"
+    $backendProcess = Start-Process -FilePath "node" -ArgumentList "server.js" -NoNewWindow -PassThru
 }
 
-# Start the backend using the existing script
-try {
-    Write-Host "Running backend startup script..." -ForegroundColor Yellow
-    $backendProcess = Start-Process -FilePath "powershell.exe" -ArgumentList "-ExecutionPolicy", "Bypass", "-File", "start.ps1" -NoNewWindow -PassThru
-    Write-Host "Backend startup script launched with PID: $($backendProcess.Id)" -ForegroundColor Green
-} catch {
-    Write-Host "Error starting backend: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
+# Start crash monitor if requested
+if ($StartMonitor) {
+    Write-Log "Starting crash monitor..." "INFO"
+    Start-Process -FilePath "node" -ArgumentList "monitor-crashes.js" -NoNewWindow -PassThru
 }
 
-# Wait for backend services to be ready
-Write-Host "Waiting for backend services to initialize..." -ForegroundColor Yellow
-Start-Sleep -Seconds $StartupDelay
-
-# Check if backend is ready - try multiple endpoints
-$backendReady = $false
-$healthEndpoints = @(
-    "http://localhost:5000/api/health",
-    "http://localhost:5000/health",
-    "http://localhost:5000/"
-)
-
-foreach ($endpoint in $healthEndpoints) {
-    if (Wait-ForService -ServiceName "Backend API" -Url $endpoint -Timeout 15) {
-        $backendReady = $true
-        break
-    }
-}
-
-if (-not $backendReady) {
-    Write-Host "Backend failed to start properly" -ForegroundColor Red
-    Write-Host "Checking backend logs for errors..." -ForegroundColor Yellow
-    
-    # Check for log files and display recent errors
-    $logFiles = @("node_error.log", "labjack_error.log", "flask_error.log")
-    foreach ($logFile in $logFiles) {
-        if (Test-Path $logFile) {
-            Write-Host "=== Recent errors from $logFile ===" -ForegroundColor Red
-            Get-Content $logFile -Tail 10
-            Write-Host "=====================================" -ForegroundColor Red
-        }
-    }
-    
-    exit 1
-}
-
-# Start frontend development server
-Write-Host "Starting frontend development server..." -ForegroundColor Green
-Set-Location $frontendPath
+# Start frontend
+Write-Log "Starting frontend..." "INFO"
+Set-Location "..\frontend"
 
 try {
-    Write-Host "Installing frontend dependencies if needed..." -ForegroundColor Yellow
     if (-not (Test-Path "node_modules")) {
+        Write-Log "Installing frontend dependencies..." "INFO"
         npm install
     }
     
-    Write-Host "Starting frontend dev server..." -ForegroundColor Yellow
     $frontendProcess = Start-Process -FilePath "npm" -ArgumentList "run", "dev" -NoNewWindow -PassThru
-    Write-Host "Frontend dev server launched with PID: $($frontendProcess.Id)" -ForegroundColor Green
+    Write-Log "Frontend started successfully" "SUCCESS"
 } catch {
-    Write-Host "Error starting frontend: $($_.Exception.Message)" -ForegroundColor Red
-    exit 1
+    Write-Log "Error starting frontend: $($_.Exception.Message)" "ERROR"
 }
 
-# Wait for frontend to be ready
-if (-not (Wait-ForService -ServiceName "Frontend" -Url "http://localhost:5173" -Timeout 30)) {
-    Write-Host "Frontend failed to start properly" -ForegroundColor Red
-    exit 1
-}
+# Wait for services to be ready
+Write-Log "Waiting for services to be ready..." "INFO"
+Start-Sleep -Seconds 10
 
-Write-Host "`n=== HubTrack Startup Complete ===" -ForegroundColor Green
-Write-Host "Backend API: http://localhost:5000" -ForegroundColor Cyan
-Write-Host "Frontend: http://localhost:5173" -ForegroundColor Cyan
-Write-Host "LabJack: http://localhost:5001" -ForegroundColor Cyan
-Write-Host "===============================" -ForegroundColor Green
-Write-Host "All services are now running!" -ForegroundColor Green
-Write-Host "Chrome should open automatically with static loading page" -ForegroundColor Yellow
-Write-Host "Loading page will redirect to main app when services are ready" -ForegroundColor Yellow
+# Check service health
+Write-Log "Checking service health..." "INFO"
 
-# Keep the script running to maintain the processes
-Write-Host "`nPress Ctrl+C to stop all services" -ForegroundColor Yellow
-
+# Check backend
 try {
-    # Wait for any of the main processes to exit
-    Wait-Process -Id $backendProcess.Id, $frontendProcess.Id -ErrorAction SilentlyContinue
+    $response = Invoke-WebRequest -Uri "http://localhost:5000/api/health" -TimeoutSec 10
+    if ($response.StatusCode -eq 200) {
+        Write-Log "Backend health check: OK" "SUCCESS"
+    } else {
+        Write-Log "Backend health check: FAILED" "ERROR"
+    }
 } catch {
-    Write-Host "One or more processes have stopped" -ForegroundColor Yellow
+    Write-Log "Backend health check failed: $($_.Exception.Message)" "ERROR"
+}
+
+# Check LabJack
+try {
+    $response = Invoke-WebRequest -Uri "http://localhost:5001/api/labjack/ain1" -TimeoutSec 10
+    if ($response.StatusCode -eq 200) {
+        Write-Log "LabJack health check: OK" "SUCCESS"
+    } else {
+        Write-Log "LabJack health check: FAILED" "ERROR"
+    }
+} catch {
+    Write-Log "LabJack health check failed: $($_.Exception.Message)" "ERROR"
+}
+
+# Check frontend
+try {
+    $response = Invoke-WebRequest -Uri "http://localhost:5173" -TimeoutSec 10
+    if ($response.StatusCode -eq 200) {
+        Write-Log "Frontend health check: OK" "SUCCESS"
+    } else {
+        Write-Log "Frontend health check: FAILED" "ERROR"
+    }
+} catch {
+    Write-Log "Frontend health check failed: $($_.Exception.Message)" "ERROR"
+}
+
+Write-Log "=== HubTrack Startup Complete ===" "SUCCESS"
+Write-Log "Backend API: http://localhost:5000"
+Write-Log "LabJack: http://localhost:5001"
+Write-Log "Frontend: http://localhost:5173"
+
+if ($UsePM2) {
+    Write-Log "PM2 Commands:" "INFO"
+    Write-Log "  pm2 status          - Check process status" "INFO"
+    Write-Log "  pm2 logs            - View logs" "INFO"
+    Write-Log "  pm2 restart all     - Restart all processes" "INFO"
+    Write-Log "  pm2 stop all        - Stop all processes" "INFO"
+}
+
+Write-Log "Press Ctrl+C to stop all services" "WARN"
+
+# Keep script running and handle cleanup
+try {
+    if ($UsePM2) {
+        # Wait for PM2 processes
+        pm2 logs
+    } else {
+        # Wait for direct processes
+        Wait-Process -Id $backendProcess.Id, $frontendProcess.Id -ErrorAction SilentlyContinue
+    }
+} catch {
+    Write-Log "One or more processes have stopped" "WARN"
 } finally {
     # Cleanup on exit
-    Write-Host "`nStopping all HubTrack services..." -ForegroundColor Yellow
+    Write-Log "Stopping all HubTrack services..." "WARN"
     
-    # Stop backend processes
-    Get-Process | Where-Object { 
-        $_.ProcessName -in @("node", "python", "mongod") -and 
-        $_.MainWindowTitle -like "*hubtrack*" -or 
-        $_.ProcessName -like "*labjack*"
-    } | ForEach-Object {
-        Write-Host "Stopping process: $($_.ProcessName) (PID: $($_.Id))" -ForegroundColor Yellow
-        Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+    if ($UsePM2) {
+        pm2 stop all
+        pm2 delete all
+    } else {
+        # Stop direct processes
+        if ($backendProcess -and -not $backendProcess.HasExited) {
+            Stop-Process -Id $backendProcess.Id -Force
+        }
+        if ($frontendProcess -and -not $frontendProcess.HasExited) {
+            Stop-Process -Id $frontendProcess.Id -Force
+        }
     }
     
-    # Stop frontend process
-    if ($frontendProcess -and -not $frontendProcess.HasExited) {
-        Stop-Process -Id $frontendProcess.Id -Force
+    # Stop LabJack
+    if ($labjackProcess -and -not $labjackProcess.HasExited) {
+        Stop-Process -Id $labjackProcess.Id -Force
     }
     
-    Write-Host "All HubTrack services stopped." -ForegroundColor Green
+    Write-Log "All HubTrack services stopped." "SUCCESS"
 } 

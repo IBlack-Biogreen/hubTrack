@@ -1,39 +1,50 @@
 import { useState, useEffect } from 'react';
-import axios from 'axios';
-
-interface TimezoneData {
-  timezone: string;
-  offset: number;
-  offsetHours: number;
-  currentTime: string;
-  utcTime: string;
-}
 
 export function useLocalTime() {
   const [localTime, setLocalTime] = useState<Date>(new Date());
-  const [timezoneData, setTimezoneData] = useState<TimezoneData | null>(null);
+  const [timezone, setTimezone] = useState<string>('America/New_York');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch timezone data
+  // Fetch timezone from device settings
   useEffect(() => {
     const fetchTimezone = async () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await axios.get('http://localhost:5000/api/timezone');
-        setTimezoneData(response.data);
+        
+        // Get device labels to find the current device
+        const deviceLabelsResponse = await fetch('http://localhost:5000/api/device-labels');
+        if (!deviceLabelsResponse.ok) {
+          throw new Error('Failed to fetch device labels');
+        }
+        
+        const deviceLabels = await deviceLabelsResponse.json();
+        if (!deviceLabels || deviceLabels.length === 0) {
+          throw new Error('No device labels found');
+        }
+        
+        // Get the first device label
+        const deviceLabel = deviceLabels[0]?.deviceLabel;
+        if (!deviceLabel) {
+          throw new Error('No device label found');
+        }
+        
+        // Get device settings
+        const settingsResponse = await fetch(`http://localhost:5000/api/device-labels/${deviceLabel}/settings`);
+        if (!settingsResponse.ok) {
+          throw new Error('Failed to fetch device settings');
+        }
+        
+        const settings = await settingsResponse.json();
+        const savedTimezone = settings.timezone || 'America/New_York';
+        setTimezone(savedTimezone);
+        
       } catch (err) {
         console.error('Error fetching timezone:', err);
         setError('Failed to fetch timezone data');
-        // Fallback to system time
-        setTimezoneData({
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          offset: new Date().getTimezoneOffset() * 60, // Convert to seconds
-          offsetHours: new Date().getTimezoneOffset() / 60,
-          currentTime: new Date().toISOString(),
-          utcTime: new Date().toISOString()
-        });
+        // Fallback to system timezone
+        setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone);
       } finally {
         setLoading(false);
       }
@@ -50,28 +61,20 @@ export function useLocalTime() {
   // Update local time every second
   useEffect(() => {
     const updateTime = () => {
-      if (timezoneData) {
-        // Calculate local time based on timezone offset
-        const utcTime = new Date();
-        const localTime = new Date(utcTime.getTime() + (timezoneData.offset * 1000));
-        setLocalTime(localTime);
-      } else {
-        // Fallback to system time
-        setLocalTime(new Date());
-      }
+      setLocalTime(new Date());
     };
 
     updateTime();
     const timer = setInterval(updateTime, 1000);
     
     return () => clearInterval(timer);
-  }, [timezoneData]);
+  }, []);
 
   // Helper function to format time in the target timezone
-  const formatTimeInTimezone = (date: Date, timezone: string, options?: Intl.DateTimeFormatOptions) => {
+  const formatTimeInTimezone = (date: Date, timezoneName: string, options?: Intl.DateTimeFormatOptions) => {
     try {
       return new Intl.DateTimeFormat('en-US', {
-        timeZone: timezone,
+        timeZone: timezoneName,
         ...options
       }).format(date);
     } catch (error) {
@@ -82,11 +85,9 @@ export function useLocalTime() {
 
   return {
     localTime,
-    timezoneData,
     loading,
     error,
-    timezone: timezoneData?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-    offsetHours: timezoneData?.offsetHours || (new Date().getTimezoneOffset() / 60),
+    timezone,
     formatTimeInTimezone
   };
 } 

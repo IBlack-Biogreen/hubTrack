@@ -894,18 +894,23 @@ const TrackingSequence: React.FC = () => {
   }, [activeStep, navigate, capturedImage, isPlaceholderImage]);
   
   const handleExit = () => {
-    // Only allow exit if we're not on the summary step
-    if (activeStep !== 4) {
-      // Clear any existing timeouts
-      if (sequenceTimeoutRef.current) {
-        clearTimeout(sequenceTimeoutRef.current);
-      }
-      // Reset tracking sequence state
-      setIsInTrackingSequence(false);
-      setSequenceStartTime(null);
+    // If we're on the summary step, just close and return to home
+    if (activeStep === 4) {
       logout();
       navigate('/');
+      return;
     }
+    
+    // For other steps, cancel the sequence
+    // Clear any existing timeouts
+    if (sequenceTimeoutRef.current) {
+      clearTimeout(sequenceTimeoutRef.current);
+    }
+    // Reset tracking sequence state
+    setIsInTrackingSequence(false);
+    setSequenceStartTime(null);
+    logout();
+    navigate('/');
   };
   
   // Get step content based on active step
@@ -1382,10 +1387,10 @@ const TrackingSequence: React.FC = () => {
           <Box sx={{ p: 2, display: 'flex', justifyContent: 'flex-end', flexShrink: 0, borderTop: '1px solid #e0e0e0' }}>
             <Button
               variant="outlined"
-              color="error"
+              color={activeStep === 4 ? "primary" : "error"}
               onClick={handleExit}
             >
-              {t('cancel')}
+              {activeStep === 4 ? t('close') : t('cancel')}
             </Button>
           </Box>
         </Paper>

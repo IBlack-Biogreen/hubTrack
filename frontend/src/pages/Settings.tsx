@@ -89,7 +89,7 @@ function Settings() {
   const [longitudeDialogOpen, setLongitudeDialogOpen] = useState(false);
   const [tempLatitude, setTempLatitude] = useState('');
   const [tempLongitude, setTempLongitude] = useState('');
-  const { timezone, offsetHours } = useLocalTime();
+  const { timezone } = useLocalTime();
 
   const saveSettingsToDeviceLabel = async (settings: any) => {
     if (!currentDeviceLabel) return;
@@ -590,10 +590,10 @@ function Settings() {
                       />
                     </Box>
                     <Typography variant="body2" color="text.secondary">
-                      Current Timezone: {timezone} (UTC{offsetHours >= 0 ? '+' : ''}{offsetHours})
+                      Current Timezone: {timezone}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Weather and time are based on these coordinates
+                      Timezone can be changed in the Setup page
                     </Typography>
                   </Box>
                 </>
